@@ -1,4 +1,7 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
 /**
  * Shared header partial for the Recipes app.
  *
@@ -15,7 +18,28 @@ $recipes_home = home_url( '/recipes/' );
     <title><?php wp_app_title(); ?></title>
     <?php wp_app_head(); ?>
     <style>
-        :root { --bg:#fff; --fg:#1e1e1e; --muted:#666; --line:#e5e5e5; --accent:#b8541b; --card:#faf7f2; }
+        :root {
+            color-scheme: light dark;
+            --bg:    light-dark(#fff,    #1a1a1a);
+            --fg:    light-dark(#1e1e1e, #ececec);
+            --muted: light-dark(#666,    #a8a8a8);
+            --line:  light-dark(#e5e5e5, #333);
+            --accent: light-dark(#b8541b, #e0763a);
+            --card:  light-dark(#faf7f2, #232323);
+            --input-bg:     light-dark(#fff, #1a1a1a);
+            --input-border: light-dark(#bbb, #444);
+            --secondary-bg: light-dark(#eee, #2a2a2a);
+            --secondary-fg: light-dark(#333, #ddd);
+            --notice-bg:    light-dark(#fff5e0, #3a2f15);
+            --notice-bd:    light-dark(#f0d8a0, #6b552a);
+            --error-bg:     light-dark(#fdecea, #3d2424);
+            --error-bd:     light-dark(#f5c2bd, #7a3a3a);
+            --success-bg:   light-dark(#e8f5e9, #1f3621);
+            --success-bd:   light-dark(#b6dab8, #3f6b42);
+        }
+        /* Allow the WpApp masterbar's dark-mode toggle to force a scheme. */
+        :root[data-theme="dark"]  { color-scheme: dark;  }
+        :root[data-theme="light"] { color-scheme: light; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; line-height: 1.55; color: var(--fg); background: var(--bg); margin: 0; }
         a { color: var(--accent); }
         main { max-width: 820px; margin: 1.5rem auto; padding: 0 1rem 4rem; }
@@ -25,8 +49,8 @@ $recipes_home = home_url( '/recipes/' );
         .toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin: 1rem 0; }
         .toolbar .spacer { flex: 1; }
         .btn, button.btn, input[type="submit"].btn { display: inline-block; background: var(--accent); color: #fff; border: 0; padding: 0.5rem 0.9rem; border-radius: 4px; text-decoration: none; font: inherit; cursor: pointer; }
-        .btn.secondary { background: #eee; color: #333; }
-        .btn.danger { background: #b32d2e; }
+        .btn.secondary { background: var(--secondary-bg); color: var(--secondary-fg); }
+        .btn.danger { background: #b32d2e; color: #fff; }
         .meta { display: flex; gap: 1rem; color: var(--muted); font-size: 0.9rem; flex-wrap: wrap; }
         .badge { display: inline-block; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.85rem; color: #555; margin-right: 0.25rem; text-decoration: none; }
         .recipe-card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1rem 1.25rem; margin: 0.75rem 0; display: block; text-decoration: none; color: inherit; }
@@ -35,8 +59,8 @@ $recipes_home = home_url( '/recipes/' );
         .grid { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
         @media (min-width: 600px) { .grid { grid-template-columns: 1fr 1fr; } }
         label { display: block; margin: 0.75rem 0 0.25rem; font-weight: 600; }
-        input[type="text"], input[type="number"], input[type="url"], textarea, select {
-            width: 100%; max-width: 100%; padding: 0.5rem; border: 1px solid #bbb; border-radius: 4px; font: inherit; box-sizing: border-box; background: #fff; color: var(--fg);
+        input[type="text"], input[type="number"], input[type="url"], input[type="file"], textarea, select {
+            width: 100%; max-width: 100%; padding: 0.5rem; border: 1px solid var(--input-border); border-radius: 4px; font: inherit; box-sizing: border-box; background: var(--input-bg); color: var(--fg);
         }
         textarea { min-height: 8rem; }
         .row { display: grid; grid-template-columns: 5rem 6rem 1fr 1fr auto; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; }
@@ -47,20 +71,15 @@ $recipes_home = home_url( '/recipes/' );
         .ingredient-list .amt { min-width: 5rem; font-weight: 600; }
         .instruction-list { padding-left: 1.25rem; }
         .instruction-list li { margin: 0.5rem 0; }
-        .notice { background: #fff5e0; border: 1px solid #f0d8a0; padding: 0.6rem 0.9rem; border-radius: 4px; margin: 0.75rem 0; }
-        .notice.error { background: #fdecea; border-color: #f5c2bd; }
-        .notice.success { background: #e8f5e9; border-color: #b6dab8; }
+        .notice { background: var(--notice-bg); border: 1px solid var(--notice-bd); padding: 0.6rem 0.9rem; border-radius: 4px; margin: 0.75rem 0; }
+        .notice.error { background: var(--error-bg); border-color: var(--error-bd); }
+        .notice.success { background: var(--success-bg); border-color: var(--success-bd); }
         .help { color: var(--muted); font-size: 0.85rem; margin-top: 0.25rem; }
         .portion-control { display: flex; gap: 0.5rem; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 0.4rem 0.7rem; }
         .portion-control input { width: 4.5rem; }
         .unit-toggle { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 0.25rem; }
         .unit-toggle button { background: transparent; border: 0; padding: 0.3rem 0.6rem; cursor: pointer; border-radius: 3px; }
         .unit-toggle button.active { background: var(--accent); color: #fff; }
-        @media (prefers-color-scheme: dark) {
-            :root { --bg:#1a1a1a; --fg:#eee; --muted:#aaa; --line:#333; --card:#222; }
-            input, textarea, select { background:#1a1a1a; color: var(--fg); border-color:#444; }
-            .btn.secondary { background: #2a2a2a; color: #ddd; }
-        }
     </style>
 </head>
 <body>

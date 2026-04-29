@@ -1,77 +1,77 @@
-# create-wp-app
+# Recipes
 
-Scaffold a WordPress plugin powered by [WpApp](https://github.com/akirk/wp-app).
+A personal cookbook for WordPress. Store, categorize, scale and convert recipes — and import them from the web with one click.
+
+Built on the [WpApp framework](https://github.com/akirk/wp-app), so the app lives at `/recipes/` on your site, separate from your theme, with WordPress users, capabilities, and admin bar.
+
+## Features
+
+- **Native WordPress storage.** Every recipe is a `recipe` custom post type with `recipe_category` (hierarchical), `recipe_cuisine` (hierarchical) and `recipe_tag` (flat) taxonomies, plus structured post meta for ingredients, instructions, servings, prep/cook times, source URL and notes.
+- **Metric ⇄ Imperial.** Recipes are stored in their original units; conversion happens on display. Set your preference in `/recipes/settings`, or flip the live toggle on any recipe page. Unit aliases cover English and German (`EL`, `TL`, `Stk`, `Prise`, `Bund`, …).
+- **Live portion scaling.** Type the number of servings you want and every parsed amount rescales and reconverts immediately, client-side.
+- **Import from the web.** Paste a URL, the plugin extracts schema.org `Recipe` JSON-LD (handling `@graph`, `HowToSection`, `ImageObject`); paste plain text and a fallback parser splits ingredients and instructions from `Ingredients` / `Method` / `Directions` headers. Photos are sideloaded into the WordPress media library and set as the recipe's featured image.
+- **One-click save from any browser tab** via the [Friends browser extension](https://github.com/akirk/browser-extension): a "Save as Recipe" action POSTs the current page's HTML to the site, where the importer turns it into a draft recipe.
+- **Replace photos** through the edit form (file upload + remove checkbox).
+- **Dark mode** via CSS `light-dark()`, respects the WpApp masterbar's dark-mode toggle.
+- **Translatable** with the `recipes` text domain.
+
+## Install
+
+```bash
+cd wp-content/plugins
+git clone <this-repo> recipes
+cd recipes
+composer install
+```
+
+Then activate **Recipes** in WordPress and visit `/recipes/`.
 
 ## Usage
 
-```bash
-composer create-project akirk/create-wp-app my-plugin
-```
+| URL                              | Page                                       |
+| -------------------------------- | ------------------------------------------ |
+| `/recipes/`                      | All recipes                                |
+| `/recipes/new`                   | Create a recipe                            |
+| `/recipes/import`                | Paste a URL or recipe text to import       |
+| `/recipes/recipe/{id}`           | View                                       |
+| `/recipes/recipe/{id}/edit`      | Edit                                       |
+| `/recipes/category/{slug}`       | Browse by category                         |
+| `/recipes/tag/{slug}`            | Browse by tag                              |
+| `/recipes/settings`              | Choose metric or imperial                  |
 
-This will prompt you for:
+### Browser-extension import
 
-- **Plugin name** — Display name for your plugin
-- **Namespace** — PHP namespace for your classes
-- **Author** — Plugin author (optional)
-- **URL path** — Where your app lives (e.g., `/my-plugin/`)
-- **Setup type** — Minimal or Full (with BaseApp structure)
+Install the [Friends browser extension](https://github.com/akirk/browser-extension), authorise it for your site, and a **Save as Recipe** action will appear in the popup. Open any recipe page in your browser, click the action, and the importer will create a draft you can review.
 
-## Screenshot
+The integration uses the `friends_browser_extension_actions` filter — same pattern as the [Post Collection](https://wordpress.org/plugins/post-collection/) plugin.
 
-<img width="788" height="681" alt="create-wp-app" src="https://github.com/user-attachments/assets/f0180015-96e9-4ae1-af64-1cec0bae9de1" />
-
-## Setup Types
-
-### Minimal
-
-A simple setup with just the essentials:
+## Architecture
 
 ```
-my-plugin/
-├── my-plugin.php      # Main plugin file with WpApp initialization
-├── templates/
-│   └── index.php      # Your app's home page
-├── composer.json
-└── .gitignore
+recipes.php           Plugin bootstrap
+src/
+  App.php             BaseApp subclass: CPT, taxonomies, routes, admin-post handlers
+  Importer.php        URL fetch + JSON-LD extraction + text-parse fallback
+  Units.php           Mass/volume conversion, unit aliases, formatting
+templates/
+  index.php           Recipe list
+  recipe.php          Recipe view (portion scaling + unit toggle)
+  recipe-edit.php     Edit existing
+  new.php             Create new
+  _form.php           Shared edit form
+  import.php          Paste URL or text
+  settings.php        User preferences
+  category.php tag.php  Taxonomy archives
 ```
 
-### Full
+Forms POST to `admin-post.php` with WordPress nonces. The browser-extension endpoint hooks `wp_loaded` and reads `?recipes-collect={url}` with `body={page_html}` in the POST body.
 
-A structured setup for larger applications:
-
-```
-my-plugin/
-├── my-plugin.php      # Main plugin file
-├── src/
-│   └── App.php        # BaseApp subclass with routes, menu, database hooks
-├── templates/
-│   └── index.php
-├── composer.json
-└── .gitignore
-```
-
-## Non-Interactive Mode
-
-For CI/CD or scripting, use environment variables:
+## Standards
 
 ```bash
-WP_APP_PLUGIN_NAME="My App" \
-WP_APP_NAMESPACE="MyApp" \
-WP_APP_AUTHOR="Your Name" \
-WP_APP_URL_PATH="my-app" \
-WP_APP_SETUP_TYPE="1" \
-composer create-project --no-interaction akirk/create-wp-app my-plugin
+wp plugin check recipes        # WordPress.org Plugin Check
+composer phpcs                 # WordPress Coding Standards (via wp-app)
 ```
-
-## After Setup
-
-1. Move the folder to `wp-content/plugins/` (if not already there)
-2. Activate the plugin in WordPress
-3. Visit your app at the URL path you configured
-
-## Documentation
-
-See the [WpApp documentation](https://github.com/akirk/wp-app/blob/main/README.md) for details on routing, the masterbar, access control, and more.
 
 ## License
 

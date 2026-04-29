@@ -1,4 +1,8 @@
 <?php
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- variables here are template-local, not actually global.
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
 /**
  * Shared recipe form. Variables expected:
  *   $id (int|0), $post (WP_Post|null), $is_new (bool)
@@ -38,54 +42,54 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
     <input type="hidden" name="action" value="recipes_save">
     <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
 
-    <label for="title">Title</label>
+    <label for="title"><?php esc_html_e( 'Title', 'recipes' ); ?></label>
     <input id="title" type="text" name="title" value="<?php echo esc_attr( $title ); ?>" required autofocus>
 
-    <label>Photo</label>
+    <label><?php esc_html_e( 'Photo', 'recipes' ); ?></label>
     <?php $thumb_url = $post && has_post_thumbnail( $id ) ? get_the_post_thumbnail_url( $id, 'medium' ) : ''; ?>
     <?php if ( $thumb_url ) : ?>
         <div style="display:flex;gap:1rem;align-items:flex-start;margin-bottom:0.5rem">
             <img src="<?php echo esc_url( $thumb_url ); ?>" alt="" style="max-width:240px;border-radius:6px;border:1px solid var(--line)">
             <label style="font-weight:normal;display:flex;gap:0.4rem;align-items:center;margin:0">
-                <input type="checkbox" name="remove_image" value="1"> Remove photo
+                <input type="checkbox" name="remove_image" value="1"> <?php esc_html_e( 'Remove photo', 'recipes' ); ?>
             </label>
         </div>
     <?php endif; ?>
     <input id="image" type="file" name="image" accept="image/*">
-    <p class="help"><?php echo $thumb_url ? 'Upload a new file to replace the current photo.' : 'Optional. Will be added to the media library.'; ?></p>
+    <p class="help"><?php echo $thumb_url ? esc_html__( 'Upload a new file to replace the current photo.', 'recipes' ) : esc_html__( 'Optional. Will be added to the media library.', 'recipes' ); ?></p>
 
-    <label for="description">Short description</label>
+    <label for="description"><?php esc_html_e( 'Short description', 'recipes' ); ?></label>
     <textarea id="description" name="description" style="min-height:4rem"><?php echo esc_textarea( $content ); ?></textarea>
 
     <div class="grid">
         <div>
-            <label for="servings">Servings (default)</label>
+            <label for="servings"><?php esc_html_e( 'Servings (default)', 'recipes' ); ?></label>
             <input id="servings" type="number" min="1" name="servings" value="<?php echo (int) ( $servings ?: 4 ); ?>">
         </div>
         <div>
-            <label for="prep_time">Prep time (minutes)</label>
+            <label for="prep_time"><?php esc_html_e( 'Prep time (minutes)', 'recipes' ); ?></label>
             <input id="prep_time" type="number" min="0" name="prep_time" value="<?php echo (int) $prep; ?>">
         </div>
         <div>
-            <label for="cook_time">Cook time (minutes)</label>
+            <label for="cook_time"><?php esc_html_e( 'Cook time (minutes)', 'recipes' ); ?></label>
             <input id="cook_time" type="number" min="0" name="cook_time" value="<?php echo (int) $cook; ?>">
         </div>
         <div>
-            <label for="source_url">Source URL (optional)</label>
+            <label for="source_url"><?php esc_html_e( 'Source URL (optional)', 'recipes' ); ?></label>
             <input id="source_url" type="url" name="source_url" value="<?php echo esc_attr( $source_url ); ?>">
         </div>
     </div>
 
-    <h2>Ingredients</h2>
-    <p class="help">Amount + unit are optional. Enter "1/2", "1.5", or use fractions like ½. Recognised units convert automatically; "piece", "clove", "pinch" etc. are kept as-is.</p>
+    <h2><?php esc_html_e( 'Ingredients', 'recipes' ); ?></h2>
+    <p class="help"><?php esc_html_e( 'Amount + unit are optional. Enter "1/2", "1.5", or use fractions like ½. Recognised units convert automatically; "piece", "clove", "pinch" etc. are kept as-is.', 'recipes' ); ?></p>
     <div id="ingredient-rows">
         <?php foreach ( $ingredients as $i => $row ) : ?>
             <div class="row">
-                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][amount]" value="<?php echo esc_attr( $row['amount'] ?? '' ); ?>" placeholder="2">
-                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][unit]"   value="<?php echo esc_attr( $row['unit'] ?? '' ); ?>"   placeholder="g" list="recipe-units">
-                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][name]"   value="<?php echo esc_attr( $row['name'] ?? '' ); ?>"   placeholder="ingredient" required>
-                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][notes]"  value="<?php echo esc_attr( $row['notes'] ?? '' ); ?>"  placeholder="chopped">
-                <button type="button" class="remove" aria-label="Remove">×</button>
+                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][amount]" value="<?php echo esc_attr( $row['amount'] ?? '' ); ?>" placeholder="<?php esc_attr_e( '2', 'recipes' ); ?>">
+                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][unit]"   value="<?php echo esc_attr( $row['unit'] ?? '' ); ?>"   placeholder="<?php esc_attr_e( 'g', 'recipes' ); ?>" list="recipe-units">
+                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][name]"   value="<?php echo esc_attr( $row['name'] ?? '' ); ?>"   placeholder="<?php esc_attr_e( 'ingredient', 'recipes' ); ?>" required>
+                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][notes]"  value="<?php echo esc_attr( $row['notes'] ?? '' ); ?>"  placeholder="<?php esc_attr_e( 'chopped', 'recipes' ); ?>">
+                <button type="button" class="remove" aria-label="<?php esc_attr_e( 'Remove', 'recipes' ); ?>">×</button>
             </div>
         <?php endforeach; ?>
     </div>
@@ -94,23 +98,26 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
             <option value="<?php echo esc_attr( $u ); ?>"></option>
         <?php endforeach; ?>
     </datalist>
-    <button type="button" class="btn secondary" id="add-ingredient">+ Add ingredient</button>
+    <button type="button" class="btn secondary" id="add-ingredient"><?php esc_html_e( '+ Add ingredient', 'recipes' ); ?></button>
 
-    <h2>Instructions</h2>
+    <h2><?php esc_html_e( 'Instructions', 'recipes' ); ?></h2>
     <div id="instruction-rows">
         <?php foreach ( $instructions as $i => $step ) : ?>
             <div class="row" style="grid-template-columns: 1fr auto; align-items: flex-start">
-                <textarea name="instructions[]" placeholder="Step <?php echo (int) $i + 1; ?>"><?php echo esc_textarea( $step ); ?></textarea>
-                <button type="button" class="remove" aria-label="Remove">×</button>
+                <textarea name="instructions[]" placeholder="<?php
+                    /* translators: %d: step number */
+                    echo esc_attr( sprintf( __( 'Step %d', 'recipes' ), (int) $i + 1 ) );
+                ?>"><?php echo esc_textarea( $step ); ?></textarea>
+                <button type="button" class="remove" aria-label="<?php esc_attr_e( 'Remove', 'recipes' ); ?>">×</button>
             </div>
         <?php endforeach; ?>
     </div>
-    <button type="button" class="btn secondary" id="add-instruction">+ Add step</button>
+    <button type="button" class="btn secondary" id="add-instruction"><?php esc_html_e( '+ Add step', 'recipes' ); ?></button>
 
-    <h2>Categorisation</h2>
+    <h2><?php esc_html_e( 'Categorisation', 'recipes' ); ?></h2>
     <div class="grid">
         <div>
-            <label for="categories">Categories</label>
+            <label for="categories"><?php esc_html_e( 'Categories', 'recipes' ); ?></label>
             <select id="categories" name="categories[]" multiple size="5" style="height:auto">
                 <?php foreach ( (array) $categories as $cat ) : ?>
                     <option value="<?php echo (int) $cat->term_id; ?>" <?php selected( in_array( $cat->term_id, (array) $current_categories ) ); ?>>
@@ -118,10 +125,10 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
                     </option>
                 <?php endforeach; ?>
             </select>
-            <p class="help">Or type new ones (comma-separated): <input type="text" name="categories[]" placeholder="Mains, Desserts"></p>
+            <p class="help"><?php esc_html_e( 'Or type new ones (comma-separated):', 'recipes' ); ?> <input type="text" name="categories[]" placeholder="<?php esc_attr_e( 'Mains, Desserts', 'recipes' ); ?>"></p>
         </div>
         <div>
-            <label for="cuisines">Cuisines</label>
+            <label for="cuisines"><?php esc_html_e( 'Cuisines', 'recipes' ); ?></label>
             <select id="cuisines" name="cuisines[]" multiple size="5" style="height:auto">
                 <?php foreach ( (array) $cuisines as $cui ) : ?>
                     <option value="<?php echo (int) $cui->term_id; ?>" <?php selected( in_array( $cui->term_id, (array) $current_cuisines ) ); ?>>
@@ -129,19 +136,19 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
                     </option>
                 <?php endforeach; ?>
             </select>
-            <p class="help">Or type a new one: <input type="text" name="cuisines[]" placeholder="Italian"></p>
+            <p class="help"><?php esc_html_e( 'Or type a new one:', 'recipes' ); ?> <input type="text" name="cuisines[]" placeholder="<?php esc_attr_e( 'Italian', 'recipes' ); ?>"></p>
         </div>
     </div>
 
-    <label for="tags">Tags (comma-separated)</label>
-    <input id="tags" type="text" name="tags" value="<?php echo esc_attr( $tags_string ); ?>" placeholder="quick, vegetarian, weeknight">
+    <label for="tags"><?php esc_html_e( 'Tags (comma-separated)', 'recipes' ); ?></label>
+    <input id="tags" type="text" name="tags" value="<?php echo esc_attr( $tags_string ); ?>" placeholder="<?php esc_attr_e( 'quick, vegetarian, weeknight', 'recipes' ); ?>">
 
-    <label for="notes">Notes (optional)</label>
+    <label for="notes"><?php esc_html_e( 'Notes (optional)', 'recipes' ); ?></label>
     <textarea id="notes" name="notes" style="min-height:5rem"><?php echo esc_textarea( $notes ); ?></textarea>
 
     <div class="toolbar" style="margin-top:1.5rem">
-        <button class="btn" type="submit"><?php echo $is_new ? 'Create recipe' : 'Save recipe'; ?></button>
-        <a class="btn secondary" href="<?php echo esc_url( $post ? home_url( '/recipes/recipe/' . $id ) : home_url( '/recipes/' ) ); ?>">Cancel</a>
+        <button class="btn" type="submit"><?php echo $is_new ? esc_html__( 'Create recipe', 'recipes' ) : esc_html__( 'Save recipe', 'recipes' ); ?></button>
+        <a class="btn secondary" href="<?php echo esc_url( $post ? home_url( '/recipes/recipe/' . $id ) : home_url( '/recipes/' ) ); ?>"><?php esc_html_e( 'Cancel', 'recipes' ); ?></a>
     </div>
 </form>
 

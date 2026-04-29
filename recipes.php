@@ -1,11 +1,15 @@
 <?php
 /**
  * Plugin Name: Recipes
- * Description: A WordPress app powered by WpApp.
+ * Description: A personal cookbook: store, categorize, scale and import recipes from the web.
  * Version: 1.0.0
  * Author: Alex Kirk
  * Text Domain: recipes
+ * Domain Path: /languages
  * Requires PHP: 7.4
+ * Requires at least: 6.0
+ * License: GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  */
 
 namespace Recipes;
@@ -28,6 +32,12 @@ spl_autoload_register( function( $class ) {
     if ( file_exists( $file ) ) {
         require $file;
     }
+} );
+
+add_action( 'init', function() {
+    // Self-hosted plugin: we still need to load translations explicitly. WordPress 4.6+
+    // auto-loads only for plugins distributed through WordPress.org.
+    load_plugin_textdomain( 'recipes', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' ); // phpcs:ignore PluginCheck.CodeAnalysis.DiscouragedFunctions.load_plugin_textdomainFound
 } );
 
 add_action( 'plugins_loaded', function() {

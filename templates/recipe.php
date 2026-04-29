@@ -1,4 +1,8 @@
 <?php
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- variables here are template-local, not actually global.
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
 use Recipes\App;
 use Recipes\Importer;
 use Recipes\Units;
@@ -8,7 +12,7 @@ $post = $id ? get_post( $id ) : null;
 if ( ! $post || $post->post_type !== App::POST_TYPE ) {
     status_header( 404 );
     include __DIR__ . '/_header.php';
-    echo '<h1>Not found</h1><p>That recipe does not exist.</p>';
+    echo '<h1>' . esc_html__( 'Not found', 'recipes' ) . '</h1><p>' . esc_html__( 'That recipe does not exist.', 'recipes' ) . '</p>';
     include __DIR__ . '/_footer.php';
     return;
 }
@@ -21,8 +25,10 @@ $instructions     = (array) get_post_meta( $id, App::META_INSTRUCTIONS, true );
 $source_url       = (string) get_post_meta( $id, App::META_SOURCE_URL, true );
 $notes            = (string) get_post_meta( $id, App::META_NOTES, true );
 
-$preference = isset( $_GET['units'] ) && in_array( $_GET['units'], [ 'metric', 'imperial' ], true )
-    ? $_GET['units']
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only display preference, validated against an allow-list below.
+$units_param = isset( $_GET['units'] ) ? sanitize_text_field( wp_unslash( $_GET['units'] ) ) : '';
+$preference  = in_array( $units_param, [ 'metric', 'imperial' ], true )
+    ? $units_param
     : App::get_user_unit_preference();
 
 $cats     = wp_get_object_terms( $id, App::TAX_CATEGORY );
@@ -31,7 +37,7 @@ $tags     = wp_get_object_terms( $id, App::TAX_TAG );
 
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/recipes/' ) ); ?>">← All recipes</a>
+<a class="badge" href="<?php echo esc_url( home_url( '/recipes/' ) ); ?>"><?php esc_html_e( '← All recipes', 'recipes' ); ?></a>
 <h1><?php echo esc_html( get_the_title( $post ) ); ?></h1>
 
 <?php if ( has_post_thumbnail( $id ) ) : ?>
@@ -42,10 +48,27 @@ include __DIR__ . '/_header.php';
 <?php endif; ?>
 
 <div class="meta">
-    <?php if ( $prep ) : ?><span>Prep: <?php echo (int) $prep; ?> min</span><?php endif; ?>
-    <?php if ( $cook ) : ?><span>Cook: <?php echo (int) $cook; ?> min</span><?php endif; ?>
+    <?php if ( $prep ) : ?>
+        <span>
+            <?php
+            /* translators: %d: prep time in minutes */
+            echo esc_html( sprintf( __( 'Prep: %d min', 'recipes' ), $prep ) );
+            ?>
+        </span>
+    <?php endif; ?>
+    <?php if ( $cook ) : ?>
+        <span>
+            <?php
+            /* translators: %d: cook time in minutes */
+            echo esc_html( sprintf( __( 'Cook: %d min', 'recipes' ), $cook ) );
+            ?>
+        </span>
+    <?php endif; ?>
     <?php if ( $source_url ) : ?>
-        <span>Source: <a href="<?php echo esc_url( $source_url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( wp_parse_url( $source_url, PHP_URL_HOST ) ?: $source_url ); ?></a></span>
+        <span>
+            <?php esc_html_e( 'Source:', 'recipes' ); ?>
+            <a href="<?php echo esc_url( $source_url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( wp_parse_url( $source_url, PHP_URL_HOST ) ?: $source_url ); ?></a>
+        </span>
     <?php endif; ?>
 </div>
 
@@ -65,24 +88,32 @@ include __DIR__ . '/_header.php';
 
 <div class="toolbar">
     <div class="portion-control">
-        <label for="servings" style="margin:0">Servings:</label>
+        <label for="servings" style="margin:0"><?php esc_html_e( 'Servings:', 'recipes' ); ?></label>
         <input id="servings" type="number" min="1" step="1" value="<?php echo (int) $servings_default; ?>" data-default="<?php echo (int) $servings_default; ?>">
     </div>
-    <div class="unit-toggle" role="tablist" aria-label="Unit system">
-        <button type="button" class="<?php echo $preference === 'metric' ? 'active' : ''; ?>" data-units="metric">Metric</button>
-        <button type="button" class="<?php echo $preference === 'imperial' ? 'active' : ''; ?>" data-units="imperial">Imperial</button>
+    <div class="unit-toggle" role="tablist" aria-label="<?php esc_attr_e( 'Unit system', 'recipes' ); ?>">
+        <button type="button" class="<?php echo $preference === 'metric' ? 'active' : ''; ?>" data-units="metric"><?php esc_html_e( 'Metric', 'recipes' ); ?></button>
+        <button type="button" class="<?php echo $preference === 'imperial' ? 'active' : ''; ?>" data-units="imperial"><?php esc_html_e( 'Imperial', 'recipes' ); ?></button>
     </div>
     <span class="spacer"></span>
-    <a class="btn secondary" href="<?php echo esc_url( home_url( '/recipes/recipe/' . $id . '/edit' ) ); ?>">Edit</a>
+    <a class="btn secondary" href="<?php echo esc_url( home_url( '/recipes/recipe/' . $id . '/edit' ) ); ?>"><?php esc_html_e( 'Edit', 'recipes' ); ?></a>
 </div>
 
 <?php if ( $post->post_content ) : ?>
     <div class="description"><?php echo wp_kses_post( wpautop( $post->post_content ) ); ?></div>
 <?php endif; ?>
 
-<h2>Ingredients</h2>
+<h2><?php esc_html_e( 'Ingredients', 'recipes' ); ?></h2>
 <?php if ( ! $ingredients ) : ?>
-    <p class="help">No ingredients yet. <a href="<?php echo esc_url( home_url( '/recipes/recipe/' . $id . '/edit' ) ); ?>">Add some</a>.</p>
+    <p class="help">
+        <?php
+        printf(
+            /* translators: %s: link to the recipe edit page */
+            esc_html__( 'No ingredients yet. %s.', 'recipes' ),
+            '<a href="' . esc_url( home_url( '/recipes/recipe/' . $id . '/edit' ) ) . '">' . esc_html__( 'Add some', 'recipes' ) . '</a>'
+        );
+        ?>
+    </p>
 <?php else : ?>
 <ul class="ingredient-list" id="ingredients">
     <?php foreach ( $ingredients as $ing ) :
@@ -101,7 +132,7 @@ include __DIR__ . '/_header.php';
             <span>
                 <?php echo esc_html( $rendered['name'] ); ?>
                 <?php if ( ! empty( $rendered['notes'] ) ) : ?>
-                    <span style="color:#888"> – <?php echo esc_html( $rendered['notes'] ); ?></span>
+                    <span style="color:var(--muted)"> – <?php echo esc_html( $rendered['notes'] ); ?></span>
                 <?php endif; ?>
             </span>
         </li>
@@ -109,9 +140,9 @@ include __DIR__ . '/_header.php';
 </ul>
 <?php endif; ?>
 
-<h2>Instructions</h2>
+<h2><?php esc_html_e( 'Instructions', 'recipes' ); ?></h2>
 <?php if ( ! $instructions ) : ?>
-    <p class="help">No instructions yet.</p>
+    <p class="help"><?php esc_html_e( 'No instructions yet.', 'recipes' ); ?></p>
 <?php else : ?>
 <ol class="instruction-list">
     <?php foreach ( $instructions as $step ) :
@@ -124,15 +155,15 @@ include __DIR__ . '/_header.php';
 <?php endif; ?>
 
 <?php if ( $notes ) : ?>
-    <h2>Notes</h2>
+    <h2><?php esc_html_e( 'Notes', 'recipes' ); ?></h2>
     <div><?php echo wp_kses_post( wpautop( $notes ) ); ?></div>
 <?php endif; ?>
 
-<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:2rem" onsubmit="return confirm('Move this recipe to trash?')">
+<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:2rem" onsubmit="return confirm('<?php echo esc_js( __( 'Move this recipe to trash?', 'recipes' ) ); ?>')">
     <?php wp_nonce_field( 'recipes_delete' ); ?>
     <input type="hidden" name="action" value="recipes_delete">
     <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
-    <button class="btn danger" type="submit">Delete recipe</button>
+    <button class="btn danger" type="submit"><?php esc_html_e( 'Delete recipe', 'recipes' ); ?></button>
 </form>
 
 <script>

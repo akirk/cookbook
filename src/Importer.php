@@ -2,6 +2,10 @@
 
 namespace Recipes;
 
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
 /**
  * Recipe importer.
  *

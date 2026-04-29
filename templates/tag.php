@@ -1,4 +1,8 @@
 <?php
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- variables here are template-local, not actually global.
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
 use Recipes\App;
 
 $slug = (string) get_query_var( 'slug' );
@@ -6,7 +10,7 @@ $term = $slug ? get_term_by( 'slug', $slug, App::TAX_TAG ) : null;
 if ( ! $term ) {
     status_header( 404 );
     include __DIR__ . '/_header.php';
-    echo '<h1>Tag not found</h1>';
+    echo '<h1>' . esc_html__( 'Tag not found', 'recipes' ) . '</h1>';
     include __DIR__ . '/_footer.php';
     return;
 }
@@ -15,6 +19,7 @@ $recipes = get_posts( [
     'post_type'      => App::POST_TYPE,
     'post_status'    => [ 'publish', 'draft' ],
     'posts_per_page' => 100,
+    // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- a tag page intrinsically requires a taxonomy filter.
     'tax_query'      => [
         [ 'taxonomy' => App::TAX_TAG, 'field' => 'term_id', 'terms' => $term->term_id ],
     ],
@@ -22,12 +27,17 @@ $recipes = get_posts( [
 
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/recipes/' ) ); ?>">← All recipes</a>
+<a class="badge" href="<?php echo esc_url( home_url( '/recipes/' ) ); ?>"><?php esc_html_e( '← All recipes', 'recipes' ); ?></a>
 <h1>#<?php echo esc_html( $term->name ); ?></h1>
-<p class="subtitle"><?php echo (int) count( $recipes ); ?> recipe<?php echo count( $recipes ) === 1 ? '' : 's'; ?>.</p>
+<p class="subtitle">
+    <?php
+    /* translators: %d: number of recipes */
+    echo esc_html( sprintf( _n( '%d recipe.', '%d recipes.', count( $recipes ), 'recipes' ), count( $recipes ) ) );
+    ?>
+</p>
 
 <?php if ( ! $recipes ) : ?>
-    <div class="notice">No recipes with this tag yet.</div>
+    <div class="notice"><?php esc_html_e( 'No recipes with this tag yet.', 'recipes' ); ?></div>
 <?php else : ?>
     <div class="grid">
     <?php foreach ( $recipes as $r ) : ?>
