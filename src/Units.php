@@ -116,27 +116,32 @@ class Units {
         if ( $v === '' ) return null;
 
         $fractions = [
-            '½' => 0.5, '⅓' => 1/3, '⅔' => 2/3, '¼' => 0.25, '¾' => 0.75,
-            '⅕' => 0.2, '⅖' => 0.4, '⅗' => 0.6, '⅘' => 0.8,
-            '⅙' => 1/6, '⅚' => 5/6, '⅛' => 0.125, '⅜' => 0.375, '⅝' => 0.625, '⅞' => 0.875,
+            '½' => 0.5,    '⅓' => 1.0 / 3.0, '⅔' => 2.0 / 3.0, '¼' => 0.25, '¾' => 0.75,
+            '⅕' => 0.2,    '⅖' => 0.4,       '⅗' => 0.6,       '⅘' => 0.8,
+            '⅙' => 1.0 / 6.0, '⅚' => 5.0 / 6.0,
+            '⅛' => 0.125,  '⅜' => 0.375,    '⅝' => 0.625,     '⅞' => 0.875,
         ];
-        foreach ( $fractions as $g => $f ) {
-            $v = str_replace( $g, ' ' . $f, $v );
-        }
-        $v = trim( preg_replace( '/\s+/', ' ', $v ) );
 
-        // "1 1/2" => 1.5
+        // Bare unicode fraction: "½".
+        if ( isset( $fractions[ $v ] ) ) return $fractions[ $v ];
+
+        // Mixed unicode fraction: "1½", "1 ½".
+        if ( preg_match( '/^(\d+)\s*(' . implode( '|', array_map( 'preg_quote', array_keys( $fractions ) ) ) . ')$/u', $v, $m ) ) {
+            return (float) $m[1] + $fractions[ $m[2] ];
+        }
+
+        // ASCII mixed: "1 1/2".
         if ( preg_match( '#^(\d+)\s+(\d+)/(\d+)$#', $v, $m ) ) {
             return (float) $m[1] + ( (float) $m[2] / (float) $m[3] );
         }
-        // "1/2"
+        // ASCII fraction: "1/2".
         if ( preg_match( '#^(\d+)/(\d+)$#', $v, $m ) ) {
             return (float) $m[1] / (float) $m[2];
         }
-        // "1.5" or "1,5"
-        $v = str_replace( ',', '.', $v );
-        if ( is_numeric( $v ) ) return (float) $v;
-        // "1.5 something" — take the leading number
+        // Decimal — accept "1,5" too.
+        $decimal = str_replace( ',', '.', $v );
+        if ( is_numeric( $decimal ) ) return (float) $decimal;
+        // Leading number, e.g. "1.5 something".
         if ( preg_match( '/^[\d\.]+/', $v, $m ) ) {
             return (float) $m[0];
         }

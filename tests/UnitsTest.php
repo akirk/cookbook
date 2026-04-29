@@ -1,0 +1,80 @@
+<?php
+
+use PHPUnit\Framework\TestCase;
+use Recipes\Units;
+
+class UnitsTest extends TestCase {
+
+    /** @dataProvider amounts */
+    public function test_parse_amount( $input, $expected ): void {
+        $this->assertSame( $expected, Units::parse_amount( $input ) );
+    }
+
+    public static function amounts(): array {
+        return [
+            'plain int'     => [ '200',     200.0 ],
+            'decimal'       => [ '1.5',     1.5 ],
+            'comma decimal' => [ '1,5',     1.5 ],
+            'fraction'      => [ '1/2',     0.5 ],
+            'mixed'         => [ '1 1/2',   1.5 ],
+            'unicode half'  => [ '½',       0.5 ],
+            'unicode third' => [ '⅓',       1.0 / 3.0 ],
+            'blank'         => [ '',        null ],
+            'non-numeric'   => [ 'a pinch', null ],
+        ];
+    }
+
+    public function test_normalize_unit_aliases(): void {
+        $this->assertSame( 'tbsp',  Units::normalize_unit( 'EL' ) );
+        $this->assertSame( 'tbsp',  Units::normalize_unit( 'tablespoons' ) );
+        $this->assertSame( 'tsp',   Units::normalize_unit( 'TL' ) );
+        $this->assertSame( 'piece', Units::normalize_unit( 'Stk' ) );
+        $this->assertSame( 'pinch', Units::normalize_unit( 'Prise' ) );
+        $this->assertSame( 'kg',    Units::normalize_unit( 'kilograms' ) );
+    }
+
+    public function test_metric_to_imperial_mass(): void {
+        $out = Units::to_preference( 1000, 'g', 'imperial' );
+        $this->assertSame( 'lb', $out['unit'] );
+        $this->assertGreaterThan( 2.0, (float) $out['amount'] );
+        $this->assertLessThan( 2.5, (float) $out['amount'] );
+    }
+
+    public function test_imperial_to_metric_volume(): void {
+        $out = Units::to_preference( 2, 'cup', 'metric' );
+        // 2 cups ≈ 473 ml.
+        $this->assertSame( 'ml', $out['unit'] );
+        $this->assertGreaterThan( 460, (float) $out['amount'] );
+        $this->assertLessThan( 490, (float) $out['amount'] );
+    }
+
+    public function test_metric_promotion_g_to_kg(): void {
+        $out = Units::to_preference( 1500, 'g', 'metric' );
+        $this->assertSame( 'kg',  $out['unit'] );
+        $this->assertSame( '1.5', $out['amount'] );
+    }
+
+    public function test_non_convertible_unit_passes_through(): void {
+        $out = Units::to_preference( 1, 'piece', 'imperial' );
+        $this->assertSame( 'piece', $out['unit'] );
+        $this->assertSame( 1, $out['amount'] );
+    }
+
+    public function test_render_ingredient_scales_and_converts(): void {
+        $row = [ 'amount' => '200', 'unit' => 'g', 'name' => 'flour', 'notes' => '' ];
+        $rendered = Units::render_ingredient( $row, 2.0, 'imperial' );
+
+        // 400 g ≈ 14.1 oz.
+        $this->assertSame( 'oz', $rendered['unit'] );
+        $this->assertGreaterThan( 13.5, (float) $rendered['amount'] );
+        $this->assertLessThan(  14.5, (float) $rendered['amount'] );
+    }
+
+    public function test_render_ingredient_unparseable_amount_kept_verbatim(): void {
+        $row = [ 'amount' => 'a pinch', 'unit' => '', 'name' => 'salt', 'notes' => '' ];
+        $rendered = Units::render_ingredient( $row, 2.0, 'imperial' );
+
+        $this->assertSame( 'a pinch', $rendered['amount'] );
+        $this->assertSame( 'salt',    $rendered['name'] );
+    }
+}

@@ -45,15 +45,37 @@ class Importer {
     /**
      * Parse a recipe from a chunk of HTML — used for the browser-extension
      * import where the page body has already been captured client-side.
+     *
+     * Tries JSON-LD first, then HTML microdata. Falls back to text-parsing
+     * the stripped page only if it has explicit "Ingredients" / "Method"
+     * section markers — without them the heuristic line classifier
+     * mis-identifies things like rating counts and comment timestamps as
+     * ingredients.
      */
     public static function from_html( string $html ): ?array {
         if ( $html === '' ) return null;
+
         $recipe = self::extract_jsonld_recipe( $html );
         if ( $recipe ) {
             $parsed = self::normalize_jsonld( $recipe );
             if ( $parsed ) return $parsed;
         }
-        return self::from_text( wp_strip_all_tags( $html ) );
+
+        $parsed = self::extract_microdata_recipe( $html );
+        if ( $parsed ) return $parsed;
+
+        $text = wp_strip_all_tags( $html );
+        if ( ! self::has_recipe_section_markers( $text ) ) {
+            return null;
+        }
+        return self::from_text( $text );
+    }
+
+    private static function has_recipe_section_markers( string $text ): bool {
+        return (bool) preg_match(
+            '/^\s*(ingredients?|zutaten|method|instructions?|directions?|preparation|zubereitung|steps?)\s*:?\s*$/im',
+            $text
+        );
     }
 
     public static function from_text( string $text ): ?array {
@@ -76,15 +98,15 @@ class Importer {
 
         foreach ( $lines as $i => $line ) {
             $lower = strtolower( $line );
-            if ( preg_match( '/^(ingredients?)\b[: ]*$/i', $lower ) ) {
+            if ( preg_match( '/^(ingredients?|zutaten)\b[: ]*$/iu', $lower ) ) {
                 $section = 'ingredients';
                 continue;
             }
-            if ( preg_match( '/^(method|instructions?|directions?|preparation|steps?)\b[: ]*$/i', $lower ) ) {
+            if ( preg_match( '/^(method|instructions?|directions?|preparation|steps?|zubereitung|anleitung)\b[: ]*$/iu', $lower ) ) {
                 $section = 'instructions';
                 continue;
             }
-            if ( preg_match( '/^(notes?|tips?)\b[: ]*$/i', $lower ) ) {
+            if ( preg_match( '/^(notes?|tips?|tipp|tipps|hinweise?)\b[: ]*$/iu', $lower ) ) {
                 $section = 'notes';
                 continue;
             }
@@ -166,6 +188,146 @@ class Importer {
             'name'   => trim( $rest ),
             'notes'  => $notes,
         ];
+    }
+
+    /**
+     * Pull a Recipe from HTML microdata (itemtype="...Recipe" + itemprop="...").
+     */
+    private static function extract_microdata_recipe( string $html ): ?array {
+        if ( ! class_exists( '\\DOMDocument' ) ) return null;
+
+        $doc = new \DOMDocument();
+        $prev = libxml_use_internal_errors( true );
+        $loaded = $doc->loadHTML( '<?xml encoding="utf-8" ?>' . $html );
+        libxml_clear_errors();
+        libxml_use_internal_errors( $prev );
+        if ( ! $loaded ) return null;
+
+        $xpath = new \DOMXPath( $doc );
+        $recipe_nodes = $xpath->query( "//*[contains(@itemtype, '/Recipe')]" );
+        if ( ! $recipe_nodes || $recipe_nodes->length === 0 ) return null;
+        $recipe = $recipe_nodes->item( 0 );
+
+        $name = self::microdata_first_value( $xpath, $recipe, 'name' );
+        $description = self::microdata_first_value( $xpath, $recipe, 'description' );
+
+        $servings = 0;
+        $yield = self::microdata_first_value( $xpath, $recipe, 'recipeYield' );
+        if ( is_numeric( $yield ) ) {
+            $servings = (int) $yield;
+        } elseif ( $yield !== '' && preg_match( '/(\d+)/', $yield, $m ) ) {
+            $servings = (int) $m[1];
+        }
+        if ( ! $servings ) $servings = 4;
+
+        $prep_iso = self::microdata_first_value( $xpath, $recipe, 'prepTime' );
+        $cook_iso = self::microdata_first_value( $xpath, $recipe, 'cookTime' );
+        $total_iso = self::microdata_first_value( $xpath, $recipe, 'totalTime' );
+        $prep = self::iso8601_to_minutes( $prep_iso );
+        $cook = self::iso8601_to_minutes( $cook_iso );
+        if ( ! $prep && ! $cook && $total_iso ) {
+            $cook = self::iso8601_to_minutes( $total_iso );
+        }
+
+        $ingredients = [];
+        foreach ( self::microdata_all_values( $xpath, $recipe, 'recipeIngredient' ) as $line ) {
+            if ( $line !== '' ) {
+                $ingredients[] = self::parse_ingredient_line( $line );
+            }
+        }
+
+        $instructions = [];
+        foreach ( self::microdata_all_values( $xpath, $recipe, 'recipeInstructions' ) as $step ) {
+            $step = self::clean_step( $step );
+            if ( $step !== '' ) $instructions[] = $step;
+        }
+
+        $image_url = self::microdata_first_value( $xpath, $recipe, 'image' );
+
+        if ( ! $ingredients && ! $instructions ) {
+            return null;
+        }
+
+        return [
+            'title'        => $name,
+            'description'  => $description,
+            'servings'     => $servings,
+            'prep_time'    => $prep,
+            'cook_time'    => $cook,
+            'ingredients'  => $ingredients,
+            'instructions' => $instructions,
+            'image_url'    => $image_url,
+        ];
+    }
+
+    /**
+     * Get a single value for an itemprop within $scope, ignoring matches that
+     * sit inside a nested itemscope (e.g. an author's name vs the recipe's name).
+     */
+    private static function microdata_first_value( \DOMXPath $xpath, \DOMNode $scope, string $prop ): string {
+        foreach ( self::microdata_owned_nodes( $xpath, $scope, $prop ) as $node ) {
+            $value = self::microdata_node_value( $node );
+            if ( $value !== '' ) return $value;
+        }
+        return '';
+    }
+
+    private static function microdata_all_values( \DOMXPath $xpath, \DOMNode $scope, string $prop ): array {
+        $out = [];
+        foreach ( self::microdata_owned_nodes( $xpath, $scope, $prop ) as $node ) {
+            // For HowToStep wrappers prefer the inner [itemprop=text].
+            $inner = $xpath->query( ".//*[@itemprop='text']", $node );
+            if ( $inner && $inner->length > 0 ) {
+                $value = self::microdata_node_value( $inner->item( 0 ) );
+            } else {
+                $value = self::microdata_node_value( $node );
+            }
+            if ( $value !== '' ) $out[] = $value;
+        }
+        return $out;
+    }
+
+    private static function microdata_owned_nodes( \DOMXPath $xpath, \DOMNode $scope, string $prop ): array {
+        $nodes = $xpath->query( ".//*[@itemprop='" . $prop . "']", $scope );
+        if ( ! $nodes ) return [];
+        $owned = [];
+        foreach ( $nodes as $node ) {
+            // Skip if any intervening ancestor (between $node and $scope) is itself an itemscope.
+            $a = $node->parentNode;
+            $clean = true;
+            while ( $a && $a !== $scope ) {
+                if ( $a instanceof \DOMElement && $a->hasAttribute( 'itemscope' ) ) {
+                    $clean = false;
+                    break;
+                }
+                $a = $a->parentNode;
+            }
+            if ( $clean ) $owned[] = $node;
+        }
+        return $owned;
+    }
+
+    private static function microdata_node_value( \DOMNode $node ): string {
+        if ( ! $node instanceof \DOMElement ) {
+            return trim( (string) $node->nodeValue );
+        }
+        $tag = strtolower( $node->tagName );
+        switch ( $tag ) {
+            case 'meta':
+                return trim( $node->getAttribute( 'content' ) );
+            case 'img':
+                return trim( $node->getAttribute( 'src' ) );
+            case 'link':
+            case 'a':
+                return trim( $node->getAttribute( 'href' ) ) ?: trim( $node->nodeValue );
+            case 'time':
+                $dt = trim( $node->getAttribute( 'datetime' ) );
+                return $dt !== '' ? $dt : trim( $node->nodeValue );
+            default:
+                $content = trim( $node->getAttribute( 'content' ) );
+                if ( $content !== '' ) return $content;
+                return trim( preg_replace( '/\s+/', ' ', (string) $node->nodeValue ) );
+        }
     }
 
     private static function extract_jsonld_recipe( string $html ): ?array {
