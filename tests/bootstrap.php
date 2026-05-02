@@ -25,4 +25,3 @@ if ( ! function_exists( 'wp_remote_retrieve_body' ) ) {
 
 require_once dirname( __DIR__ ) . '/src/Units.php';
 require_once dirname( __DIR__ ) . '/src/Importer.php';
-require_once dirname( __DIR__ ) . '/src/IngredientMatcher.php';
