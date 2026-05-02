@@ -175,7 +175,10 @@ class Units {
     }
 
     private static function system_of( string $unit ): string {
-        $imperial = [ 'oz', 'lb', 'tsp', 'tbsp', 'cup', 'floz', 'pt', 'qt', 'gal' ];
+        // tsp/tbsp are everyday kitchen measures used in both metric and imperial
+        // contexts (TL/EL in German, etc.) — leave them untouched in either mode
+        // rather than rounding "1 tsp salt" to "5 ml salt".
+        $imperial = [ 'oz', 'lb', 'cup', 'floz', 'pt', 'qt', 'gal' ];
         return in_array( $unit, $imperial, true ) ? 'imperial' : 'metric';
     }
 

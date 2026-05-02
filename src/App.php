@@ -14,6 +14,7 @@ class App extends BaseApp {
     const TAX_CATEGORY  = 'recipe_category';
     const TAX_CUISINE   = 'recipe_cuisine';
     const TAX_TAG       = 'recipe_tag';
+    const TAX_INGREDIENT = 'recipe_ingredient';
 
     const META_SERVINGS    = '_recipe_servings';
     const META_PREP        = '_recipe_prep_time';
@@ -47,6 +48,7 @@ class App extends BaseApp {
         add_action( 'admin_post_recipes_delete', [ $this, 'handle_delete' ] );
         add_action( 'admin_post_recipes_settings', [ $this, 'handle_settings' ] );
         add_action( 'admin_post_recipes_import', [ $this, 'handle_import' ] );
+        add_action( 'admin_post_recipes_refetch', [ $this, 'handle_refetch' ] );
         add_action( 'wp_ajax_recipes_parse_url', [ $this, 'ajax_parse_url' ] );
 
         add_action( 'wp_loaded', [ $this, 'handle_extension_save' ], 100 );
@@ -64,14 +66,17 @@ class App extends BaseApp {
         $this->app->route( 'recipe/{id}/edit', 'recipe-edit.php' );
         $this->app->route( 'new' );
         $this->app->route( 'import' );
+        $this->app->route( 'by-ingredients' );
         $this->app->route( 'settings' );
         $this->app->route( 'category/{slug}' );
         $this->app->route( 'tag/{slug}' );
+        $this->app->route( 'ingredient/{slug}' );
     }
 
     protected function setup_menu(): void {
         $home = home_url( '/' . $this->get_url_path() . '/' );
         $this->app->add_menu_item( 'all', __( 'All recipes', 'recipes' ), $home );
+        $this->app->add_menu_item( 'by-ingredients', __( 'By ingredients', 'recipes' ), $home . 'by-ingredients' );
         $this->app->add_menu_item( 'new', __( 'New recipe', 'recipes' ), $home . 'new' );
         $this->app->add_menu_item( 'import', __( 'Import from web', 'recipes' ), $home . 'import' );
         $this->app->add_menu_item( 'settings', __( 'Settings', 'recipes' ), $home . 'settings' );
@@ -197,6 +202,17 @@ class App extends BaseApp {
             'show_admin_column' => true,
             'rewrite'           => false,
         ] );
+        register_taxonomy( self::TAX_INGREDIENT, self::POST_TYPE, [
+            'labels' => [
+                'name'          => __( 'Ingredients', 'recipes' ),
+                'singular_name' => __( 'Ingredient', 'recipes' ),
+            ],
+            'hierarchical'      => false,
+            'show_ui'           => true,
+            'show_in_rest'      => true,
+            'show_admin_column' => false,
+            'rewrite'           => false,
+        ] );
     }
 
     public static function get_user_unit_preference( int $user_id = 0 ): string {
@@ -273,7 +289,7 @@ class App extends BaseApp {
         update_post_meta( $post_id, self::META_SERVINGS, $servings );
         update_post_meta( $post_id, self::META_PREP, $prep );
         update_post_meta( $post_id, self::META_COOK, $cook );
-        update_post_meta( $post_id, self::META_INGREDIENTS, $ingredients );
+        $this->persist_ingredients( $post_id, $ingredients );
         update_post_meta( $post_id, self::META_INSTRUCTIONS, $instructions );
         update_post_meta( $post_id, self::META_SOURCE_URL, $source_url );
         update_post_meta( $post_id, self::META_NOTES, $notes );
@@ -341,6 +357,56 @@ class App extends BaseApp {
         if ( is_wp_error( $attachment_id ) ) return null;
         set_post_thumbnail( $post_id, $attachment_id );
         return (int) $attachment_id;
+    }
+
+    /**
+     * Save ingredient rows and sync the recipe_ingredient taxonomy.
+     *
+     * Each row is canonicalized (lowercased, modifier words like "fresh"/"chopped"
+     * stripped, naive singularization) and either matched to an existing term or
+     * inserted as a new one. The original typed name is kept on the row for
+     * display; the resolved term_id links the row to the taxonomy.
+     */
+    private function persist_ingredients( int $post_id, array $rows ): void {
+        $term_ids = [];
+        $clean    = [];
+        foreach ( $rows as $row ) {
+            if ( ! is_array( $row ) ) continue;
+            $name = isset( $row['name'] ) ? (string) $row['name'] : '';
+            if ( $name === '' ) continue;
+            $term_id = $this->resolve_ingredient_term( $name );
+            $clean[] = [
+                'amount'  => isset( $row['amount'] ) ? (string) $row['amount'] : '',
+                'unit'    => isset( $row['unit'] ) ? (string) $row['unit'] : '',
+                'name'    => $name,
+                'notes'   => isset( $row['notes'] ) ? (string) $row['notes'] : '',
+                'term_id' => $term_id ?: 0,
+            ];
+            if ( $term_id ) {
+                $term_ids[ $term_id ] = true;
+            }
+        }
+        update_post_meta( $post_id, self::META_INGREDIENTS, $clean );
+        wp_set_object_terms( $post_id, array_keys( $term_ids ), self::TAX_INGREDIENT, false );
+    }
+
+    /**
+     * Find or create the canonical recipe_ingredient term for a free-form name.
+     */
+    private function resolve_ingredient_term( string $name ): ?int {
+        $canonical = IngredientMatcher::canonicalize( $name );
+        if ( $canonical === '' ) return null;
+        $term = get_term_by( 'name', $canonical, self::TAX_INGREDIENT );
+        if ( $term && ! is_wp_error( $term ) ) {
+            return (int) $term->term_id;
+        }
+        $created = wp_insert_term( $canonical, self::TAX_INGREDIENT );
+        if ( is_wp_error( $created ) ) {
+            // Race: another request just created it.
+            $term = get_term_by( 'name', $canonical, self::TAX_INGREDIENT );
+            return $term ? (int) $term->term_id : null;
+        }
+        return isset( $created['term_id'] ) ? (int) $created['term_id'] : null;
     }
 
     private function resolve_term_ids( array $values, string $taxonomy ): array {
@@ -433,19 +499,88 @@ class App extends BaseApp {
         if ( is_wp_error( $post_id ) ) {
             wp_die( esc_html( $post_id->get_error_message() ) );
         }
-        update_post_meta( $post_id, self::META_SERVINGS, $parsed['servings'] ?? 4 );
-        update_post_meta( $post_id, self::META_PREP, $parsed['prep_time'] ?? 0 );
-        update_post_meta( $post_id, self::META_COOK, $parsed['cook_time'] ?? 0 );
-        update_post_meta( $post_id, self::META_INGREDIENTS, $parsed['ingredients'] ?? [] );
-        update_post_meta( $post_id, self::META_INSTRUCTIONS, $parsed['instructions'] ?? [] );
-        update_post_meta( $post_id, self::META_SOURCE_URL, $url );
-
-        if ( ! empty( $parsed['image_url'] ) ) {
-            $this->sideload_image_to_post( $post_id, (string) $parsed['image_url'] );
-        }
+        $this->apply_parsed_payload( $post_id, $parsed, $url, false );
 
         wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $post_id . '/edit' ) );
         exit;
+    }
+
+    /**
+     * Re-fetch a recipe from its stored source URL and overwrite parsed fields.
+     *
+     * Only fields the parser actually returned are touched, so that a partial
+     * parse (e.g. missing prep_time) doesn't clobber the recipe's existing data.
+     * Notes, taxonomy assignments and post status are always left alone.
+     */
+    public function handle_refetch(): void {
+        if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
+            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+        }
+        check_admin_referer( 'recipes_refetch' );
+
+        $id   = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
+        $post = $id ? get_post( $id ) : null;
+        if ( ! $post || $post->post_type !== self::POST_TYPE ) {
+            wp_die( esc_html__( 'Recipe not found.', 'recipes' ), 404 );
+        }
+        $url = (string) get_post_meta( $id, self::META_SOURCE_URL, true );
+        if ( $url === '' || ! filter_var( $url, FILTER_VALIDATE_URL ) ) {
+            wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $id . '?refetch=no_url' ) );
+            exit;
+        }
+
+        $parsed = Importer::from_url( $url );
+        if ( ! $parsed ) {
+            wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $id . '?refetch=parse_error' ) );
+            exit;
+        }
+
+        $update = [ 'ID' => $id ];
+        if ( ! empty( $parsed['title'] ) ) {
+            $update['post_title'] = $parsed['title'];
+        }
+        if ( ! empty( $parsed['description'] ) ) {
+            $update['post_content'] = $parsed['description'];
+        }
+        if ( count( $update ) > 1 ) {
+            wp_update_post( $update );
+        }
+
+        $this->apply_parsed_payload( $id, $parsed, $url, true );
+
+        wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $id . '?refetch=ok' ) );
+        exit;
+    }
+
+    /**
+     * Write the parts of a parsed-recipe payload that we store on the post.
+     *
+     * @param bool $only_if_present  When true, skip writes for fields the parser
+     *                               left empty — used by refetch so a partial
+     *                               parse doesn't wipe existing data.
+     */
+    private function apply_parsed_payload( int $post_id, array $parsed, string $url, bool $only_if_present ): void {
+        if ( ! $only_if_present || ! empty( $parsed['servings'] ) ) {
+            update_post_meta( $post_id, self::META_SERVINGS, (int) ( $parsed['servings'] ?? 4 ) );
+        }
+        if ( ! $only_if_present || ! empty( $parsed['prep_time'] ) ) {
+            update_post_meta( $post_id, self::META_PREP, (int) ( $parsed['prep_time'] ?? 0 ) );
+        }
+        if ( ! $only_if_present || ! empty( $parsed['cook_time'] ) ) {
+            update_post_meta( $post_id, self::META_COOK, (int) ( $parsed['cook_time'] ?? 0 ) );
+        }
+        if ( ! $only_if_present || ! empty( $parsed['ingredients'] ) ) {
+            $this->persist_ingredients( $post_id, $parsed['ingredients'] ?? [] );
+        }
+        if ( ! $only_if_present || ! empty( $parsed['instructions'] ) ) {
+            update_post_meta( $post_id, self::META_INSTRUCTIONS, $parsed['instructions'] ?? [] );
+        }
+        if ( $url !== '' ) {
+            update_post_meta( $post_id, self::META_SOURCE_URL, $url );
+        }
+        if ( ! empty( $parsed['image_url'] ) ) {
+            $this->sideload_image_to_post( $post_id, (string) $parsed['image_url'] );
+        }
     }
 
     /**
@@ -461,10 +596,11 @@ class App extends BaseApp {
     public function register_browser_extension_action( $actions ) {
         if ( ! is_array( $actions ) ) $actions = [];
         $actions[] = [
-            'name'   => __( 'Save as Recipe', 'recipes' ),
-            'url'    => home_url( '/?recipes-collect={current_url}' ),
-            'method' => 'POST',
-            'fields' => [ 'body' => '{page_html}' ],
+            'name'     => __( 'Save as Recipe', 'recipes' ),
+            'url'      => home_url( '/?recipes-collect={current_url}' ),
+            'method'   => 'POST',
+            'fields'   => [ 'body' => '{page_html}' ],
+            'category' => __( 'Recipes', 'recipes' ),
         ];
         return $actions;
     }
@@ -514,16 +650,7 @@ class App extends BaseApp {
         if ( is_wp_error( $post_id ) ) {
             wp_die( esc_html( $post_id->get_error_message() ) );
         }
-        update_post_meta( $post_id, self::META_SERVINGS, $parsed['servings'] ?? 4 );
-        update_post_meta( $post_id, self::META_PREP, $parsed['prep_time'] ?? 0 );
-        update_post_meta( $post_id, self::META_COOK, $parsed['cook_time'] ?? 0 );
-        update_post_meta( $post_id, self::META_INGREDIENTS, $parsed['ingredients'] ?? [] );
-        update_post_meta( $post_id, self::META_INSTRUCTIONS, $parsed['instructions'] ?? [] );
-        update_post_meta( $post_id, self::META_SOURCE_URL, $url );
-
-        if ( ! empty( $parsed['image_url'] ) ) {
-            $this->sideload_image_to_post( $post_id, (string) $parsed['image_url'] );
-        }
+        $this->apply_parsed_payload( $post_id, $parsed, $url, false );
 
         wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $post_id . '/edit' ) );
         exit;

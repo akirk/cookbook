@@ -35,6 +35,9 @@ $cats     = wp_get_object_terms( $id, App::TAX_CATEGORY );
 $cuisines = wp_get_object_terms( $id, App::TAX_CUISINE );
 $tags     = wp_get_object_terms( $id, App::TAX_TAG );
 
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
+$refetch_status = isset( $_GET['refetch'] ) ? sanitize_text_field( wp_unslash( $_GET['refetch'] ) ) : '';
+
 include __DIR__ . '/_header.php';
 ?>
 <a class="badge" href="<?php echo esc_url( home_url( '/recipes/' ) ); ?>"><?php esc_html_e( '← All recipes', 'recipes' ); ?></a>
@@ -96,8 +99,24 @@ include __DIR__ . '/_header.php';
         <button type="button" class="<?php echo $preference === 'imperial' ? 'active' : ''; ?>" data-units="imperial"><?php esc_html_e( 'Imperial', 'recipes' ); ?></button>
     </div>
     <span class="spacer"></span>
+    <?php if ( $source_url ) : ?>
+        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline" onsubmit="return confirm('<?php echo esc_js( __( 'Re-fetch this recipe from its source URL? Ingredients, instructions, times and image will be replaced with the latest parsed data. Notes and tags are kept.', 'recipes' ) ); ?>')">
+            <?php wp_nonce_field( 'recipes_refetch' ); ?>
+            <input type="hidden" name="action" value="recipes_refetch">
+            <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
+            <button class="btn secondary" type="submit" title="<?php esc_attr_e( 'Re-import from source URL', 'recipes' ); ?>"><?php esc_html_e( 'Refetch', 'recipes' ); ?></button>
+        </form>
+    <?php endif; ?>
     <a class="btn secondary" href="<?php echo esc_url( home_url( '/recipes/recipe/' . $id . '/edit' ) ); ?>"><?php esc_html_e( 'Edit', 'recipes' ); ?></a>
 </div>
+
+<?php if ( $refetch_status === 'ok' ) : ?>
+    <div class="notice success"><?php esc_html_e( 'Refetched from source.', 'recipes' ); ?></div>
+<?php elseif ( $refetch_status === 'parse_error' ) : ?>
+    <div class="notice error"><?php esc_html_e( 'Could not re-parse the source URL — recipe left unchanged.', 'recipes' ); ?></div>
+<?php elseif ( $refetch_status === 'no_url' ) : ?>
+    <div class="notice error"><?php esc_html_e( 'No source URL stored on this recipe.', 'recipes' ); ?></div>
+<?php endif; ?>
 
 <?php if ( $post->post_content ) : ?>
     <div class="description"><?php echo wp_kses_post( wpautop( $post->post_content ) ); ?></div>
@@ -130,7 +149,15 @@ include __DIR__ . '/_header.php';
                 echo esc_html( trim( $rendered['amount'] . ' ' . $rendered['unit'] ) );
             ?></span>
             <span>
-                <?php echo esc_html( $rendered['name'] ); ?>
+                <?php
+                $ing_term_id = isset( $ing['term_id'] ) ? (int) $ing['term_id'] : 0;
+                $ing_term    = $ing_term_id ? get_term( $ing_term_id, App::TAX_INGREDIENT ) : null;
+                if ( $ing_term && ! is_wp_error( $ing_term ) ) :
+                    ?>
+                    <a href="<?php echo esc_url( home_url( '/recipes/ingredient/' . $ing_term->slug ) ); ?>"><?php echo esc_html( $rendered['name'] ); ?></a>
+                <?php else : ?>
+                    <?php echo esc_html( $rendered['name'] ); ?>
+                <?php endif; ?>
                 <?php if ( ! empty( $rendered['notes'] ) ) : ?>
                     <span style="color:var(--muted)"> – <?php echo esc_html( $rendered['notes'] ); ?></span>
                 <?php endif; ?>
@@ -179,7 +206,8 @@ include __DIR__ . '/_header.php';
     // Conversion tables (kept in sync with src/Units.php).
     const MASS = { g:1, kg:1000, oz:28.3495, lb:453.592 };
     const VOLUME = { ml:1, l:1000, tsp:4.92892, tbsp:14.7868, floz:29.5735, cup:236.588, pt:473.176, qt:946.353, gal:3785.41 };
-    const IMPERIAL = ['oz','lb','tsp','tbsp','cup','floz','pt','qt','gal'];
+    // tsp/tbsp pass through both modes — see Units::system_of() in PHP.
+    const IMPERIAL = ['oz','lb','cup','floz','pt','qt','gal'];
     const UNIT_LABEL = { g:'g', kg:'kg', ml:'ml', l:'l', oz:'oz', lb:'lb', tsp:'tsp', tbsp:'tbsp', floz:'fl oz', cup:'cup', pt:'pt', qt:'qt', gal:'gal' };
 
     function fmt(n, max) {
