@@ -207,7 +207,9 @@ class App extends BaseApp {
                 'name'          => __( 'Ingredients', 'recipes' ),
                 'singular_name' => __( 'Ingredient', 'recipes' ),
             ],
-            'hierarchical'      => false,
+            // Hierarchical so users can manually group similar ingredients
+            // ("cherry tomato" as a child of "tomato") via the standard WP UI.
+            'hierarchical'      => true,
             'show_ui'           => true,
             'show_in_rest'      => true,
             'show_admin_column' => false,
@@ -362,10 +364,9 @@ class App extends BaseApp {
     /**
      * Save ingredient rows and sync the recipe_ingredient taxonomy.
      *
-     * Each row is canonicalized (lowercased, modifier words like "fresh"/"chopped"
-     * stripped, naive singularization) and either matched to an existing term or
-     * inserted as a new one. The original typed name is kept on the row for
-     * display; the resolved term_id links the row to the taxonomy.
+     * The original typed name is kept on the row for display; lookup is by
+     * slug (sanitize_title folds case + diacritics) so "Tomatoes" and
+     * "tomatoes" share a term and "Knödelbrot" stays "Knödelbrot".
      */
     private function persist_ingredients( int $post_id, array $rows ): void {
         $term_ids = [];
@@ -391,19 +392,28 @@ class App extends BaseApp {
     }
 
     /**
-     * Find or create the canonical recipe_ingredient term for a free-form name.
+     * Find or create the recipe_ingredient term for a free-form name.
+     *
+     * Dedup by slug (sanitize_title): "Tomatoes"/"tomatoes" collapse, "Knödelbrot"
+     * keeps its umlauts as the display name while sharing slug "knodelbrot" with
+     * any future "knödelbrot" entry. No automatic singularization or stopword
+     * stripping — grouping similar ingredients is a manual step via the
+     * hierarchical taxonomy's parent/child UI.
      */
     private function resolve_ingredient_term( string $name ): ?int {
-        $canonical = IngredientMatcher::canonicalize( $name );
-        if ( $canonical === '' ) return null;
-        $term = get_term_by( 'name', $canonical, self::TAX_INGREDIENT );
+        $name = trim( $name );
+        if ( $name === '' ) return null;
+        $slug = sanitize_title( $name );
+        if ( $slug === '' ) return null;
+
+        $term = get_term_by( 'slug', $slug, self::TAX_INGREDIENT );
         if ( $term && ! is_wp_error( $term ) ) {
             return (int) $term->term_id;
         }
-        $created = wp_insert_term( $canonical, self::TAX_INGREDIENT );
+        $created = wp_insert_term( $name, self::TAX_INGREDIENT, [ 'slug' => $slug ] );
         if ( is_wp_error( $created ) ) {
-            // Race: another request just created it.
-            $term = get_term_by( 'name', $canonical, self::TAX_INGREDIENT );
+            // Race: another request just created it, or slug collision with a different name.
+            $term = get_term_by( 'slug', $slug, self::TAX_INGREDIENT );
             return $term ? (int) $term->term_id : null;
         }
         return isset( $created['term_id'] ) ? (int) $created['term_id'] : null;
