@@ -70,6 +70,33 @@ class UnitsTest extends TestCase {
         $this->assertLessThan(  14.5, (float) $rendered['amount'] );
     }
 
+    public function test_tsp_passes_through_metric_preference(): void {
+        // "1 TL Salz" from chefkoch.de must stay 1 tsp, not collapse to 5 ml.
+        $out = Units::to_preference( 1, 'tsp', 'metric' );
+        $this->assertSame( 'tsp', $out['unit'] );
+        $this->assertSame( '1', $out['amount'] );
+    }
+
+    public function test_tbsp_passes_through_metric_preference(): void {
+        $out = Units::to_preference( 2, 'tbsp', 'metric' );
+        $this->assertSame( 'tbsp', $out['unit'] );
+        $this->assertSame( '2', $out['amount'] );
+    }
+
+    public function test_tsp_passes_through_imperial_preference(): void {
+        $out = Units::to_preference( 1, 'tsp', 'imperial' );
+        $this->assertSame( 'tsp', $out['unit'] );
+        $this->assertSame( '1', $out['amount'] );
+    }
+
+    public function test_ml_to_imperial_still_chooses_tsp_for_small_amounts(): void {
+        // Conversion in the other direction (ml → imperial) still works.
+        $out = Units::to_preference( 5, 'ml', 'imperial' );
+        $this->assertSame( 'tsp', $out['unit'] );
+        $this->assertGreaterThan( 0.9, (float) $out['amount'] );
+        $this->assertLessThan( 1.1, (float) $out['amount'] );
+    }
+
     public function test_render_ingredient_unparseable_amount_kept_verbatim(): void {
         $row = [ 'amount' => 'a pinch', 'unit' => '', 'name' => 'salt', 'notes' => '' ];
         $rendered = Units::render_ingredient( $row, 2.0, 'imperial' );

@@ -80,6 +80,13 @@ $recipes_home = home_url( '/recipes/' );
         .unit-toggle { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 0.25rem; }
         .unit-toggle button { background: transparent; border: 0; padding: 0.3rem 0.6rem; cursor: pointer; border-radius: 3px; }
         .unit-toggle button.active { background: var(--accent); color: #fff; }
+        .ingredient-cloud { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 1rem 0; line-height: 1.4; }
+        .ing-chip { display: inline-flex; align-items: baseline; gap: 0.35rem; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 0.2rem 0.7rem; cursor: pointer; user-select: none; text-decoration: none; color: inherit; transition: background 0.1s, border-color 0.1s; }
+        .ing-chip:hover { border-color: var(--accent); }
+        .ing-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .ing-chip input { position: absolute; opacity: 0; pointer-events: none; }
+        .ing-chip-count { color: var(--muted); font-size: 0.8em; }
+        .ing-chip.on .ing-chip-count { color: rgba(255,255,255,0.8); }
     </style>
 </head>
 <body>
