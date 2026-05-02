@@ -42,8 +42,12 @@ class App extends BaseApp {
     }
 
     public function init() {
-        add_action( 'init', [ $this, 'register_post_type' ] );
-        add_action( 'init', [ $this, 'register_taxonomies' ] );
+        // recipes.php hooks this method on init priority 10. We're already in init,
+        // so register the CPT and taxonomies directly rather than via nested
+        // add_action('init', …) — those don't fire reliably when added during the
+        // priority-10 iteration.
+        $this->register_post_type();
+        $this->register_taxonomies();
         add_action( 'admin_post_recipes_save', [ $this, 'handle_save' ] );
         add_action( 'admin_post_recipes_delete', [ $this, 'handle_delete' ] );
         add_action( 'admin_post_recipes_settings', [ $this, 'handle_settings' ] );

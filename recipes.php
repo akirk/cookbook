@@ -40,7 +40,12 @@ add_action( 'init', function() {
     load_plugin_textdomain( 'recipes', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' ); // phpcs:ignore PluginCheck.CodeAnalysis.DiscouragedFunctions.load_plugin_textdomainFound
 } );
 
-add_action( 'plugins_loaded', function() {
+// App init runs on init (not plugins_loaded) because BaseApp::init() calls
+// setup_menu() which translates strings via __() — those need the textdomain
+// loaded above, otherwise WP 6.7+ logs a "_load_textdomain_just_in_time was
+// called incorrectly" notice. Both callbacks fire at init priority 10; the
+// textdomain action above is registered first, so it runs first.
+add_action( 'init', function() {
     $app = new App();
     $app->init();
 } );
