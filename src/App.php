@@ -49,6 +49,9 @@ class App extends BaseApp {
         add_action( 'admin_post_recipes_settings', [ $this, 'handle_settings' ] );
         add_action( 'admin_post_recipes_import', [ $this, 'handle_import' ] );
         add_action( 'admin_post_recipes_refetch', [ $this, 'handle_refetch' ] );
+        add_action( 'admin_post_recipes_merge_ingredients', [ $this, 'handle_merge_ingredients' ] );
+        add_action( 'admin_post_recipes_group_ingredients', [ $this, 'handle_group_ingredients' ] );
+        add_action( 'admin_post_recipes_rename_ingredient', [ $this, 'handle_rename_ingredient' ] );
         add_action( 'wp_ajax_recipes_parse_url', [ $this, 'ajax_parse_url' ] );
 
         add_action( 'wp_loaded', [ $this, 'handle_extension_save' ], 100 );
@@ -67,6 +70,7 @@ class App extends BaseApp {
         $this->app->route( 'new' );
         $this->app->route( 'import' );
         $this->app->route( 'by-ingredients' );
+        $this->app->route( 'manage-ingredients' );
         $this->app->route( 'settings' );
         $this->app->route( 'category/{slug}' );
         $this->app->route( 'tag/{slug}' );
@@ -77,6 +81,7 @@ class App extends BaseApp {
         $home = home_url( '/' . $this->get_url_path() . '/' );
         $this->app->add_menu_item( 'all', __( 'All recipes', 'recipes' ), $home );
         $this->app->add_menu_item( 'by-ingredients', __( 'By ingredients', 'recipes' ), $home . 'by-ingredients' );
+        $this->app->add_menu_item( 'manage-ingredients', __( 'Manage ingredients', 'recipes' ), $home . 'manage-ingredients' );
         $this->app->add_menu_item( 'new', __( 'New recipe', 'recipes' ), $home . 'new' );
         $this->app->add_menu_item( 'import', __( 'Import from web', 'recipes' ), $home . 'import' );
         $this->app->add_menu_item( 'settings', __( 'Settings', 'recipes' ), $home . 'settings' );
@@ -559,6 +564,146 @@ class App extends BaseApp {
         $this->apply_parsed_payload( $id, $parsed, $url, true );
 
         wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $id . '?refetch=ok' ) );
+        exit;
+    }
+
+    /**
+     * Collapse one or more ingredient terms into a single target term.
+     *
+     * For each source term: rewrites the per-recipe `_recipe_ingredients` meta
+     * rows so any reference to the source's term_id points at the target,
+     * reassigns the term itself on each recipe, reparents any children of the
+     * source onto the target, then deletes the source. The source ingredient
+     * names are preserved in the meta rows (only the term_id link moves), so
+     * recipes still display the wording the user originally typed.
+     */
+    public function handle_merge_ingredients(): void {
+        if ( ! is_user_logged_in() || ! current_user_can( 'manage_categories' ) ) {
+            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+        }
+        check_admin_referer( 'recipes_manage_ingredients' );
+
+        $sources = isset( $_POST['source_ids'] ) && is_array( $_POST['source_ids'] )
+            ? array_values( array_unique( array_filter( array_map( 'absint', wp_unslash( $_POST['source_ids'] ) ) ) ) )
+            : [];
+        $target = isset( $_POST['target_id'] ) ? absint( $_POST['target_id'] ) : 0;
+        $sources = array_values( array_diff( $sources, [ $target ] ) );
+
+        $merged = 0;
+        if ( $target && get_term( $target, self::TAX_INGREDIENT ) instanceof \WP_Term && $sources ) {
+            foreach ( $sources as $source_id ) {
+                if ( $this->merge_ingredient_term( $source_id, $target ) ) {
+                    $merged++;
+                }
+            }
+        }
+
+        $back = home_url( '/' . $this->get_url_path() . '/manage-ingredients' );
+        wp_safe_redirect( add_query_arg( [ 'merged' => $merged ], $back ) );
+        exit;
+    }
+
+    /**
+     * Merge a single source term into a target term. Returns true on success.
+     */
+    private function merge_ingredient_term( int $source_id, int $target_id ): bool {
+        if ( $source_id === $target_id ) return false;
+        $source = get_term( $source_id, self::TAX_INGREDIENT );
+        if ( ! $source instanceof \WP_Term ) return false;
+
+        $posts = get_posts( [
+            'post_type'      => self::POST_TYPE,
+            'post_status'    => 'any',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- one-time admin operation, exact-term filter.
+            'tax_query'      => [
+                [ 'taxonomy' => self::TAX_INGREDIENT, 'field' => 'term_id', 'terms' => $source_id ],
+            ],
+        ] );
+        foreach ( $posts as $post_id ) {
+            $rows    = (array) get_post_meta( $post_id, self::META_INGREDIENTS, true );
+            $changed = false;
+            foreach ( $rows as &$row ) {
+                if ( ! is_array( $row ) ) continue;
+                if ( isset( $row['term_id'] ) && (int) $row['term_id'] === $source_id ) {
+                    $row['term_id'] = $target_id;
+                    $changed        = true;
+                }
+            }
+            unset( $row );
+            if ( $changed ) {
+                update_post_meta( $post_id, self::META_INGREDIENTS, $rows );
+            }
+            wp_remove_object_terms( $post_id, $source_id, self::TAX_INGREDIENT );
+            wp_add_object_terms( $post_id, $target_id, self::TAX_INGREDIENT );
+        }
+
+        // Reparent children of the source onto the target so the hierarchy survives the delete.
+        $children = get_terms( [
+            'taxonomy'   => self::TAX_INGREDIENT,
+            'hide_empty' => false,
+            'parent'     => $source_id,
+            'fields'     => 'ids',
+        ] );
+        if ( is_array( $children ) ) {
+            foreach ( $children as $child_id ) {
+                wp_update_term( (int) $child_id, self::TAX_INGREDIENT, [ 'parent' => $target_id ] );
+            }
+        }
+
+        $deleted = wp_delete_term( $source_id, self::TAX_INGREDIENT );
+        return $deleted === true;
+    }
+
+    /**
+     * Re-parent one or more ingredient terms onto a target (group as hierarchy).
+     */
+    public function handle_group_ingredients(): void {
+        if ( ! is_user_logged_in() || ! current_user_can( 'manage_categories' ) ) {
+            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+        }
+        check_admin_referer( 'recipes_manage_ingredients' );
+
+        $sources = isset( $_POST['source_ids'] ) && is_array( $_POST['source_ids'] )
+            ? array_values( array_unique( array_filter( array_map( 'absint', wp_unslash( $_POST['source_ids'] ) ) ) ) )
+            : [];
+        $target = isset( $_POST['target_id'] ) ? absint( $_POST['target_id'] ) : 0;
+        $sources = array_values( array_diff( $sources, [ $target ] ) );
+
+        $grouped = 0;
+        if ( $target === 0 || ( get_term( $target, self::TAX_INGREDIENT ) instanceof \WP_Term ) ) {
+            foreach ( $sources as $source_id ) {
+                $res = wp_update_term( $source_id, self::TAX_INGREDIENT, [ 'parent' => $target ] );
+                if ( ! is_wp_error( $res ) ) $grouped++;
+            }
+        }
+
+        $back = home_url( '/' . $this->get_url_path() . '/manage-ingredients' );
+        wp_safe_redirect( add_query_arg( [ 'grouped' => $grouped ], $back ) );
+        exit;
+    }
+
+    /**
+     * Rename a single ingredient term. The slug is left untouched so existing
+     * /ingredient/{slug} URLs and slug-based dedup still work.
+     */
+    public function handle_rename_ingredient(): void {
+        if ( ! is_user_logged_in() || ! current_user_can( 'manage_categories' ) ) {
+            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+        }
+        check_admin_referer( 'recipes_manage_ingredients' );
+
+        $term_id = isset( $_POST['term_id'] ) ? absint( $_POST['term_id'] ) : 0;
+        $name    = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+        $renamed = 0;
+        if ( $term_id && $name !== '' ) {
+            $res = wp_update_term( $term_id, self::TAX_INGREDIENT, [ 'name' => $name ] );
+            if ( ! is_wp_error( $res ) ) $renamed = 1;
+        }
+
+        $back = home_url( '/' . $this->get_url_path() . '/manage-ingredients' );
+        wp_safe_redirect( add_query_arg( [ 'renamed' => $renamed ], $back ) );
         exit;
     }
 
