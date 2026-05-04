@@ -37,7 +37,7 @@ $tags_string = is_wp_error( $current_tags ) ? '' : implode( ', ', $current_tags 
 $pref = App::get_user_unit_preference();
 $unit_options = Units::COMMON_UNITS[ $pref ];
 ?>
-<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
+<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" id="recipe-form">
     <?php wp_nonce_field( 'recipes_save' ); ?>
     <input type="hidden" name="action" value="recipes_save">
     <input type="hidden" name="id" value="<?php echo (int) $id; ?>">

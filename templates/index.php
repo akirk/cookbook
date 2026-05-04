@@ -63,13 +63,29 @@ include __DIR__ . '/_header.php';
 <p class="subtitle"><?php esc_html_e( 'Your personal cookbook.', 'recipes' ); ?></p>
 
 <form method="get" action="" class="toolbar">
-    <input type="text" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search recipes or paste a URL to import…', 'recipes' ); ?>">
+    <input id="recipes-search" type="text" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search recipes or paste a URL to import…', 'recipes' ); ?>">
     <button class="btn" type="submit"><?php esc_html_e( 'Search', 'recipes' ); ?></button>
     <span class="spacer"></span>
     <a class="btn secondary" href="<?php echo esc_url( home_url( '/recipes/by-ingredients' ) ); ?>"><?php esc_html_e( 'By ingredients', 'recipes' ); ?></a>
     <a class="btn" href="<?php echo esc_url( home_url( '/recipes/new' ) ); ?>"><?php esc_html_e( '+ New recipe', 'recipes' ); ?></a>
-    <a class="btn secondary" href="<?php echo esc_url( home_url( '/recipes/import' ) ); ?>"><?php esc_html_e( 'Import from web', 'recipes' ); ?></a>
+    <a class="btn secondary" id="recipes-import-link" href="<?php echo esc_url( home_url( '/recipes/import' ) ); ?>"><?php esc_html_e( 'Import from web', 'recipes' ); ?></a>
 </form>
+<script>
+(function () {
+    var input = document.getElementById('recipes-search');
+    var link  = document.getElementById('recipes-import-link');
+    if ( ! input || ! link ) return;
+    link.addEventListener('click', function (e) {
+        var v = input.value.trim();
+        if ( ! v || ! /^https?:\/\/\S+$/i.test(v) ) return;
+        e.preventDefault();
+        var u = new URL(link.href, window.location.href);
+        u.searchParams.set('source_url', v);
+        u.searchParams.set('autoimport', '1');
+        window.location.href = u.toString();
+    });
+})();
+</script>
 
 <?php if ( ! is_wp_error( $categories ) && $categories ) : ?>
     <div class="toolbar">
