@@ -22,7 +22,16 @@ $is_new = false;
 
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/recipes/recipe/' . $id ) ); ?>"><?php esc_html_e( '← Back to recipe', 'recipes' ); ?></a>
-<h1><?php esc_html_e( 'Edit recipe', 'recipes' ); ?></h1>
+<div class="toolbar" style="margin-top:0">
+    <a class="badge" href="<?php echo esc_url( home_url( '/recipes/recipe/' . $id ) ); ?>"><?php esc_html_e( '← Back to recipe', 'recipes' ); ?></a>
+    <span class="spacer"></span>
+    <button class="btn" type="submit" form="recipe-form"><?php esc_html_e( 'Save recipe', 'recipes' ); ?></button>
+</div>
+<h1>
+    <?php esc_html_e( 'Edit recipe', 'recipes' ); ?>
+    <?php if ( $post->post_status === 'draft' ) : ?>
+        <span class="badge"><?php esc_html_e( 'draft', 'recipes' ); ?></span>
+    <?php endif; ?>
+</h1>
 <?php include __DIR__ . '/_form.php'; ?>
 <?php include __DIR__ . '/_footer.php'; ?>
