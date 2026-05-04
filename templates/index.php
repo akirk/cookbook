@@ -3,7 +3,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-use Recipes\App;
+use Cookbook\App;
 
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- idempotent read-only search.
 $search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
@@ -13,7 +13,7 @@ if ( $search !== '' && preg_match( '~^https?://~i', $search ) && filter_var( $se
     wp_safe_redirect( add_query_arg( [
         'source_url' => $search,
         'autoimport' => 1,
-    ], home_url( '/recipes/import' ) ) );
+    ], home_url( '/cookbook/import' ) ) );
     exit;
 }
 
@@ -59,21 +59,21 @@ foreach ( $top_ingredients as $t ) { $top_ingredient_max = max( $top_ingredient_
 
 include __DIR__ . '/_header.php';
 ?>
-<h1><?php esc_html_e( 'Recipes', 'recipes' ); ?></h1>
-<p class="subtitle"><?php esc_html_e( 'Your personal cookbook.', 'recipes' ); ?></p>
+<h1><?php esc_html_e( 'Cookbook', 'cookbook' ); ?></h1>
+<p class="subtitle"><?php esc_html_e( 'Your personal recipes.', 'cookbook' ); ?></p>
 
 <form method="get" action="" class="toolbar">
-    <input id="recipes-search" type="text" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search recipes or paste a URL to import…', 'recipes' ); ?>">
-    <button class="btn" type="submit"><?php esc_html_e( 'Search', 'recipes' ); ?></button>
+    <input id="cookbook-search" type="text" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search recipes or paste a URL to import…', 'cookbook' ); ?>">
+    <button class="btn" type="submit"><?php esc_html_e( 'Search', 'cookbook' ); ?></button>
     <span class="spacer"></span>
-    <a class="btn secondary" href="<?php echo esc_url( home_url( '/recipes/by-ingredients' ) ); ?>"><?php esc_html_e( 'By ingredients', 'recipes' ); ?></a>
-    <a class="btn" href="<?php echo esc_url( home_url( '/recipes/new' ) ); ?>"><?php esc_html_e( '+ New recipe', 'recipes' ); ?></a>
-    <a class="btn secondary" id="recipes-import-link" href="<?php echo esc_url( home_url( '/recipes/import' ) ); ?>"><?php esc_html_e( 'Import from web', 'recipes' ); ?></a>
+    <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>"><?php esc_html_e( 'By ingredients', 'cookbook' ); ?></a>
+    <a class="btn" href="<?php echo esc_url( home_url( '/cookbook/new' ) ); ?>"><?php esc_html_e( '+ New recipe', 'cookbook' ); ?></a>
+    <a class="btn secondary" id="cookbook-import-link" href="<?php echo esc_url( home_url( '/cookbook/import' ) ); ?>"><?php esc_html_e( 'Import from web', 'cookbook' ); ?></a>
 </form>
 <script>
 (function () {
-    var input = document.getElementById('recipes-search');
-    var link  = document.getElementById('recipes-import-link');
+    var input = document.getElementById('cookbook-search');
+    var link  = document.getElementById('cookbook-import-link');
     if ( ! input || ! link ) return;
     link.addEventListener('click', function (e) {
         var v = input.value.trim();
@@ -89,9 +89,9 @@ include __DIR__ . '/_header.php';
 
 <?php if ( ! is_wp_error( $categories ) && $categories ) : ?>
     <div class="toolbar">
-        <strong><?php esc_html_e( 'Categories:', 'recipes' ); ?></strong>
+        <strong><?php esc_html_e( 'Categories:', 'cookbook' ); ?></strong>
         <?php foreach ( $categories as $cat ) : ?>
-            <a class="badge" href="<?php echo esc_url( home_url( '/recipes/category/' . $cat->slug ) ); ?>">
+            <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/category/' . $cat->slug ) ); ?>">
                 <?php echo esc_html( $cat->name ); ?> (<?php echo (int) $cat->count; ?>)
             </a>
         <?php endforeach; ?>
@@ -99,33 +99,33 @@ include __DIR__ . '/_header.php';
 <?php endif; ?>
 
 <?php if ( $top_ingredients ) : ?>
-    <h2 style="margin-top:1.25rem"><?php esc_html_e( 'Browse by ingredient', 'recipes' ); ?></h2>
+    <h2 style="margin-top:1.25rem"><?php esc_html_e( 'Browse by ingredient', 'cookbook' ); ?></h2>
     <div class="ingredient-cloud">
         <?php foreach ( $top_ingredients as $t ) :
             $weight = $top_ingredient_max > 0 ? sqrt( (int) $t->count / $top_ingredient_max ) : 0;
             $size   = 0.85 + $weight * 0.6;
-            $href   = add_query_arg( [ 'have' => [ (int) $t->term_id ] ], home_url( '/recipes/by-ingredients' ) );
+            $href   = add_query_arg( [ 'have' => [ (int) $t->term_id ] ], home_url( '/cookbook/by-ingredients' ) );
             ?>
             <a class="ing-chip" href="<?php echo esc_url( $href ); ?>" style="font-size:<?php echo esc_attr( number_format( $size, 2, '.', '' ) ); ?>rem">
                 <span><?php echo esc_html( $t->name ); ?></span>
                 <span class="ing-chip-count"><?php echo (int) $t->count; ?></span>
             </a>
         <?php endforeach; ?>
-        <a class="ing-chip" href="<?php echo esc_url( home_url( '/recipes/by-ingredients' ) ); ?>" style="font-size:0.85rem"><?php esc_html_e( 'all ingredients →', 'recipes' ); ?></a>
+        <a class="ing-chip" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>" style="font-size:0.85rem"><?php esc_html_e( 'all ingredients →', 'cookbook' ); ?></a>
     </div>
 <?php endif; ?>
 
 <?php if ( ! $recipes ) : ?>
     <?php if ( $is_searching ) : ?>
-        <div class="notice"><?php esc_html_e( 'No recipes match your search.', 'recipes' ); ?></div>
+        <div class="notice"><?php esc_html_e( 'No recipes match your search.', 'cookbook' ); ?></div>
     <?php else : ?>
         <div class="notice">
             <?php
             printf(
-                /* translators: 1: link to /recipes/new, 2: link to /recipes/import */
-                esc_html__( 'No recipes yet. %1$s or %2$s.', 'recipes' ),
-                '<a href="' . esc_url( home_url( '/recipes/new' ) ) . '">' . esc_html__( 'Create one', 'recipes' ) . '</a>',
-                '<a href="' . esc_url( home_url( '/recipes/import' ) ) . '">' . esc_html__( 'import from a URL', 'recipes' ) . '</a>'
+                /* translators: 1: link to /cookbook/new, 2: link to /cookbook/import */
+                esc_html__( 'No recipes yet. %1$s or %2$s.', 'cookbook' ),
+                '<a href="' . esc_url( home_url( '/cookbook/new' ) ) . '">' . esc_html__( 'Create one', 'cookbook' ) . '</a>',
+                '<a href="' . esc_url( home_url( '/cookbook/import' ) ) . '">' . esc_html__( 'import from a URL', 'cookbook' ) . '</a>'
             );
             ?>
         </div>
@@ -139,7 +139,7 @@ include __DIR__ . '/_header.php';
         $cui_terms = wp_get_object_terms( $r->ID, App::TAX_CUISINE );
         $is_draft = $r->post_status === 'draft';
         ?>
-        <a class="recipe-card" href="<?php echo esc_url( home_url( '/recipes/recipe/' . $r->ID ) ); ?>" style="<?php echo has_post_thumbnail( $r->ID ) ? 'display:flex;gap:0.9rem;align-items:flex-start' : ''; ?>">
+        <a class="recipe-card" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>" style="<?php echo has_post_thumbnail( $r->ID ) ? 'display:flex;gap:0.9rem;align-items:flex-start' : ''; ?>">
             <?php if ( has_post_thumbnail( $r->ID ) ) : ?>
                 <?php echo get_the_post_thumbnail( $r->ID, 'thumbnail', [
                     'style' => 'width:80px;height:80px;object-fit:cover;border-radius:6px;flex-shrink:0',
@@ -148,14 +148,14 @@ include __DIR__ . '/_header.php';
                 <div style="flex:1;min-width:0">
             <?php endif; ?>
             <h3><?php echo esc_html( get_the_title( $r ) ); ?>
-                <?php if ( $is_draft ) : ?><span class="badge"><?php esc_html_e( 'draft', 'recipes' ); ?></span><?php endif; ?>
+                <?php if ( $is_draft ) : ?><span class="badge"><?php esc_html_e( 'draft', 'cookbook' ); ?></span><?php endif; ?>
             </h3>
             <div class="meta">
                 <?php if ( $servings ) : ?>
                     <span>
                         <?php
                         /* translators: %d: number of servings */
-                        echo esc_html( sprintf( _n( '%d serving', '%d servings', $servings, 'recipes' ), $servings ) );
+                        echo esc_html( sprintf( _n( '%d serving', '%d servings', $servings, 'cookbook' ), $servings ) );
                         ?>
                     </span>
                 <?php endif; ?>
@@ -163,7 +163,7 @@ include __DIR__ . '/_header.php';
                     <span>
                         <?php
                         /* translators: %d: prep time in minutes */
-                        echo esc_html( sprintf( __( 'prep %dm', 'recipes' ), $prep ) );
+                        echo esc_html( sprintf( __( 'prep %dm', 'cookbook' ), $prep ) );
                         ?>
                     </span>
                 <?php endif; ?>
@@ -171,7 +171,7 @@ include __DIR__ . '/_header.php';
                     <span>
                         <?php
                         /* translators: %d: cook time in minutes */
-                        echo esc_html( sprintf( __( 'cook %dm', 'recipes' ), $cook ) );
+                        echo esc_html( sprintf( __( 'cook %dm', 'cookbook' ), $cook ) );
                         ?>
                     </span>
                 <?php endif; ?>
@@ -202,10 +202,10 @@ include __DIR__ . '/_header.php';
     <p class="subtitle" style="margin-top:1.5rem">
         <?php
         /* translators: %d: total number of recipes in the cookbook */
-        echo esc_html( sprintf( __( 'How about this one? (1 of %d)', 'recipes' ), $total_recipes ) );
+        echo esc_html( sprintf( __( 'How about this one? (1 of %d)', 'cookbook' ), $total_recipes ) );
         ?>
     </p>
-    <a class="recipe-card hero" href="<?php echo esc_url( home_url( '/recipes/recipe/' . $r->ID ) ); ?>">
+    <a class="recipe-card hero" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>">
         <?php if ( has_post_thumbnail( $r->ID ) ) : ?>
             <?php echo get_the_post_thumbnail( $r->ID, 'large', [
                 'style' => 'display:block;width:100%;max-height:360px;object-fit:cover;border-radius:6px;margin:0 0 0.75rem',
@@ -213,14 +213,14 @@ include __DIR__ . '/_header.php';
             ] ); ?>
         <?php endif; ?>
         <h3 style="font-size:1.5rem"><?php echo esc_html( get_the_title( $r ) ); ?>
-            <?php if ( $is_draft ) : ?><span class="badge"><?php esc_html_e( 'draft', 'recipes' ); ?></span><?php endif; ?>
+            <?php if ( $is_draft ) : ?><span class="badge"><?php esc_html_e( 'draft', 'cookbook' ); ?></span><?php endif; ?>
         </h3>
         <div class="meta">
             <?php if ( $servings ) : ?>
                 <span>
                     <?php
                     /* translators: %d: number of servings */
-                    echo esc_html( sprintf( _n( '%d serving', '%d servings', $servings, 'recipes' ), $servings ) );
+                    echo esc_html( sprintf( _n( '%d serving', '%d servings', $servings, 'cookbook' ), $servings ) );
                     ?>
                 </span>
             <?php endif; ?>
@@ -228,7 +228,7 @@ include __DIR__ . '/_header.php';
                 <span>
                     <?php
                     /* translators: %d: prep time in minutes */
-                    echo esc_html( sprintf( __( 'prep %dm', 'recipes' ), $prep ) );
+                    echo esc_html( sprintf( __( 'prep %dm', 'cookbook' ), $prep ) );
                     ?>
                 </span>
             <?php endif; ?>
@@ -236,7 +236,7 @@ include __DIR__ . '/_header.php';
                 <span>
                     <?php
                     /* translators: %d: cook time in minutes */
-                    echo esc_html( sprintf( __( 'cook %dm', 'recipes' ), $cook ) );
+                    echo esc_html( sprintf( __( 'cook %dm', 'cookbook' ), $cook ) );
                     ?>
                 </span>
             <?php endif; ?>
@@ -249,7 +249,7 @@ include __DIR__ . '/_header.php';
         <?php endif; ?>
     </a>
     <div class="toolbar" style="justify-content:center;margin-top:1rem">
-        <a class="btn secondary" href="<?php echo esc_url( add_query_arg( 'r', wp_rand( 1, PHP_INT_MAX ), home_url( '/recipes/' ) ) ); ?>"><?php esc_html_e( 'Pick another', 'recipes' ); ?></a>
+        <a class="btn secondary" href="<?php echo esc_url( add_query_arg( 'r', wp_rand( 1, PHP_INT_MAX ), home_url( '/cookbook/' ) ) ); ?>"><?php esc_html_e( 'Pick another', 'cookbook' ); ?></a>
     </div>
 <?php endif; ?>
 

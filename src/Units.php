@@ -1,6 +1,6 @@
 <?php
 
-namespace Recipes;
+namespace Cookbook;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;

@@ -3,12 +3,11 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 /**
- * Shared header partial for the Recipes app.
+ * Shared header partial for the Cookbook app.
  *
  * Templates include this near the top to set up <head>, masterbar, and the
  * outer page chrome. Pair it with templates/_footer.php.
  */
-$recipes_home = home_url( '/recipes/' );
 ?>
 <!DOCTYPE html>
 <html <?php wp_app_language_attributes(); ?>>

@@ -3,7 +3,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-use Recipes\App;
+use Cookbook\App;
 
 // phpcs:disable WordPress.Security.NonceVerification.Recommended -- idempotent read-only filter.
 $have_ids = isset( $_GET['have'] ) && is_array( $_GET['have'] )
@@ -84,15 +84,15 @@ foreach ( $all_terms as $t ) { $max_count = max( $max_count, (int) $t->count ); 
 
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/recipes/' ) ); ?>"><?php esc_html_e( '← All recipes', 'recipes' ); ?></a>
-<h1><?php esc_html_e( 'Find recipes by ingredients', 'recipes' ); ?></h1>
-<p class="subtitle"><?php esc_html_e( 'Click the ingredients you have, then search.', 'recipes' ); ?></p>
+<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
+<h1><?php esc_html_e( 'Find recipes by ingredients', 'cookbook' ); ?></h1>
+<p class="subtitle"><?php esc_html_e( 'Click the ingredients you have, then search.', 'cookbook' ); ?></p>
 
 <?php if ( ! $all_terms ) : ?>
-    <div class="notice"><?php esc_html_e( 'No ingredients yet. Add or import some recipes first — their ingredients will appear here.', 'recipes' ); ?></div>
+    <div class="notice"><?php esc_html_e( 'No ingredients yet. Add or import some recipes first — their ingredients will appear here.', 'cookbook' ); ?></div>
 <?php else : ?>
 <form method="get" action="" id="byi-form">
-    <div class="ingredient-cloud" role="group" aria-label="<?php esc_attr_e( 'Available ingredients', 'recipes' ); ?>">
+    <div class="ingredient-cloud" role="group" aria-label="<?php esc_attr_e( 'Available ingredients', 'cookbook' ); ?>">
         <?php foreach ( $all_terms as $t ) :
             $is_on  = isset( $have_set[ $t->term_id ] );
             $weight = $max_count > 0 ? sqrt( (int) $t->count / $max_count ) : 0;
@@ -107,24 +107,24 @@ include __DIR__ . '/_header.php';
     </div>
 
     <div class="toolbar">
-        <label for="max_missing" style="margin:0"><?php esc_html_e( 'Allow missing:', 'recipes' ); ?></label>
+        <label for="max_missing" style="margin:0"><?php esc_html_e( 'Allow missing:', 'cookbook' ); ?></label>
         <select id="max_missing" name="max_missing">
             <?php foreach ( [ 0, 1, 2, 3, 5, 10, 99 ] as $opt ) :
                 $label = $opt === 0
-                    ? __( 'None (have everything)', 'recipes' )
+                    ? __( 'None (have everything)', 'cookbook' )
                     : ( $opt === 99
-                        ? __( 'Any', 'recipes' )
+                        ? __( 'Any', 'cookbook' )
                         /* translators: %d: number of allowed missing ingredients */
-                        : sprintf( _n( 'up to %d ingredient', 'up to %d ingredients', $opt, 'recipes' ), $opt ) );
+                        : sprintf( _n( 'up to %d ingredient', 'up to %d ingredients', $opt, 'cookbook' ), $opt ) );
                 ?>
                 <option value="<?php echo (int) $opt; ?>" <?php selected( $max_missing, $opt ); ?>><?php echo esc_html( $label ); ?></option>
             <?php endforeach; ?>
         </select>
         <span class="spacer"></span>
         <?php if ( $has_query ) : ?>
-            <a class="btn secondary" href="<?php echo esc_url( home_url( '/recipes/by-ingredients' ) ); ?>"><?php esc_html_e( 'Clear', 'recipes' ); ?></a>
+            <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>"><?php esc_html_e( 'Clear', 'cookbook' ); ?></a>
         <?php endif; ?>
-        <button class="btn" type="submit"><?php esc_html_e( 'Find recipes', 'recipes' ); ?></button>
+        <button class="btn" type="submit"><?php esc_html_e( 'Find recipes', 'cookbook' ); ?></button>
     </div>
 </form>
 <?php endif; ?>
@@ -133,11 +133,11 @@ include __DIR__ . '/_header.php';
     <h2>
         <?php
         /* translators: %d: number of matching recipes */
-        echo esc_html( sprintf( _n( '%d match', '%d matches', count( $results ), 'recipes' ), count( $results ) ) );
+        echo esc_html( sprintf( _n( '%d match', '%d matches', count( $results ), 'cookbook' ), count( $results ) ) );
         ?>
     </h2>
     <?php if ( ! $results ) : ?>
-        <div class="notice"><?php esc_html_e( 'No recipes match. Try selecting more ingredients, or allow more missing ones.', 'recipes' ); ?></div>
+        <div class="notice"><?php esc_html_e( 'No recipes match. Try selecting more ingredients, or allow more missing ones.', 'cookbook' ); ?></div>
     <?php else : ?>
         <div class="grid">
         <?php foreach ( $results as $row ) :
@@ -148,7 +148,7 @@ include __DIR__ . '/_header.php';
             $is_full  = ! $missing;
             $is_draft = $r->post_status === 'draft';
             ?>
-            <a class="recipe-card" href="<?php echo esc_url( home_url( '/recipes/recipe/' . $r->ID ) ); ?>" style="<?php echo has_post_thumbnail( $r->ID ) ? 'display:flex;gap:0.9rem;align-items:flex-start' : ''; ?>">
+            <a class="recipe-card" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>" style="<?php echo has_post_thumbnail( $r->ID ) ? 'display:flex;gap:0.9rem;align-items:flex-start' : ''; ?>">
                 <?php if ( has_post_thumbnail( $r->ID ) ) : ?>
                     <?php echo get_the_post_thumbnail( $r->ID, 'thumbnail', [
                         'style' => 'width:80px;height:80px;object-fit:cover;border-radius:6px;flex-shrink:0',
@@ -157,20 +157,20 @@ include __DIR__ . '/_header.php';
                     <div style="flex:1;min-width:0">
                 <?php endif; ?>
                 <h3><?php echo esc_html( get_the_title( $r ) ); ?>
-                    <?php if ( $is_draft ) : ?><span class="badge"><?php esc_html_e( 'draft', 'recipes' ); ?></span><?php endif; ?>
-                    <?php if ( $is_full ) : ?><span class="badge" style="background:var(--success-bg);border-color:var(--success-bd)"><?php esc_html_e( 'have everything', 'recipes' ); ?></span><?php endif; ?>
+                    <?php if ( $is_draft ) : ?><span class="badge"><?php esc_html_e( 'draft', 'cookbook' ); ?></span><?php endif; ?>
+                    <?php if ( $is_full ) : ?><span class="badge" style="background:var(--success-bg);border-color:var(--success-bd)"><?php esc_html_e( 'have everything', 'cookbook' ); ?></span><?php endif; ?>
                 </h3>
                 <div class="meta">
                     <span>
                         <?php
                         /* translators: 1: number of matched ingredients, 2: total ingredients */
-                        echo esc_html( sprintf( __( '%1$d of %2$d ingredients on hand', 'recipes' ), $matched, $total ) );
+                        echo esc_html( sprintf( __( '%1$d of %2$d ingredients on hand', 'cookbook' ), $matched, $total ) );
                         ?>
                     </span>
                 </div>
                 <?php if ( $missing ) : ?>
                     <p style="margin:0.4rem 0 0;color:var(--muted);font-size:0.9rem">
-                        <strong><?php esc_html_e( 'Missing:', 'recipes' ); ?></strong>
+                        <strong><?php esc_html_e( 'Missing:', 'cookbook' ); ?></strong>
                         <?php echo esc_html( implode( ', ', $missing ) ); ?>
                     </p>
                 <?php endif; ?>

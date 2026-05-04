@@ -3,14 +3,14 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-use Recipes\App;
+use Cookbook\App;
 
 $slug = (string) get_query_var( 'slug' );
 $term = $slug ? get_term_by( 'slug', $slug, App::TAX_INGREDIENT ) : null;
 if ( ! $term ) {
     status_header( 404 );
     include __DIR__ . '/_header.php';
-    echo '<h1>' . esc_html__( 'Ingredient not found', 'recipes' ) . '</h1>';
+    echo '<h1>' . esc_html__( 'Ingredient not found', 'cookbook' ) . '</h1>';
     include __DIR__ . '/_footer.php';
     return;
 }
@@ -29,21 +29,21 @@ $recipes = get_posts( [
 
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/recipes/by-ingredients' ) ); ?>"><?php esc_html_e( '← All ingredients', 'recipes' ); ?></a>
+<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>"><?php esc_html_e( '← All ingredients', 'cookbook' ); ?></a>
 <h1><?php echo esc_html( ucfirst( $term->name ) ); ?></h1>
 <p class="subtitle">
     <?php
     /* translators: %d: number of recipes using this ingredient */
-    echo esc_html( sprintf( _n( '%d recipe uses this ingredient.', '%d recipes use this ingredient.', count( $recipes ), 'recipes' ), count( $recipes ) ) );
+    echo esc_html( sprintf( _n( '%d recipe uses this ingredient.', '%d recipes use this ingredient.', count( $recipes ), 'cookbook' ), count( $recipes ) ) );
     ?>
 </p>
 
 <?php if ( ! $recipes ) : ?>
-    <div class="notice"><?php esc_html_e( 'No recipes use this ingredient yet.', 'recipes' ); ?></div>
+    <div class="notice"><?php esc_html_e( 'No recipes use this ingredient yet.', 'cookbook' ); ?></div>
 <?php else : ?>
     <div class="grid">
     <?php foreach ( $recipes as $r ) : ?>
-        <a class="recipe-card" href="<?php echo esc_url( home_url( '/recipes/recipe/' . $r->ID ) ); ?>" style="<?php echo has_post_thumbnail( $r->ID ) ? 'display:flex;gap:0.9rem;align-items:flex-start' : ''; ?>">
+        <a class="recipe-card" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>" style="<?php echo has_post_thumbnail( $r->ID ) ? 'display:flex;gap:0.9rem;align-items:flex-start' : ''; ?>">
             <?php if ( has_post_thumbnail( $r->ID ) ) : ?>
                 <?php echo get_the_post_thumbnail( $r->ID, 'thumbnail', [
                     'style' => 'width:80px;height:80px;object-fit:cover;border-radius:6px;flex-shrink:0',

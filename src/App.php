@@ -1,6 +1,6 @@
 <?php
 
-namespace Recipes;
+namespace Cookbook;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -10,7 +10,7 @@ use WpApp\WpApp;
 use WpApp\BaseApp;
 
 class App extends BaseApp {
-    const POST_TYPE     = 'recipe';
+    const POST_TYPE     = 'cb-recipes';
     const TAX_CATEGORY  = 'recipe_category';
     const TAX_CUISINE   = 'recipe_cuisine';
     const TAX_TAG       = 'recipe_tag';
@@ -24,17 +24,17 @@ class App extends BaseApp {
     const META_SOURCE_URL  = '_recipe_source_url';
     const META_NOTES       = '_recipe_notes';
 
-    const USER_PREF_UNITS = 'recipes_unit_preference';
+    const USER_PREF_UNITS = 'cookbook_unit_preference';
 
     public function __construct() {
         $this->app = new WpApp( $this->get_template_dir(), $this->get_url_path(), [
             'require_login' => true,
-            'app_name'      => __( 'Recipes', 'recipes' ),
+            'app_name'      => __( 'Cookbook', 'cookbook' ),
         ] );
     }
 
     protected function get_url_path(): string {
-        return 'recipes';
+        return 'cookbook';
     }
 
     protected function get_template_dir(): string {
@@ -42,21 +42,21 @@ class App extends BaseApp {
     }
 
     public function init() {
-        // recipes.php hooks this method on init priority 10. We're already in init,
+        // cookbook.php hooks this method on init priority 10. We're already in init,
         // so register the CPT and taxonomies directly rather than via nested
         // add_action('init', …) — those don't fire reliably when added during the
         // priority-10 iteration.
         $this->register_post_type();
         $this->register_taxonomies();
-        add_action( 'admin_post_recipes_save', [ $this, 'handle_save' ] );
-        add_action( 'admin_post_recipes_delete', [ $this, 'handle_delete' ] );
-        add_action( 'admin_post_recipes_settings', [ $this, 'handle_settings' ] );
-        add_action( 'admin_post_recipes_import', [ $this, 'handle_import' ] );
-        add_action( 'admin_post_recipes_refetch', [ $this, 'handle_refetch' ] );
-        add_action( 'admin_post_recipes_merge_ingredients', [ $this, 'handle_merge_ingredients' ] );
-        add_action( 'admin_post_recipes_group_ingredients', [ $this, 'handle_group_ingredients' ] );
-        add_action( 'admin_post_recipes_rename_ingredient', [ $this, 'handle_rename_ingredient' ] );
-        add_action( 'wp_ajax_recipes_parse_url', [ $this, 'ajax_parse_url' ] );
+        add_action( 'admin_post_cookbook_save', [ $this, 'handle_save' ] );
+        add_action( 'admin_post_cookbook_delete', [ $this, 'handle_delete' ] );
+        add_action( 'admin_post_cookbook_settings', [ $this, 'handle_settings' ] );
+        add_action( 'admin_post_cookbook_import', [ $this, 'handle_import' ] );
+        add_action( 'admin_post_cookbook_refetch', [ $this, 'handle_refetch' ] );
+        add_action( 'admin_post_cookbook_merge_ingredients', [ $this, 'handle_merge_ingredients' ] );
+        add_action( 'admin_post_cookbook_group_ingredients', [ $this, 'handle_group_ingredients' ] );
+        add_action( 'admin_post_cookbook_rename_ingredient', [ $this, 'handle_rename_ingredient' ] );
+        add_action( 'wp_ajax_cookbook_parse_url', [ $this, 'ajax_parse_url' ] );
 
         add_action( 'wp_loaded', [ $this, 'handle_extension_save' ], 100 );
         add_filter( 'friends_browser_extension_actions', [ $this, 'register_browser_extension_action' ] );
@@ -83,12 +83,12 @@ class App extends BaseApp {
 
     protected function setup_menu(): void {
         $home = home_url( '/' . $this->get_url_path() . '/' );
-        $this->app->add_menu_item( 'all', __( 'All recipes', 'recipes' ), $home );
-        $this->app->add_menu_item( 'by-ingredients', __( 'By ingredients', 'recipes' ), $home . 'by-ingredients' );
-        $this->app->add_menu_item( 'manage-ingredients', __( 'Manage ingredients', 'recipes' ), $home . 'manage-ingredients' );
-        $this->app->add_menu_item( 'new', __( 'New recipe', 'recipes' ), $home . 'new' );
-        $this->app->add_menu_item( 'import', __( 'Import from web', 'recipes' ), $home . 'import' );
-        $this->app->add_menu_item( 'settings', __( 'Settings', 'recipes' ), $home . 'settings' );
+        $this->app->add_menu_item( 'all', __( 'All recipes', 'cookbook' ), $home );
+        $this->app->add_menu_item( 'by-ingredients', __( 'By ingredients', 'cookbook' ), $home . 'by-ingredients' );
+        $this->app->add_menu_item( 'manage-ingredients', __( 'Manage ingredients', 'cookbook' ), $home . 'manage-ingredients' );
+        $this->app->add_menu_item( 'new', __( 'New recipe', 'cookbook' ), $home . 'new' );
+        $this->app->add_menu_item( 'import', __( 'Import from web', 'cookbook' ), $home . 'import' );
+        $this->app->add_menu_item( 'settings', __( 'Settings', 'cookbook' ), $home . 'settings' );
     }
 
     public function activate(): void {
@@ -100,15 +100,15 @@ class App extends BaseApp {
     public function register_post_type(): void {
         register_post_type( self::POST_TYPE, [
             'labels' => [
-                'name'               => __( 'Recipes', 'recipes' ),
-                'singular_name'      => __( 'Recipe', 'recipes' ),
-                'add_new'            => __( 'New recipe', 'recipes' ),
-                'add_new_item'       => __( 'Add new recipe', 'recipes' ),
-                'edit_item'          => __( 'Edit recipe', 'recipes' ),
-                'view_item'          => __( 'View recipe', 'recipes' ),
-                'search_items'       => __( 'Search recipes', 'recipes' ),
-                'not_found'          => __( 'No recipes yet', 'recipes' ),
-                'not_found_in_trash' => __( 'No recipes in trash', 'recipes' ),
+                'name'               => __( 'Recipes', 'cookbook' ),
+                'singular_name'      => __( 'Recipe', 'cookbook' ),
+                'add_new'            => __( 'New recipe', 'cookbook' ),
+                'add_new_item'       => __( 'Add new recipe', 'cookbook' ),
+                'edit_item'          => __( 'Edit recipe', 'cookbook' ),
+                'view_item'          => __( 'View recipe', 'cookbook' ),
+                'search_items'       => __( 'Search recipes', 'cookbook' ),
+                'not_found'          => __( 'No recipes yet', 'cookbook' ),
+                'not_found_in_trash' => __( 'No recipes in trash', 'cookbook' ),
             ],
             'public'             => false,
             'publicly_queryable' => false,
@@ -180,8 +180,8 @@ class App extends BaseApp {
     public function register_taxonomies(): void {
         register_taxonomy( self::TAX_CATEGORY, self::POST_TYPE, [
             'labels' => [
-                'name'          => __( 'Categories', 'recipes' ),
-                'singular_name' => __( 'Category', 'recipes' ),
+                'name'          => __( 'Categories', 'cookbook' ),
+                'singular_name' => __( 'Category', 'cookbook' ),
             ],
             'hierarchical'      => true,
             'show_ui'           => true,
@@ -191,8 +191,8 @@ class App extends BaseApp {
         ] );
         register_taxonomy( self::TAX_CUISINE, self::POST_TYPE, [
             'labels' => [
-                'name'          => __( 'Cuisines', 'recipes' ),
-                'singular_name' => __( 'Cuisine', 'recipes' ),
+                'name'          => __( 'Cuisines', 'cookbook' ),
+                'singular_name' => __( 'Cuisine', 'cookbook' ),
             ],
             'hierarchical'      => true,
             'show_ui'           => true,
@@ -202,8 +202,8 @@ class App extends BaseApp {
         ] );
         register_taxonomy( self::TAX_TAG, self::POST_TYPE, [
             'labels' => [
-                'name'          => __( 'Tags', 'recipes' ),
-                'singular_name' => __( 'Tag', 'recipes' ),
+                'name'          => __( 'Tags', 'cookbook' ),
+                'singular_name' => __( 'Tag', 'cookbook' ),
             ],
             'hierarchical'      => false,
             'show_ui'           => true,
@@ -213,8 +213,8 @@ class App extends BaseApp {
         ] );
         register_taxonomy( self::TAX_INGREDIENT, self::POST_TYPE, [
             'labels' => [
-                'name'          => __( 'Ingredients', 'recipes' ),
-                'singular_name' => __( 'Ingredient', 'recipes' ),
+                'name'          => __( 'Ingredients', 'cookbook' ),
+                'singular_name' => __( 'Ingredient', 'cookbook' ),
             ],
             // Hierarchical so users can manually group similar ingredients
             // ("cherry tomato" as a child of "tomato") via the standard WP UI.
@@ -234,9 +234,9 @@ class App extends BaseApp {
 
     public function handle_save(): void {
         if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
-            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
         }
-        check_admin_referer( 'recipes_save' );
+        check_admin_referer( 'cookbook_save' );
 
         $id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
         $title = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
@@ -279,14 +279,14 @@ class App extends BaseApp {
         $postarr = [
             'post_type'    => self::POST_TYPE,
             'post_status'  => 'publish',
-            'post_title'   => $title !== '' ? $title : __( 'Untitled recipe', 'recipes' ),
+            'post_title'   => $title !== '' ? $title : __( 'Untitled recipe', 'cookbook' ),
             'post_content' => $description,
             'post_author'  => get_current_user_id(),
         ];
         if ( $id ) {
             $existing = get_post( $id );
             if ( ! $existing || $existing->post_type !== self::POST_TYPE ) {
-                wp_die( esc_html__( 'Recipe not found.', 'recipes' ), 404 );
+                wp_die( esc_html__( 'Recipe not found.', 'cookbook' ), 404 );
             }
             $postarr['ID'] = $id;
             $post_id = wp_update_post( $postarr, true );
@@ -459,13 +459,13 @@ class App extends BaseApp {
 
     public function handle_delete(): void {
         if ( ! is_user_logged_in() || ! current_user_can( 'delete_posts' ) ) {
-            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
         }
-        check_admin_referer( 'recipes_delete' );
+        check_admin_referer( 'cookbook_delete' );
         $id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
         $post = $id ? get_post( $id ) : null;
         if ( ! $post || $post->post_type !== self::POST_TYPE ) {
-            wp_die( esc_html__( 'Recipe not found.', 'recipes' ), 404 );
+            wp_die( esc_html__( 'Recipe not found.', 'cookbook' ), 404 );
         }
         wp_trash_post( $id );
         wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/' ) );
@@ -474,9 +474,9 @@ class App extends BaseApp {
 
     public function handle_settings(): void {
         if ( ! is_user_logged_in() ) {
-            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
         }
-        check_admin_referer( 'recipes_settings' );
+        check_admin_referer( 'cookbook_settings' );
         $pref = isset( $_POST['unit_preference'] ) ? sanitize_text_field( wp_unslash( $_POST['unit_preference'] ) ) : 'metric';
         if ( ! in_array( $pref, [ 'metric', 'imperial' ], true ) ) {
             $pref = 'metric';
@@ -488,9 +488,9 @@ class App extends BaseApp {
 
     public function handle_import(): void {
         if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
-            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
         }
-        check_admin_referer( 'recipes_import' );
+        check_admin_referer( 'cookbook_import' );
 
         $url   = isset( $_POST['source_url'] ) ? esc_url_raw( wp_unslash( $_POST['source_url'] ) ) : '';
         // $paste is HTML-ish recipe text; sanitize via wp_kses_post which preserves line breaks.
@@ -511,7 +511,7 @@ class App extends BaseApp {
         $post_id = wp_insert_post( [
             'post_type'    => self::POST_TYPE,
             'post_status'  => 'draft',
-            'post_title'   => $parsed['title'] ?: __( 'Imported recipe', 'recipes' ),
+            'post_title'   => $parsed['title'] ?: __( 'Imported recipe', 'cookbook' ),
             'post_content' => $parsed['description'] ?? '',
             'post_author'  => get_current_user_id(),
         ], true );
@@ -533,14 +533,14 @@ class App extends BaseApp {
      */
     public function handle_refetch(): void {
         if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
-            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
         }
-        check_admin_referer( 'recipes_refetch' );
+        check_admin_referer( 'cookbook_refetch' );
 
         $id   = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
         $post = $id ? get_post( $id ) : null;
         if ( ! $post || $post->post_type !== self::POST_TYPE ) {
-            wp_die( esc_html__( 'Recipe not found.', 'recipes' ), 404 );
+            wp_die( esc_html__( 'Recipe not found.', 'cookbook' ), 404 );
         }
         $url = (string) get_post_meta( $id, self::META_SOURCE_URL, true );
         if ( $url === '' || ! filter_var( $url, FILTER_VALIDATE_URL ) ) {
@@ -583,9 +583,9 @@ class App extends BaseApp {
      */
     public function handle_merge_ingredients(): void {
         if ( ! is_user_logged_in() || ! current_user_can( 'manage_categories' ) ) {
-            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
         }
-        check_admin_referer( 'recipes_manage_ingredients' );
+        check_admin_referer( 'cookbook_manage_ingredients' );
 
         $sources = isset( $_POST['source_ids'] ) && is_array( $_POST['source_ids'] )
             ? array_values( array_unique( array_filter( array_map( 'absint', wp_unslash( $_POST['source_ids'] ) ) ) ) )
@@ -665,9 +665,9 @@ class App extends BaseApp {
      */
     public function handle_group_ingredients(): void {
         if ( ! is_user_logged_in() || ! current_user_can( 'manage_categories' ) ) {
-            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
         }
-        check_admin_referer( 'recipes_manage_ingredients' );
+        check_admin_referer( 'cookbook_manage_ingredients' );
 
         $sources = isset( $_POST['source_ids'] ) && is_array( $_POST['source_ids'] )
             ? array_values( array_unique( array_filter( array_map( 'absint', wp_unslash( $_POST['source_ids'] ) ) ) ) )
@@ -694,9 +694,9 @@ class App extends BaseApp {
      */
     public function handle_rename_ingredient(): void {
         if ( ! is_user_logged_in() || ! current_user_can( 'manage_categories' ) ) {
-            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
         }
-        check_admin_referer( 'recipes_manage_ingredients' );
+        check_admin_referer( 'cookbook_manage_ingredients' );
 
         $term_id = isset( $_POST['term_id'] ) ? absint( $_POST['term_id'] ) : 0;
         $name    = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
@@ -755,11 +755,11 @@ class App extends BaseApp {
     public function register_browser_extension_action( $actions ) {
         if ( ! is_array( $actions ) ) $actions = [];
         $actions[] = [
-            'name'     => __( 'Save as Recipe', 'recipes' ),
-            'url'      => home_url( '/?recipes-collect={current_url}' ),
+            'name'     => __( 'Save as Recipe', 'cookbook' ),
+            'url'      => home_url( '/?cookbook-collect={current_url}' ),
             'method'   => 'POST',
             'fields'   => [ 'body' => '{page_html}' ],
-            'category' => __( 'Recipes', 'recipes' ),
+            'category' => __( 'Recipes', 'cookbook' ),
         ];
         return $actions;
     }
@@ -767,7 +767,7 @@ class App extends BaseApp {
     public function handle_extension_save(): void {
         // The browser extension authenticates via the user's logged-in session
         // (cookies); there is no nonce to verify here, hence the phpcs ignores.
-        if ( empty( $_REQUEST['recipes-collect'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if ( empty( $_REQUEST['cookbook-collect'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             return;
         }
         $request_method = isset( $_SERVER['REQUEST_METHOD'] )
@@ -780,10 +780,10 @@ class App extends BaseApp {
             auth_redirect();
         }
         if ( ! current_user_can( 'edit_posts' ) ) {
-            wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
         }
 
-        $url = esc_url_raw( wp_unslash( $_REQUEST['recipes-collect'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $url = esc_url_raw( wp_unslash( $_REQUEST['cookbook-collect'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         // Raw page HTML; passed to Importer::from_html which extracts JSON-LD or strips tags.
         $html = isset( $_POST['body'] ) ? (string) wp_unslash( $_POST['body'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
@@ -802,7 +802,7 @@ class App extends BaseApp {
         $post_id = wp_insert_post( [
             'post_type'    => self::POST_TYPE,
             'post_status'  => 'draft',
-            'post_title'   => $parsed['title'] ?: __( 'Imported recipe', 'recipes' ),
+            'post_title'   => $parsed['title'] ?: __( 'Imported recipe', 'cookbook' ),
             'post_content' => $parsed['description'] ?? '',
             'post_author'  => get_current_user_id(),
         ], true );
@@ -817,16 +817,16 @@ class App extends BaseApp {
 
     public function ajax_parse_url(): void {
         if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
-            wp_send_json_error( [ 'message' => __( 'Not allowed.', 'recipes' ) ], 403 );
+            wp_send_json_error( [ 'message' => __( 'Not allowed.', 'cookbook' ) ], 403 );
         }
-        check_ajax_referer( 'recipes_import' );
+        check_ajax_referer( 'cookbook_import' );
         $url = isset( $_POST['url'] ) ? esc_url_raw( wp_unslash( $_POST['url'] ) ) : '';
         if ( $url === '' ) {
-            wp_send_json_error( [ 'message' => __( 'Missing URL.', 'recipes' ) ] );
+            wp_send_json_error( [ 'message' => __( 'Missing URL.', 'cookbook' ) ] );
         }
         $parsed = Importer::from_url( $url );
         if ( ! $parsed ) {
-            wp_send_json_error( [ 'message' => __( 'Could not parse a recipe from that URL.', 'recipes' ) ] );
+            wp_send_json_error( [ 'message' => __( 'Could not parse a recipe from that URL.', 'cookbook' ) ] );
         }
         wp_send_json_success( $parsed );
     }

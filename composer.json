@@ -1,6 +1,6 @@
 {
-    "name": "akirk/recipes",
-    "description": "Recipes - A WordPress app powered by WpApp",
+    "name": "akirk/cookbook",
+    "description": "Cookbook - A WordPress app powered by WpApp",
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
     "require": {
@@ -12,7 +12,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Recipes\\": "src/"
+            "Cookbook\\": "src/"
         }
     },
     "authors": [
@@ -21,7 +21,7 @@
         }
     ],
     "config": {
-	    "autoloader-suffix": "Recipes"
+	    "autoloader-suffix": "Cookbook"
     },
     "scripts": {
         "test": "phpunit"

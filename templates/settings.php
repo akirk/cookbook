@@ -3,10 +3,10 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-use Recipes\App;
+use Cookbook\App;
 
 if ( ! is_user_logged_in() ) {
-    wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+    wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
 }
 
 $pref = App::get_user_unit_preference();
@@ -15,32 +15,32 @@ $saved = isset( $_GET['saved'] );
 
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/recipes/' ) ); ?>"><?php esc_html_e( '← All recipes', 'recipes' ); ?></a>
-<h1><?php esc_html_e( 'Settings', 'recipes' ); ?></h1>
+<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
+<h1><?php esc_html_e( 'Settings', 'cookbook' ); ?></h1>
 
 <?php if ( $saved ) : ?>
-    <div class="notice success"><?php esc_html_e( 'Settings saved.', 'recipes' ); ?></div>
+    <div class="notice success"><?php esc_html_e( 'Settings saved.', 'cookbook' ); ?></div>
 <?php endif; ?>
 
 <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-    <?php wp_nonce_field( 'recipes_settings' ); ?>
-    <input type="hidden" name="action" value="recipes_settings">
+    <?php wp_nonce_field( 'cookbook_settings' ); ?>
+    <input type="hidden" name="action" value="cookbook_settings">
 
-    <label><?php esc_html_e( 'Preferred unit system', 'recipes' ); ?></label>
-    <p class="help"><?php esc_html_e( 'Recipes are stored in their original units. We convert on display when the system differs from your preference.', 'recipes' ); ?></p>
+    <label><?php esc_html_e( 'Preferred unit system', 'cookbook' ); ?></label>
+    <p class="help"><?php esc_html_e( 'Recipes are stored in their original units. We convert on display when the system differs from your preference.', 'cookbook' ); ?></p>
     <p>
         <label style="display:inline-block;font-weight:normal;margin-right:1rem">
             <input type="radio" name="unit_preference" value="metric" <?php checked( $pref, 'metric' ); ?>>
-            <?php esc_html_e( 'Metric (g, kg, ml, l)', 'recipes' ); ?>
+            <?php esc_html_e( 'Metric (g, kg, ml, l)', 'cookbook' ); ?>
         </label>
         <label style="display:inline-block;font-weight:normal">
             <input type="radio" name="unit_preference" value="imperial" <?php checked( $pref, 'imperial' ); ?>>
-            <?php esc_html_e( 'Imperial (oz, lb, tsp, tbsp, cup)', 'recipes' ); ?>
+            <?php esc_html_e( 'Imperial (oz, lb, tsp, tbsp, cup)', 'cookbook' ); ?>
         </label>
     </p>
 
     <div class="toolbar">
-        <button class="btn" type="submit"><?php esc_html_e( 'Save settings', 'recipes' ); ?></button>
+        <button class="btn" type="submit"><?php esc_html_e( 'Save settings', 'cookbook' ); ?></button>
     </div>
 </form>
 
