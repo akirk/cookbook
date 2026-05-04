@@ -3,10 +3,10 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-use Recipes\App;
+use Cookbook\App;
 
 if ( ! current_user_can( 'edit_posts' ) ) {
-    wp_die( esc_html__( 'Not allowed.', 'recipes' ), 403 );
+    wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
 }
 
 // phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only prefill / error code.
@@ -17,29 +17,29 @@ $autoimport = ! empty( $_GET['autoimport'] ) && $source_url !== '' && $error ===
 
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/recipes/' ) ); ?>"><?php esc_html_e( '← All recipes', 'recipes' ); ?></a>
-<h1><?php esc_html_e( 'Import a recipe', 'recipes' ); ?></h1>
-<p class="subtitle"><?php esc_html_e( 'Paste a URL from a recipe site, or paste the recipe text itself.', 'recipes' ); ?></p>
+<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
+<h1><?php esc_html_e( 'Import a recipe', 'cookbook' ); ?></h1>
+<p class="subtitle"><?php esc_html_e( 'Paste a URL from a recipe site, or paste the recipe text itself.', 'cookbook' ); ?></p>
 
 <?php if ( $error === 'parse' ) : ?>
-    <div class="notice error"><?php esc_html_e( 'Could not detect a recipe. Try pasting the text below instead.', 'recipes' ); ?></div>
+    <div class="notice error"><?php esc_html_e( 'Could not detect a recipe. Try pasting the text below instead.', 'cookbook' ); ?></div>
 <?php endif; ?>
 
 <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="import-form">
-    <?php wp_nonce_field( 'recipes_import' ); ?>
-    <input type="hidden" name="action" value="recipes_import">
+    <?php wp_nonce_field( 'cookbook_import' ); ?>
+    <input type="hidden" name="action" value="cookbook_import">
 
-    <label for="source_url"><?php esc_html_e( 'Recipe URL', 'recipes' ); ?></label>
+    <label for="source_url"><?php esc_html_e( 'Recipe URL', 'cookbook' ); ?></label>
     <input id="source_url" type="url" name="source_url" placeholder="https://example.com/some-recipe" value="<?php echo esc_attr( $source_url ); ?>" autofocus>
-    <p class="help"><?php esc_html_e( 'We look for schema.org Recipe metadata, which most major recipe sites publish.', 'recipes' ); ?></p>
+    <p class="help"><?php esc_html_e( 'We look for schema.org Recipe metadata, which most major recipe sites publish.', 'cookbook' ); ?></p>
 
-    <label for="paste"><?php esc_html_e( '…or paste the recipe text', 'recipes' ); ?></label>
-    <textarea id="paste" name="paste" style="min-height:14rem" placeholder="<?php esc_attr_e( "Title\n\nIngredients\n2 cups flour\n1 tsp salt\n…\n\nInstructions\nMix everything…", 'recipes' ); ?>"></textarea>
-    <p class="help"><?php esc_html_e( 'Use "Ingredients" / "Instructions" headers if you can — it makes parsing more reliable. The result will land in your drafts so you can review and tidy it up.', 'recipes' ); ?></p>
+    <label for="paste"><?php esc_html_e( '…or paste the recipe text', 'cookbook' ); ?></label>
+    <textarea id="paste" name="paste" style="min-height:14rem" placeholder="<?php esc_attr_e( "Title\n\nIngredients\n2 cups flour\n1 tsp salt\n…\n\nInstructions\nMix everything…", 'cookbook' ); ?>"></textarea>
+    <p class="help"><?php esc_html_e( 'Use "Ingredients" / "Instructions" headers if you can — it makes parsing more reliable. The result will land in your drafts so you can review and tidy it up.', 'cookbook' ); ?></p>
 
     <div class="toolbar">
-        <button class="btn" type="submit"><?php esc_html_e( 'Import', 'recipes' ); ?></button>
-        <a class="btn secondary" href="<?php echo esc_url( home_url( '/recipes/' ) ); ?>"><?php esc_html_e( 'Cancel', 'recipes' ); ?></a>
+        <button class="btn" type="submit"><?php esc_html_e( 'Import', 'cookbook' ); ?></button>
+        <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( 'Cancel', 'cookbook' ); ?></a>
     </div>
 </form>
 
@@ -50,7 +50,7 @@ include __DIR__ . '/_header.php';
         <?php
         printf(
             /* translators: %s: hostname being imported from */
-            esc_html__( 'Importing from %s…', 'recipes' ),
+            esc_html__( 'Importing from %s…', 'cookbook' ),
             '<strong>' . esc_html( wp_parse_url( $source_url, PHP_URL_HOST ) ?: $source_url ) . '</strong>' // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         );
         ?>

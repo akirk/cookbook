@@ -1,7 +1,7 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
-use Recipes\Importer;
+use Cookbook\Importer;
 
 class ImporterTest extends TestCase {
 

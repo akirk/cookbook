@@ -1,6 +1,6 @@
 <?php
 
-namespace Recipes;
+namespace Cookbook;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -33,7 +33,7 @@ class Importer {
 
         $response = wp_remote_get( $url, [
             'timeout'    => 12,
-            'user-agent' => 'Mozilla/5.0 (compatible; WP-Recipes/1.0)',
+            'user-agent' => 'Mozilla/5.0 (compatible; WP-Cookbook/1.0)',
             'redirection' => 5,
         ] );
         if ( is_wp_error( $response ) ) return null;

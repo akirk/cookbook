@@ -3,12 +3,12 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-use Recipes\App;
+use Cookbook\App;
 
 if ( ! is_user_logged_in() || ! current_user_can( 'manage_categories' ) ) {
     status_header( 403 );
     include __DIR__ . '/_header.php';
-    echo '<h1>' . esc_html__( 'Not allowed.', 'recipes' ) . '</h1>';
+    echo '<h1>' . esc_html__( 'Not allowed.', 'cookbook' ) . '</h1>';
     include __DIR__ . '/_footer.php';
     return;
 }
@@ -58,15 +58,15 @@ include __DIR__ . '/_header.php';
     .mi-selected-count { font-weight: 600; }
 </style>
 
-<a class="badge" href="<?php echo esc_url( home_url( '/recipes/by-ingredients' ) ); ?>"><?php esc_html_e( '← Back to By ingredients', 'recipes' ); ?></a>
-<h1><?php esc_html_e( 'Manage ingredients', 'recipes' ); ?></h1>
-<p class="subtitle"><?php esc_html_e( 'Tick duplicates and merge them into one canonical term, or group similar ingredients under a parent. Merging rewrites the linked recipes; grouping just sets a hierarchy.', 'recipes' ); ?></p>
+<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>"><?php esc_html_e( '← Back to By ingredients', 'cookbook' ); ?></a>
+<h1><?php esc_html_e( 'Manage ingredients', 'cookbook' ); ?></h1>
+<p class="subtitle"><?php esc_html_e( 'Tick duplicates and merge them into one canonical term, or group similar ingredients under a parent. Merging rewrites the linked recipes; grouping just sets a hierarchy.', 'cookbook' ); ?></p>
 
 <?php if ( $merged_count >= 0 ) : ?>
     <div class="notice success">
         <?php
         /* translators: %d: number of merged ingredient terms */
-        echo esc_html( sprintf( _n( 'Merged %d ingredient.', 'Merged %d ingredients.', max( 1, $merged_count ), 'recipes' ), $merged_count ) );
+        echo esc_html( sprintf( _n( 'Merged %d ingredient.', 'Merged %d ingredients.', max( 1, $merged_count ), 'cookbook' ), $merged_count ) );
         ?>
     </div>
 <?php endif; ?>
@@ -74,42 +74,42 @@ include __DIR__ . '/_header.php';
     <div class="notice success">
         <?php
         /* translators: %d: number of grouped ingredient terms */
-        echo esc_html( sprintf( _n( 'Grouped %d ingredient.', 'Grouped %d ingredients.', max( 1, $grouped_count ), 'recipes' ), $grouped_count ) );
+        echo esc_html( sprintf( _n( 'Grouped %d ingredient.', 'Grouped %d ingredients.', max( 1, $grouped_count ), 'cookbook' ), $grouped_count ) );
         ?>
     </div>
 <?php endif; ?>
 <?php if ( $renamed_count >= 0 ) : ?>
-    <div class="notice success"><?php esc_html_e( 'Ingredient renamed.', 'recipes' ); ?></div>
+    <div class="notice success"><?php esc_html_e( 'Ingredient renamed.', 'cookbook' ); ?></div>
 <?php endif; ?>
 
 <?php if ( ! $all_terms ) : ?>
-    <div class="notice"><?php esc_html_e( 'No ingredients yet — add or import a recipe to populate this list.', 'recipes' ); ?></div>
+    <div class="notice"><?php esc_html_e( 'No ingredients yet — add or import a recipe to populate this list.', 'cookbook' ); ?></div>
 <?php else : ?>
 
 <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="mi-form">
-    <?php wp_nonce_field( 'recipes_manage_ingredients' ); ?>
-    <input type="hidden" name="action" id="mi-action" value="recipes_merge_ingredients">
+    <?php wp_nonce_field( 'cookbook_manage_ingredients' ); ?>
+    <input type="hidden" name="action" id="mi-action" value="cookbook_merge_ingredients">
 
-    <input type="search" class="mi-search" id="mi-search" placeholder="<?php esc_attr_e( 'Filter ingredients…', 'recipes' ); ?>" autocomplete="off">
+    <input type="search" class="mi-search" id="mi-search" placeholder="<?php esc_attr_e( 'Filter ingredients…', 'cookbook' ); ?>" autocomplete="off">
 
     <div class="mi-toolbar" id="mi-toolbar">
-        <span><span class="mi-selected-count" id="mi-count">0</span> <?php esc_html_e( 'selected', 'recipes' ); ?></span>
+        <span><span class="mi-selected-count" id="mi-count">0</span> <?php esc_html_e( 'selected', 'cookbook' ); ?></span>
         <span class="spacer" style="flex:1"></span>
-        <label for="mi-target" style="margin:0"><?php esc_html_e( 'Target:', 'recipes' ); ?></label>
+        <label for="mi-target" style="margin:0"><?php esc_html_e( 'Target:', 'cookbook' ); ?></label>
         <select name="target_id" id="mi-target">
-            <option value="0">— <?php esc_html_e( 'pick a target ingredient', 'recipes' ); ?> —</option>
+            <option value="0">— <?php esc_html_e( 'pick a target ingredient', 'cookbook' ); ?> —</option>
             <?php foreach ( $all_terms as $t ) : ?>
-                <option value="<?php echo (int) $t->term_id; ?>"><?php echo esc_html( $t->name ); ?> <?php /* translators: %d: number of recipes using this ingredient */ printf( esc_html__( '(%d)', 'recipes' ), (int) $t->count ); ?></option>
+                <option value="<?php echo (int) $t->term_id; ?>"><?php echo esc_html( $t->name ); ?> <?php /* translators: %d: number of recipes using this ingredient */ printf( esc_html__( '(%d)', 'cookbook' ), (int) $t->count ); ?></option>
             <?php endforeach; ?>
         </select>
-        <button type="submit" class="btn" name="do" value="merge" id="mi-merge" disabled><?php esc_html_e( 'Merge into target', 'recipes' ); ?></button>
-        <button type="submit" class="btn secondary" name="do" value="group" id="mi-group" disabled><?php esc_html_e( 'Make children of target', 'recipes' ); ?></button>
+        <button type="submit" class="btn" name="do" value="merge" id="mi-merge" disabled><?php esc_html_e( 'Merge into target', 'cookbook' ); ?></button>
+        <button type="submit" class="btn secondary" name="do" value="group" id="mi-group" disabled><?php esc_html_e( 'Make children of target', 'cookbook' ); ?></button>
     </div>
 
     <ul class="mi-list" id="mi-list">
         <?php foreach ( $all_terms as $t ) :
             $parent = $t->parent && isset( $by_id[ (int) $t->parent ] ) ? $by_id[ (int) $t->parent ] : null;
-            $view_url = home_url( '/recipes/ingredient/' . $t->slug );
+            $view_url = home_url( '/cookbook/ingredient/' . $t->slug );
             ?>
             <li class="mi-row" data-name="<?php echo esc_attr( mb_strtolower( $t->name ) ); ?>" data-id="<?php echo (int) $t->term_id; ?>">
                 <label>
@@ -118,19 +118,19 @@ include __DIR__ . '/_header.php';
                     <?php if ( $parent ) : ?>
                         <span class="mi-parent">↳ <?php
                             /* translators: %s: parent ingredient name */
-                            echo esc_html( sprintf( __( 'child of %s', 'recipes' ), $parent->name ) );
+                            echo esc_html( sprintf( __( 'child of %s', 'cookbook' ), $parent->name ) );
                         ?></span>
                     <?php endif; ?>
                 </label>
                 <span class="mi-rename" data-rename-for="<?php echo (int) $t->term_id; ?>">
                     <input type="text" value="<?php echo esc_attr( $t->name ); ?>" data-original="<?php echo esc_attr( $t->name ); ?>">
-                    <button type="button" class="btn mi-rename-save"><?php esc_html_e( 'Save', 'recipes' ); ?></button>
-                    <button type="button" class="btn secondary mi-rename-cancel"><?php esc_html_e( 'Cancel', 'recipes' ); ?></button>
+                    <button type="button" class="btn mi-rename-save"><?php esc_html_e( 'Save', 'cookbook' ); ?></button>
+                    <button type="button" class="btn secondary mi-rename-cancel"><?php esc_html_e( 'Cancel', 'cookbook' ); ?></button>
                 </span>
                 <span class="mi-count"><?php echo (int) $t->count; ?></span>
                 <span class="mi-actions">
-                    <a href="<?php echo esc_url( $view_url ); ?>"><?php esc_html_e( 'View', 'recipes' ); ?></a>
-                    <button type="button" class="btn secondary mi-rename-toggle"><?php esc_html_e( 'Rename', 'recipes' ); ?></button>
+                    <a href="<?php echo esc_url( $view_url ); ?>"><?php esc_html_e( 'View', 'cookbook' ); ?></a>
+                    <button type="button" class="btn secondary mi-rename-toggle"><?php esc_html_e( 'Rename', 'cookbook' ); ?></button>
                 </span>
             </li>
         <?php endforeach; ?>
@@ -138,8 +138,8 @@ include __DIR__ . '/_header.php';
 </form>
 
 <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="mi-rename-form" style="display:none">
-    <?php wp_nonce_field( 'recipes_manage_ingredients' ); ?>
-    <input type="hidden" name="action" value="recipes_rename_ingredient">
+    <?php wp_nonce_field( 'cookbook_manage_ingredients' ); ?>
+    <input type="hidden" name="action" value="cookbook_rename_ingredient">
     <input type="hidden" name="term_id" id="mi-rename-term">
     <input type="hidden" name="name" id="mi-rename-name">
 </form>
@@ -177,8 +177,8 @@ include __DIR__ . '/_header.php';
         if (e.target.classList.contains('mi-check')) refresh();
     });
     target.addEventListener('change', refresh);
-    merge.addEventListener('click', () => { lastOp = 'merge'; action.value = 'recipes_merge_ingredients'; });
-    group.addEventListener('click', () => { lastOp = 'group'; action.value = 'recipes_group_ingredients'; });
+    merge.addEventListener('click', () => { lastOp = 'merge'; action.value = 'cookbook_merge_ingredients'; });
+    group.addEventListener('click', () => { lastOp = 'group'; action.value = 'cookbook_group_ingredients'; });
 
     form.addEventListener('submit', e => {
         const op = lastOp;

@@ -3,16 +3,16 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-use Recipes\App;
-use Recipes\Importer;
-use Recipes\Units;
+use Cookbook\App;
+use Cookbook\Importer;
+use Cookbook\Units;
 
 $id = (int) get_query_var( 'id' );
 $post = $id ? get_post( $id ) : null;
 if ( ! $post || $post->post_type !== App::POST_TYPE ) {
     status_header( 404 );
     include __DIR__ . '/_header.php';
-    echo '<h1>' . esc_html__( 'Not found', 'recipes' ) . '</h1><p>' . esc_html__( 'That recipe does not exist.', 'recipes' ) . '</p>';
+    echo '<h1>' . esc_html__( 'Not found', 'cookbook' ) . '</h1><p>' . esc_html__( 'That recipe does not exist.', 'cookbook' ) . '</p>';
     include __DIR__ . '/_footer.php';
     return;
 }
@@ -40,7 +40,7 @@ $refetch_status = isset( $_GET['refetch'] ) ? sanitize_text_field( wp_unslash( $
 
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/recipes/' ) ); ?>"><?php esc_html_e( '← All recipes', 'recipes' ); ?></a>
+<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
 <h1><?php echo esc_html( get_the_title( $post ) ); ?></h1>
 
 <?php if ( has_post_thumbnail( $id ) ) : ?>
@@ -55,7 +55,7 @@ include __DIR__ . '/_header.php';
         <span>
             <?php
             /* translators: %d: prep time in minutes */
-            echo esc_html( sprintf( __( 'Prep: %d min', 'recipes' ), $prep ) );
+            echo esc_html( sprintf( __( 'Prep: %d min', 'cookbook' ), $prep ) );
             ?>
         </span>
     <?php endif; ?>
@@ -63,13 +63,13 @@ include __DIR__ . '/_header.php';
         <span>
             <?php
             /* translators: %d: cook time in minutes */
-            echo esc_html( sprintf( __( 'Cook: %d min', 'recipes' ), $cook ) );
+            echo esc_html( sprintf( __( 'Cook: %d min', 'cookbook' ), $cook ) );
             ?>
         </span>
     <?php endif; ?>
     <?php if ( $source_url ) : ?>
         <span>
-            <?php esc_html_e( 'Source:', 'recipes' ); ?>
+            <?php esc_html_e( 'Source:', 'cookbook' ); ?>
             <a href="<?php echo esc_url( $source_url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( wp_parse_url( $source_url, PHP_URL_HOST ) ?: $source_url ); ?></a>
         </span>
     <?php endif; ?>
@@ -78,58 +78,58 @@ include __DIR__ . '/_header.php';
 <?php if ( ( ! is_wp_error( $cats ) && $cats ) || ( ! is_wp_error( $cuisines ) && $cuisines ) || ( ! is_wp_error( $tags ) && $tags ) ) : ?>
 <p style="margin-top:0.75rem">
     <?php foreach ( (array) $cats as $t ) : ?>
-        <a class="badge" href="<?php echo esc_url( home_url( '/recipes/category/' . $t->slug ) ); ?>"><?php echo esc_html( $t->name ); ?></a>
+        <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/category/' . $t->slug ) ); ?>"><?php echo esc_html( $t->name ); ?></a>
     <?php endforeach; ?>
     <?php foreach ( (array) $cuisines as $t ) : ?>
         <span class="badge"><?php echo esc_html( $t->name ); ?></span>
     <?php endforeach; ?>
     <?php foreach ( (array) $tags as $t ) : ?>
-        <a class="badge" href="<?php echo esc_url( home_url( '/recipes/tag/' . $t->slug ) ); ?>">#<?php echo esc_html( $t->name ); ?></a>
+        <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/tag/' . $t->slug ) ); ?>">#<?php echo esc_html( $t->name ); ?></a>
     <?php endforeach; ?>
 </p>
 <?php endif; ?>
 
 <div class="toolbar">
     <div class="portion-control">
-        <label for="servings" style="margin:0"><?php esc_html_e( 'Servings:', 'recipes' ); ?></label>
+        <label for="servings" style="margin:0"><?php esc_html_e( 'Servings:', 'cookbook' ); ?></label>
         <input id="servings" type="number" min="1" step="1" value="<?php echo (int) $servings_default; ?>" data-default="<?php echo (int) $servings_default; ?>">
     </div>
-    <div class="unit-toggle" role="tablist" aria-label="<?php esc_attr_e( 'Unit system', 'recipes' ); ?>">
-        <button type="button" class="<?php echo $preference === 'metric' ? 'active' : ''; ?>" data-units="metric"><?php esc_html_e( 'Metric', 'recipes' ); ?></button>
-        <button type="button" class="<?php echo $preference === 'imperial' ? 'active' : ''; ?>" data-units="imperial"><?php esc_html_e( 'Imperial', 'recipes' ); ?></button>
+    <div class="unit-toggle" role="tablist" aria-label="<?php esc_attr_e( 'Unit system', 'cookbook' ); ?>">
+        <button type="button" class="<?php echo $preference === 'metric' ? 'active' : ''; ?>" data-units="metric"><?php esc_html_e( 'Metric', 'cookbook' ); ?></button>
+        <button type="button" class="<?php echo $preference === 'imperial' ? 'active' : ''; ?>" data-units="imperial"><?php esc_html_e( 'Imperial', 'cookbook' ); ?></button>
     </div>
     <span class="spacer"></span>
     <?php if ( $source_url ) : ?>
-        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline" onsubmit="return confirm('<?php echo esc_js( __( 'Re-fetch this recipe from its source URL? Ingredients, instructions, times and image will be replaced with the latest parsed data. Notes and tags are kept.', 'recipes' ) ); ?>')">
-            <?php wp_nonce_field( 'recipes_refetch' ); ?>
-            <input type="hidden" name="action" value="recipes_refetch">
+        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline" onsubmit="return confirm('<?php echo esc_js( __( 'Re-fetch this recipe from its source URL? Ingredients, instructions, times and image will be replaced with the latest parsed data. Notes and tags are kept.', 'cookbook' ) ); ?>')">
+            <?php wp_nonce_field( 'cookbook_refetch' ); ?>
+            <input type="hidden" name="action" value="cookbook_refetch">
             <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
-            <button class="btn secondary" type="submit" title="<?php esc_attr_e( 'Re-import from source URL', 'recipes' ); ?>"><?php esc_html_e( 'Refetch', 'recipes' ); ?></button>
+            <button class="btn secondary" type="submit" title="<?php esc_attr_e( 'Re-import from source URL', 'cookbook' ); ?>"><?php esc_html_e( 'Refetch', 'cookbook' ); ?></button>
         </form>
     <?php endif; ?>
-    <a class="btn secondary" href="<?php echo esc_url( home_url( '/recipes/recipe/' . $id . '/edit' ) ); ?>"><?php esc_html_e( 'Edit', 'recipes' ); ?></a>
+    <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $id . '/edit' ) ); ?>"><?php esc_html_e( 'Edit', 'cookbook' ); ?></a>
 </div>
 
 <?php if ( $refetch_status === 'ok' ) : ?>
-    <div class="notice success"><?php esc_html_e( 'Refetched from source.', 'recipes' ); ?></div>
+    <div class="notice success"><?php esc_html_e( 'Refetched from source.', 'cookbook' ); ?></div>
 <?php elseif ( $refetch_status === 'parse_error' ) : ?>
-    <div class="notice error"><?php esc_html_e( 'Could not re-parse the source URL — recipe left unchanged.', 'recipes' ); ?></div>
+    <div class="notice error"><?php esc_html_e( 'Could not re-parse the source URL — recipe left unchanged.', 'cookbook' ); ?></div>
 <?php elseif ( $refetch_status === 'no_url' ) : ?>
-    <div class="notice error"><?php esc_html_e( 'No source URL stored on this recipe.', 'recipes' ); ?></div>
+    <div class="notice error"><?php esc_html_e( 'No source URL stored on this recipe.', 'cookbook' ); ?></div>
 <?php endif; ?>
 
 <?php if ( $post->post_content ) : ?>
     <div class="description"><?php echo wp_kses_post( wpautop( $post->post_content ) ); ?></div>
 <?php endif; ?>
 
-<h2><?php esc_html_e( 'Ingredients', 'recipes' ); ?></h2>
+<h2><?php esc_html_e( 'Ingredients', 'cookbook' ); ?></h2>
 <?php if ( ! $ingredients ) : ?>
     <p class="help">
         <?php
         printf(
             /* translators: %s: link to the recipe edit page */
-            esc_html__( 'No ingredients yet. %s.', 'recipes' ),
-            '<a href="' . esc_url( home_url( '/recipes/recipe/' . $id . '/edit' ) ) . '">' . esc_html__( 'Add some', 'recipes' ) . '</a>'
+            esc_html__( 'No ingredients yet. %s.', 'cookbook' ),
+            '<a href="' . esc_url( home_url( '/cookbook/recipe/' . $id . '/edit' ) ) . '">' . esc_html__( 'Add some', 'cookbook' ) . '</a>'
         );
         ?>
     </p>
@@ -154,7 +154,7 @@ include __DIR__ . '/_header.php';
                 $ing_term    = $ing_term_id ? get_term( $ing_term_id, App::TAX_INGREDIENT ) : null;
                 if ( $ing_term && ! is_wp_error( $ing_term ) ) :
                     ?>
-                    <a href="<?php echo esc_url( home_url( '/recipes/ingredient/' . $ing_term->slug ) ); ?>"><?php echo esc_html( $rendered['name'] ); ?></a>
+                    <a href="<?php echo esc_url( home_url( '/cookbook/ingredient/' . $ing_term->slug ) ); ?>"><?php echo esc_html( $rendered['name'] ); ?></a>
                 <?php else : ?>
                     <?php echo esc_html( $rendered['name'] ); ?>
                 <?php endif; ?>
@@ -167,9 +167,9 @@ include __DIR__ . '/_header.php';
 </ul>
 <?php endif; ?>
 
-<h2><?php esc_html_e( 'Instructions', 'recipes' ); ?></h2>
+<h2><?php esc_html_e( 'Instructions', 'cookbook' ); ?></h2>
 <?php if ( ! $instructions ) : ?>
-    <p class="help"><?php esc_html_e( 'No instructions yet.', 'recipes' ); ?></p>
+    <p class="help"><?php esc_html_e( 'No instructions yet.', 'cookbook' ); ?></p>
 <?php else : ?>
 <ol class="instruction-list">
     <?php foreach ( $instructions as $step ) :
@@ -182,15 +182,15 @@ include __DIR__ . '/_header.php';
 <?php endif; ?>
 
 <?php if ( $notes ) : ?>
-    <h2><?php esc_html_e( 'Notes', 'recipes' ); ?></h2>
+    <h2><?php esc_html_e( 'Notes', 'cookbook' ); ?></h2>
     <div><?php echo wp_kses_post( wpautop( $notes ) ); ?></div>
 <?php endif; ?>
 
-<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:2rem" onsubmit="return confirm('<?php echo esc_js( __( 'Move this recipe to trash?', 'recipes' ) ); ?>')">
-    <?php wp_nonce_field( 'recipes_delete' ); ?>
-    <input type="hidden" name="action" value="recipes_delete">
+<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:2rem" onsubmit="return confirm('<?php echo esc_js( __( 'Move this recipe to trash?', 'cookbook' ) ); ?>')">
+    <?php wp_nonce_field( 'cookbook_delete' ); ?>
+    <input type="hidden" name="action" value="cookbook_delete">
     <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
-    <button class="btn danger" type="submit"><?php esc_html_e( 'Delete recipe', 'recipes' ); ?></button>
+    <button class="btn danger" type="submit"><?php esc_html_e( 'Delete recipe', 'cookbook' ); ?></button>
 </form>
 
 <script>

@@ -7,7 +7,7 @@
          beStrictAboutOutputDuringTests="true"
          failOnWarning="true">
     <testsuites>
-        <testsuite name="recipes">
+        <testsuite name="cookbook">
             <directory>tests</directory>
         </testsuite>
     </testsuites>
