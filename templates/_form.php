@@ -57,6 +57,12 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
     <?php endif; ?>
     <input id="image" type="file" name="image" accept="image/*">
     <p class="help"><?php echo $thumb_url ? esc_html__( 'Upload a new file to replace the current photo.', 'cookbook' ) : esc_html__( 'Optional. Will be added to the media library.', 'cookbook' ); ?></p>
+    <label for="image_url"><?php esc_html_e( 'Photo URL', 'cookbook' ); ?></label>
+    <input id="image_url" type="url" name="image_url" placeholder="https://example.com/recipe-photo.jpg">
+    <p class="help"><?php esc_html_e( 'Paste an image URL to add it to the media library. If you also upload a file, the uploaded file is used.', 'cookbook' ); ?></p>
+    <div id="image-url-preview" hidden style="margin-top:0.5rem">
+        <img src="" alt="" style="max-width:240px;border-radius:6px;border:1px solid var(--line)">
+    </div>
 
     <label for="description"><?php esc_html_e( 'Short description', 'cookbook' ); ?></label>
     <textarea id="description" name="description" style="min-height:4rem"><?php echo esc_textarea( $content ); ?></textarea>
@@ -201,5 +207,24 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
             }
         }
     });
+
+    const imageUrl = document.getElementById('image_url');
+    const imagePreview = document.getElementById('image-url-preview');
+    if (imageUrl && imagePreview) {
+        const image = imagePreview.querySelector('img');
+        imageUrl.addEventListener('input', () => {
+            const url = imageUrl.value.trim();
+            if (!url) {
+                imagePreview.hidden = true;
+                image.removeAttribute('src');
+                return;
+            }
+            image.src = url;
+            imagePreview.hidden = false;
+        });
+        image.addEventListener('error', () => {
+            imagePreview.hidden = true;
+        });
+    }
 })();
 </script>

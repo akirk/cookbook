@@ -57,6 +57,7 @@ if ( is_wp_error( $top_ingredients ) ) {
 $top_ingredient_max = 0;
 foreach ( $top_ingredients as $t ) { $top_ingredient_max = max( $top_ingredient_max, (int) $t->count ); }
 
+$page_title = __( 'Cookbook', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
 <h1><?php esc_html_e( 'Cookbook', 'cookbook' ); ?></h1>

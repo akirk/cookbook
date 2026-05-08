@@ -13,6 +13,7 @@ $id     = 0;
 $post   = null;
 $is_new = true;
 
+$page_title = __( 'New recipe', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
 <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>

@@ -9,6 +9,7 @@ $slug = (string) get_query_var( 'slug' );
 $term = $slug ? get_term_by( 'slug', $slug, App::TAX_INGREDIENT ) : null;
 if ( ! $term ) {
     status_header( 404 );
+    $page_title = __( 'Ingredient not found', 'cookbook' );
     include __DIR__ . '/_header.php';
     echo '<h1>' . esc_html__( 'Ingredient not found', 'cookbook' ) . '</h1>';
     include __DIR__ . '/_footer.php';
@@ -27,6 +28,7 @@ $recipes = get_posts( [
     ],
 ] );
 
+$page_title = ucfirst( $term->name );
 include __DIR__ . '/_header.php';
 ?>
 <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>"><?php esc_html_e( '← All ingredients', 'cookbook' ); ?></a>

@@ -13,12 +13,18 @@ $id = (int) get_query_var( 'id' );
 $post = $id ? get_post( $id ) : null;
 if ( ! $post || $post->post_type !== App::POST_TYPE ) {
     status_header( 404 );
+    $page_title = __( 'Recipe not found', 'cookbook' );
     include __DIR__ . '/_header.php';
     echo '<h1>' . esc_html__( 'Not found', 'cookbook' ) . '</h1>';
     include __DIR__ . '/_footer.php';
     return;
 }
 $is_new = false;
+$page_title = sprintf(
+    /* translators: %s: recipe title */
+    __( 'Edit %s', 'cookbook' ),
+    get_the_title( $post )
+);
 
 include __DIR__ . '/_header.php';
 ?>

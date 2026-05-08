@@ -82,6 +82,7 @@ if ( $has_query ) {
 $max_count = 0;
 foreach ( $all_terms as $t ) { $max_count = max( $max_count, (int) $t->count ); }
 
+$page_title = __( 'Find recipes by ingredients', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
 <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
