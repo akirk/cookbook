@@ -57,6 +57,7 @@ class App extends BaseApp {
         add_action( 'admin_post_cookbook_group_ingredients', [ $this, 'handle_group_ingredients' ] );
         add_action( 'admin_post_cookbook_rename_ingredient', [ $this, 'handle_rename_ingredient' ] );
         add_action( 'wp_ajax_cookbook_parse_url', [ $this, 'ajax_parse_url' ] );
+        add_action( 'wp_ajax_cookbook_parse_text', [ $this, 'ajax_parse_text' ] );
 
         add_action( 'wp_loaded', [ $this, 'handle_extension_save' ], 100 );
         add_filter( 'friends_browser_extension_actions', [ $this, 'register_browser_extension_action' ] );
@@ -245,6 +246,7 @@ class App extends BaseApp {
         $prep = isset( $_POST['prep_time'] ) ? max( 0, absint( $_POST['prep_time'] ) ) : 0;
         $cook = isset( $_POST['cook_time'] ) ? max( 0, absint( $_POST['cook_time'] ) ) : 0;
         $source_url = isset( $_POST['source_url'] ) ? esc_url_raw( wp_unslash( $_POST['source_url'] ) ) : '';
+        $image_url = isset( $_POST['image_url'] ) ? esc_url_raw( wp_unslash( $_POST['image_url'] ) ) : '';
         $notes = isset( $_POST['notes'] ) ? wp_kses_post( wp_unslash( $_POST['notes'] ) ) : '';
 
         $ingredients = [];
@@ -307,6 +309,9 @@ class App extends BaseApp {
 
         if ( ! empty( $_POST['remove_image'] ) ) {
             delete_post_thumbnail( $post_id );
+        }
+        if ( $image_url !== '' ) {
+            $this->sideload_image_to_post( $post_id, $image_url );
         }
         if ( ! empty( $_FILES['image']['name'] ) && empty( $_FILES['image']['error'] ) ) {
             $this->attach_uploaded_image_as_thumbnail( $post_id );
@@ -504,8 +509,11 @@ class App extends BaseApp {
             $parsed = Importer::from_text( $paste );
         }
         if ( ! $parsed ) {
-            wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/import?error=parse' ) );
-            exit;
+            $this->redirect_import_parse_error( $url );
+        }
+        $image_url = isset( $_POST['image_url'] ) ? esc_url_raw( wp_unslash( $_POST['image_url'] ) ) : '';
+        if ( $image_url !== '' ) {
+            $parsed['image_url'] = $image_url;
         }
 
         $post_id = wp_insert_post( [
@@ -795,8 +803,7 @@ class App extends BaseApp {
             $parsed = Importer::from_url( $url );
         }
         if ( ! $parsed ) {
-            wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/import?error=parse' ) );
-            exit;
+            $this->redirect_import_parse_error( $url );
         }
 
         $post_id = wp_insert_post( [
@@ -829,5 +836,30 @@ class App extends BaseApp {
             wp_send_json_error( [ 'message' => __( 'Could not parse a recipe from that URL.', 'cookbook' ) ] );
         }
         wp_send_json_success( $parsed );
+    }
+
+    public function ajax_parse_text(): void {
+        if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
+            wp_send_json_error( [ 'message' => __( 'Not allowed.', 'cookbook' ) ], 403 );
+        }
+        check_ajax_referer( 'cookbook_import' );
+        $paste = isset( $_POST['paste'] ) ? wp_kses_post( wp_unslash( $_POST['paste'] ) ) : '';
+        if ( trim( $paste ) === '' ) {
+            wp_send_json_error( [ 'message' => __( 'Paste recipe text to preview it.', 'cookbook' ) ] );
+        }
+        $parsed = Importer::from_text( $paste );
+        if ( ! $parsed ) {
+            wp_send_json_error( [ 'message' => __( 'No ingredients or instructions detected yet.', 'cookbook' ) ] );
+        }
+        wp_send_json_success( $parsed );
+    }
+
+    private function redirect_import_parse_error( string $source_url = '' ): void {
+        $args = [ 'error' => 'parse' ];
+        if ( $source_url !== '' ) {
+            $args['source_url'] = $source_url;
+        }
+        wp_safe_redirect( add_query_arg( $args, home_url( '/' . $this->get_url_path() . '/import' ) ) );
+        exit;
     }
 }

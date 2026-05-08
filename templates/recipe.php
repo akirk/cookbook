@@ -11,11 +11,13 @@ $id = (int) get_query_var( 'id' );
 $post = $id ? get_post( $id ) : null;
 if ( ! $post || $post->post_type !== App::POST_TYPE ) {
     status_header( 404 );
+    $page_title = __( 'Recipe not found', 'cookbook' );
     include __DIR__ . '/_header.php';
     echo '<h1>' . esc_html__( 'Not found', 'cookbook' ) . '</h1><p>' . esc_html__( 'That recipe does not exist.', 'cookbook' ) . '</p>';
     include __DIR__ . '/_footer.php';
     return;
 }
+$page_title = get_the_title( $post );
 
 $servings_default = max( 1, (int) get_post_meta( $id, App::META_SERVINGS, true ) ?: 4 );
 $prep             = (int) get_post_meta( $id, App::META_PREP, true );

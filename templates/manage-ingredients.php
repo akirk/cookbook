@@ -7,6 +7,7 @@ use Cookbook\App;
 
 if ( ! is_user_logged_in() || ! current_user_can( 'manage_categories' ) ) {
     status_header( 403 );
+    $page_title = __( 'Not allowed', 'cookbook' );
     include __DIR__ . '/_header.php';
     echo '<h1>' . esc_html__( 'Not allowed.', 'cookbook' ) . '</h1>';
     include __DIR__ . '/_footer.php';
@@ -34,6 +35,7 @@ $grouped_count = isset( $_GET['grouped'] ) ? max( 0, (int) $_GET['grouped'] ) : 
 $renamed_count = isset( $_GET['renamed'] ) ? max( 0, (int) $_GET['renamed'] ) : -1;
 // phpcs:enable WordPress.Security.NonceVerification.Recommended
 
+$page_title = __( 'Manage ingredients', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
 <style>

@@ -9,6 +9,7 @@ $slug = (string) get_query_var( 'slug' );
 $term = $slug ? get_term_by( 'slug', $slug, App::TAX_TAG ) : null;
 if ( ! $term ) {
     status_header( 404 );
+    $page_title = __( 'Tag not found', 'cookbook' );
     include __DIR__ . '/_header.php';
     echo '<h1>' . esc_html__( 'Tag not found', 'cookbook' ) . '</h1>';
     include __DIR__ . '/_footer.php';
@@ -25,6 +26,7 @@ $recipes = get_posts( [
     ],
 ] );
 
+$page_title = '#' . $term->name;
 include __DIR__ . '/_header.php';
 ?>
 <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>

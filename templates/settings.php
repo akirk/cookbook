@@ -13,6 +13,7 @@ $pref = App::get_user_unit_preference();
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- redirect-back flag, harmless to read.
 $saved = isset( $_GET['saved'] );
 
+$page_title = __( 'Settings', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
 <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
