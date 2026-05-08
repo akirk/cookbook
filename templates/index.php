@@ -19,25 +19,26 @@ if ( $search !== '' && preg_match( '~^https?://~i', $search ) && filter_var( $se
 
 $is_searching = $search !== '';
 
-if ( $is_searching ) {
-    $recipes = get_posts( [
-        'post_type'      => App::POST_TYPE,
-        'post_status'    => [ 'publish', 'draft' ],
-        'posts_per_page' => 50,
-        'orderby'        => 'date',
-        'order'          => 'DESC',
-        's'              => $search,
-    ] );
-} else {
-    $recipes = get_posts( [
-        'post_type'      => App::POST_TYPE,
-        'post_status'    => [ 'publish', 'draft' ],
-        'posts_per_page' => 1,
-        'orderby'        => 'rand',
-    ] );
-}
+$recipes = get_posts( [
+    'post_type'      => App::POST_TYPE,
+    'post_status'    => [ 'publish', 'draft' ],
+    'posts_per_page' => -1,
+    'orderby'        => 'title',
+    'order'          => 'ASC',
+] );
 
-$total_recipes = (int) wp_count_posts( App::POST_TYPE )->publish + (int) wp_count_posts( App::POST_TYPE )->draft;
+if ( $is_searching ) {
+    $needle = mb_strtolower( $search );
+    $recipes = array_values( array_filter( $recipes, function( $recipe ) use ( $needle ) {
+        $haystack = implode( "\n", [
+            get_the_title( $recipe ),
+            $recipe->post_content,
+            $recipe->post_excerpt,
+            (string) get_post_meta( $recipe->ID, App::META_NOTES, true ),
+        ] );
+        return mb_strpos( mb_strtolower( wp_strip_all_tags( $haystack ) ), $needle ) !== false;
+    } ) );
+}
 
 $categories = get_terms( [
     'taxonomy'   => App::TAX_CATEGORY,
@@ -57,9 +58,38 @@ if ( is_wp_error( $top_ingredients ) ) {
 $top_ingredient_max = 0;
 foreach ( $top_ingredients as $t ) { $top_ingredient_max = max( $top_ingredient_max, (int) $t->count ); }
 
+$recipes_by_letter = [];
+foreach ( $recipes as $recipe ) {
+    $letter = mb_strtoupper( mb_substr( trim( get_the_title( $recipe ) ), 0, 1 ) );
+    if ( $letter === '' || ! preg_match( '/[[:alpha:]]/u', $letter ) ) {
+        $letter = '#';
+    }
+    if ( ! isset( $recipes_by_letter[ $letter ] ) ) {
+        $recipes_by_letter[ $letter ] = [];
+    }
+    $recipes_by_letter[ $letter ][] = $recipe;
+}
+uksort( $recipes_by_letter, function( $a, $b ) {
+    if ( $a === '#' ) return 1;
+    if ( $b === '#' ) return -1;
+    return strcasecmp( $a, $b );
+} );
+
 $page_title = __( 'Cookbook', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
+<style>
+    .recipe-index { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 1rem 0; }
+    .recipe-index a { min-width: 2rem; text-align: center; }
+    .recipe-alpha-section { margin-top: 1.4rem; }
+    .recipe-alpha-heading { margin: 0 0 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--line); font-size: 1.1rem; }
+    .recipe-alpha-list { list-style: none; padding: 0; margin: 0; }
+    .recipe-alpha-list li { border-bottom: 1px dashed var(--line); }
+    .recipe-alpha-list a { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.38rem 0; text-decoration: none; color: inherit; }
+    .recipe-alpha-list a:hover .recipe-title { color: var(--accent); }
+    .recipe-alpha-list .recipe-title { flex: 1; min-width: 0; }
+    .recipe-alpha-list .meta { font-size: 0.82rem; gap: 0.45rem; }
+</style>
 <h1><?php esc_html_e( 'Cookbook', 'cookbook' ); ?></h1>
 <p class="subtitle"><?php esc_html_e( 'Your personal recipes.', 'cookbook' ); ?></p>
 
@@ -99,21 +129,17 @@ include __DIR__ . '/_header.php';
     </div>
 <?php endif; ?>
 
-<?php if ( $top_ingredients ) : ?>
-    <h2 style="margin-top:1.25rem"><?php esc_html_e( 'Browse by ingredient', 'cookbook' ); ?></h2>
-    <div class="ingredient-cloud">
-        <?php foreach ( $top_ingredients as $t ) :
-            $weight = $top_ingredient_max > 0 ? sqrt( (int) $t->count / $top_ingredient_max ) : 0;
-            $size   = 0.85 + $weight * 0.6;
-            $href   = add_query_arg( [ 'have' => [ (int) $t->term_id ] ], home_url( '/cookbook/by-ingredients' ) );
-            ?>
-            <a class="ing-chip" href="<?php echo esc_url( $href ); ?>" style="font-size:<?php echo esc_attr( number_format( $size, 2, '.', '' ) ); ?>rem">
-                <span><?php echo esc_html( $t->name ); ?></span>
-                <span class="ing-chip-count"><?php echo (int) $t->count; ?></span>
-            </a>
+<?php if ( $is_searching ) : ?>
+    <h2 style="margin-top:1.25rem"><?php esc_html_e( 'Search results', 'cookbook' ); ?></h2>
+<?php endif; ?>
+
+<?php if ( $recipes_by_letter ) : ?>
+    <nav class="recipe-index" aria-label="<?php esc_attr_e( 'Recipe index', 'cookbook' ); ?>">
+        <?php foreach ( array_keys( $recipes_by_letter ) as $letter ) : ?>
+            <?php $letter_id = $letter === '#' ? 'other' : sanitize_title( $letter ); ?>
+            <a class="badge" href="#recipes-<?php echo esc_attr( $letter_id ); ?>"><?php echo esc_html( $letter ); ?></a>
         <?php endforeach; ?>
-        <a class="ing-chip" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>" style="font-size:0.85rem"><?php esc_html_e( 'all ingredients →', 'cookbook' ); ?></a>
-    </div>
+    </nav>
 <?php endif; ?>
 
 <?php if ( ! $recipes ) : ?>
@@ -131,126 +157,76 @@ include __DIR__ . '/_header.php';
             ?>
         </div>
     <?php endif; ?>
-<?php elseif ( $is_searching ) : ?>
-    <div class="grid">
-    <?php foreach ( $recipes as $r ) :
-        $servings = (int) get_post_meta( $r->ID, App::META_SERVINGS, true );
-        $prep     = (int) get_post_meta( $r->ID, App::META_PREP, true );
-        $cook     = (int) get_post_meta( $r->ID, App::META_COOK, true );
-        $cui_terms = wp_get_object_terms( $r->ID, App::TAX_CUISINE );
-        $is_draft = $r->post_status === 'draft';
-        ?>
-        <a class="recipe-card" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>" style="<?php echo has_post_thumbnail( $r->ID ) ? 'display:flex;gap:0.9rem;align-items:flex-start' : ''; ?>">
-            <?php if ( has_post_thumbnail( $r->ID ) ) : ?>
-                <?php echo get_the_post_thumbnail( $r->ID, 'thumbnail', [
-                    'style' => 'width:80px;height:80px;object-fit:cover;border-radius:6px;flex-shrink:0',
-                    'alt'   => '',
-                ] ); ?>
-                <div style="flex:1;min-width:0">
-            <?php endif; ?>
-            <h3><?php echo esc_html( get_the_title( $r ) ); ?>
-                <?php if ( $is_draft ) : ?><span class="badge"><?php esc_html_e( 'draft', 'cookbook' ); ?></span><?php endif; ?>
-            </h3>
-            <div class="meta">
-                <?php if ( $servings ) : ?>
-                    <span>
-                        <?php
-                        /* translators: %d: number of servings */
-                        echo esc_html( sprintf( _n( '%d serving', '%d servings', $servings, 'cookbook' ), $servings ) );
-                        ?>
-                    </span>
-                <?php endif; ?>
-                <?php if ( $prep ) : ?>
-                    <span>
-                        <?php
-                        /* translators: %d: prep time in minutes */
-                        echo esc_html( sprintf( __( 'prep %dm', 'cookbook' ), $prep ) );
-                        ?>
-                    </span>
-                <?php endif; ?>
-                <?php if ( $cook ) : ?>
-                    <span>
-                        <?php
-                        /* translators: %d: cook time in minutes */
-                        echo esc_html( sprintf( __( 'cook %dm', 'cookbook' ), $cook ) );
-                        ?>
-                    </span>
-                <?php endif; ?>
-                <?php if ( ! is_wp_error( $cui_terms ) && $cui_terms ) : ?>
-                    <span>
-                        <?php echo esc_html( implode( ', ', wp_list_pluck( $cui_terms, 'name' ) ) ); ?>
-                    </span>
-                <?php endif; ?>
-            </div>
-            <?php if ( $r->post_excerpt ) : ?>
-                <p style="margin:0.5rem 0 0;color:var(--muted)"><?php echo esc_html( $r->post_excerpt ); ?></p>
-            <?php endif; ?>
-            <?php if ( has_post_thumbnail( $r->ID ) ) : ?>
-                </div>
-            <?php endif; ?>
-        </a>
-    <?php endforeach; ?>
-    </div>
 <?php else :
-    // Random pick — single hero card.
-    $r = $recipes[0];
-    $servings  = (int) get_post_meta( $r->ID, App::META_SERVINGS, true );
-    $prep      = (int) get_post_meta( $r->ID, App::META_PREP, true );
-    $cook      = (int) get_post_meta( $r->ID, App::META_COOK, true );
-    $cui_terms = wp_get_object_terms( $r->ID, App::TAX_CUISINE );
-    $is_draft  = $r->post_status === 'draft';
-    ?>
-    <p class="subtitle" style="margin-top:1.5rem">
-        <?php
-        /* translators: %d: total number of recipes in the cookbook */
-        echo esc_html( sprintf( __( 'How about this one? (1 of %d)', 'cookbook' ), $total_recipes ) );
-        ?>
-    </p>
-    <a class="recipe-card hero" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>">
-        <?php if ( has_post_thumbnail( $r->ID ) ) : ?>
-            <?php echo get_the_post_thumbnail( $r->ID, 'large', [
-                'style' => 'display:block;width:100%;max-height:360px;object-fit:cover;border-radius:6px;margin:0 0 0.75rem',
-                'alt'   => '',
-            ] ); ?>
-        <?php endif; ?>
-        <h3 style="font-size:1.5rem"><?php echo esc_html( get_the_title( $r ) ); ?>
-            <?php if ( $is_draft ) : ?><span class="badge"><?php esc_html_e( 'draft', 'cookbook' ); ?></span><?php endif; ?>
-        </h3>
-        <div class="meta">
-            <?php if ( $servings ) : ?>
-                <span>
-                    <?php
-                    /* translators: %d: number of servings */
-                    echo esc_html( sprintf( _n( '%d serving', '%d servings', $servings, 'cookbook' ), $servings ) );
+    foreach ( $recipes_by_letter as $letter => $group ) : ?>
+        <?php $letter_id = $letter === '#' ? 'other' : sanitize_title( $letter ); ?>
+        <section class="recipe-alpha-section" id="recipes-<?php echo esc_attr( $letter_id ); ?>">
+            <h3 class="recipe-alpha-heading"><?php echo esc_html( $letter ); ?></h3>
+            <ul class="recipe-alpha-list">
+                <?php foreach ( $group as $r ) :
+                    $servings  = (int) get_post_meta( $r->ID, App::META_SERVINGS, true );
+                    $prep      = (int) get_post_meta( $r->ID, App::META_PREP, true );
+                    $cook      = (int) get_post_meta( $r->ID, App::META_COOK, true );
+                    $cui_terms = wp_get_object_terms( $r->ID, App::TAX_CUISINE );
+                    $is_draft  = $r->post_status === 'draft';
                     ?>
-                </span>
-            <?php endif; ?>
-            <?php if ( $prep ) : ?>
-                <span>
-                    <?php
-                    /* translators: %d: prep time in minutes */
-                    echo esc_html( sprintf( __( 'prep %dm', 'cookbook' ), $prep ) );
-                    ?>
-                </span>
-            <?php endif; ?>
-            <?php if ( $cook ) : ?>
-                <span>
-                    <?php
-                    /* translators: %d: cook time in minutes */
-                    echo esc_html( sprintf( __( 'cook %dm', 'cookbook' ), $cook ) );
-                    ?>
-                </span>
-            <?php endif; ?>
-            <?php if ( ! is_wp_error( $cui_terms ) && $cui_terms ) : ?>
-                <span><?php echo esc_html( implode( ', ', wp_list_pluck( $cui_terms, 'name' ) ) ); ?></span>
-            <?php endif; ?>
-        </div>
-        <?php if ( $r->post_excerpt ) : ?>
-            <p style="margin:0.6rem 0 0;color:var(--muted)"><?php echo esc_html( $r->post_excerpt ); ?></p>
-        <?php endif; ?>
-    </a>
-    <div class="toolbar" style="justify-content:center;margin-top:1rem">
-        <a class="btn secondary" href="<?php echo esc_url( add_query_arg( 'r', wp_rand( 1, PHP_INT_MAX ), home_url( '/cookbook/' ) ) ); ?>"><?php esc_html_e( 'Pick another', 'cookbook' ); ?></a>
+                    <li>
+                        <a href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>">
+                            <span class="recipe-title">
+                                <?php echo esc_html( get_the_title( $r ) ); ?>
+                                <?php if ( $is_draft ) : ?><span class="badge"><?php esc_html_e( 'draft', 'cookbook' ); ?></span><?php endif; ?>
+                            </span>
+                            <span class="meta">
+                                <?php if ( $servings ) : ?>
+                                    <span>
+                                        <?php
+                                        /* translators: %d: number of servings */
+                                        echo esc_html( sprintf( _n( '%d serving', '%d servings', $servings, 'cookbook' ), $servings ) );
+                                        ?>
+                                    </span>
+                                <?php endif; ?>
+                                <?php if ( $prep ) : ?>
+                                    <span>
+                                        <?php
+                                        /* translators: %d: prep time in minutes */
+                                        echo esc_html( sprintf( __( 'prep %dm', 'cookbook' ), $prep ) );
+                                        ?>
+                                    </span>
+                                <?php endif; ?>
+                                <?php if ( $cook ) : ?>
+                                    <span>
+                                        <?php
+                                        /* translators: %d: cook time in minutes */
+                                        echo esc_html( sprintf( __( 'cook %dm', 'cookbook' ), $cook ) );
+                                        ?>
+                                    </span>
+                                <?php endif; ?>
+                                <?php if ( ! is_wp_error( $cui_terms ) && $cui_terms ) : ?>
+                                    <span><?php echo esc_html( implode( ', ', wp_list_pluck( $cui_terms, 'name' ) ) ); ?></span>
+                                <?php endif; ?>
+                            </span>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </section>
+    <?php endforeach; ?>
+<?php endif; ?>
+
+<?php if ( $top_ingredients ) : ?>
+    <h2 style="margin-top:1.75rem"><?php esc_html_e( 'Browse by ingredient', 'cookbook' ); ?></h2>
+    <div class="ingredient-cloud">
+        <?php foreach ( $top_ingredients as $t ) :
+            $weight = $top_ingredient_max > 0 ? sqrt( (int) $t->count / $top_ingredient_max ) : 0;
+            $size   = 0.85 + $weight * 0.6;
+            $href   = add_query_arg( [ 'have' => [ (int) $t->term_id ] ], home_url( '/cookbook/by-ingredients' ) );
+            ?>
+            <a class="ing-chip" href="<?php echo esc_url( $href ); ?>" style="font-size:<?php echo esc_attr( number_format( $size, 2, '.', '' ) ); ?>rem">
+                <span><?php echo esc_html( $t->name ); ?></span>
+                <span class="ing-chip-count"><?php echo (int) $t->count; ?></span>
+            </a>
+        <?php endforeach; ?>
+        <a class="ing-chip" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>" style="font-size:0.85rem"><?php esc_html_e( 'all ingredients →', 'cookbook' ); ?></a>
     </div>
 <?php endif; ?>
 

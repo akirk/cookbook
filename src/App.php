@@ -61,6 +61,7 @@ class App extends BaseApp {
 
         add_action( 'wp_loaded', [ $this, 'handle_extension_save' ], 100 );
         add_filter( 'friends_browser_extension_actions', [ $this, 'register_browser_extension_action' ] );
+        add_action( 'wp_app_admin_bar_menu', [ $this, 'add_recipe_admin_bar_edit_link' ] );
 
         parent::init();
     }
@@ -90,6 +91,29 @@ class App extends BaseApp {
         $this->app->add_menu_item( 'new', __( 'New recipe', 'cookbook' ), $home . 'new' );
         $this->app->add_menu_item( 'import', __( 'Import from web', 'cookbook' ), $home . 'import' );
         $this->app->add_menu_item( 'settings', __( 'Settings', 'cookbook' ), $home . 'settings' );
+    }
+
+    public function add_recipe_admin_bar_edit_link( $wp_admin_bar ): void {
+        global $wp_app_route;
+
+        if ( empty( $wp_app_route['template'] ) || $wp_app_route['template'] !== 'recipe.php' ) {
+            return;
+        }
+
+        $id = isset( $wp_app_route['params']['id'] ) ? absint( $wp_app_route['params']['id'] ) : 0;
+        $post = $id ? get_post( $id ) : null;
+        if ( ! $post || $post->post_type !== self::POST_TYPE || ! current_user_can( 'edit_post', $id ) ) {
+            return;
+        }
+
+        $wp_admin_bar->add_node( [
+            'id'    => 'edit',
+            'title' => __( 'Edit recipe', 'cookbook' ),
+            'href'  => home_url( '/' . $this->get_url_path() . '/recipe/' . $id . '/edit' ),
+            'meta'  => [
+                'class' => 'cookbook-edit-recipe',
+            ],
+        ] );
     }
 
     public function activate(): void {
