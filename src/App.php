@@ -24,7 +24,16 @@ class App extends BaseApp {
     const META_SOURCE_URL  = '_recipe_source_url';
     const META_NOTES       = '_recipe_notes';
 
+    const SHOPPING_LIST_POST_TYPE = 'cb-shopping-list';
+    const WEEK_PLAN_POST_TYPE     = 'cb-week-plan';
+
+    const META_SHOPPING_ITEMS = '_cookbook_shopping_items';
+    const META_WEEK_START     = '_cookbook_week_start';
+    const META_WEEK_MEALS     = '_cookbook_week_meals';
+
     const USER_PREF_UNITS = 'cookbook_unit_preference';
+
+    const MEAL_SLOTS = [ 'breakfast', 'lunch', 'dinner' ];
 
     public function __construct() {
         $this->app = new WpApp( $this->get_template_dir(), $this->get_url_path(), [
@@ -53,6 +62,10 @@ class App extends BaseApp {
         add_action( 'admin_post_cookbook_settings', [ $this, 'handle_settings' ] );
         add_action( 'admin_post_cookbook_import', [ $this, 'handle_import' ] );
         add_action( 'admin_post_cookbook_refetch', [ $this, 'handle_refetch' ] );
+        add_action( 'admin_post_cookbook_add_to_shopping_list', [ $this, 'handle_add_to_shopping_list' ] );
+        add_action( 'admin_post_cookbook_update_shopping_list', [ $this, 'handle_update_shopping_list' ] );
+        add_action( 'admin_post_cookbook_save_planner', [ $this, 'handle_save_planner' ] );
+        add_action( 'admin_post_cookbook_add_planner_to_shopping_list', [ $this, 'handle_add_planner_to_shopping_list' ] );
         add_action( 'admin_post_cookbook_merge_ingredients', [ $this, 'handle_merge_ingredients' ] );
         add_action( 'admin_post_cookbook_group_ingredients', [ $this, 'handle_group_ingredients' ] );
         add_action( 'admin_post_cookbook_rename_ingredient', [ $this, 'handle_rename_ingredient' ] );
@@ -75,6 +88,8 @@ class App extends BaseApp {
         $this->app->route( 'recipe/{id}/edit', 'recipe-edit.php' );
         $this->app->route( 'new' );
         $this->app->route( 'import' );
+        $this->app->route( 'shopping-list' );
+        $this->app->route( 'planner' );
         $this->app->route( 'by-ingredients' );
         $this->app->route( 'manage-ingredients' );
         $this->app->route( 'settings' );
@@ -86,6 +101,8 @@ class App extends BaseApp {
     protected function setup_menu(): void {
         $home = home_url( '/' . $this->get_url_path() . '/' );
         $this->app->add_menu_item( 'all', __( 'All recipes', 'cookbook' ), $home );
+        $this->app->add_menu_item( 'shopping-list', __( 'Shopping list', 'cookbook' ), $home . 'shopping-list' );
+        $this->app->add_menu_item( 'planner', __( 'Week planner', 'cookbook' ), $home . 'planner' );
         $this->app->add_menu_item( 'by-ingredients', __( 'By ingredients', 'cookbook' ), $home . 'by-ingredients' );
         $this->app->add_menu_item( 'manage-ingredients', __( 'Manage ingredients', 'cookbook' ), $home . 'manage-ingredients' );
         $this->app->add_menu_item( 'new', __( 'New recipe', 'cookbook' ), $home . 'new' );
@@ -200,6 +217,75 @@ class App extends BaseApp {
             'show_in_rest' => true,
             'auth_callback' => function() { return current_user_can( 'edit_posts' ); },
         ] );
+
+        register_post_type( self::SHOPPING_LIST_POST_TYPE, [
+            'labels' => [
+                'name'          => __( 'Shopping lists', 'cookbook' ),
+                'singular_name' => __( 'Shopping list', 'cookbook' ),
+                'edit_item'     => __( 'Edit shopping list', 'cookbook' ),
+                'view_item'     => __( 'View shopping list', 'cookbook' ),
+                'not_found'     => __( 'No shopping lists yet', 'cookbook' ),
+            ],
+            'public'             => false,
+            'publicly_queryable' => false,
+            'show_ui'            => true,
+            'show_in_menu'       => 'edit.php?post_type=' . self::POST_TYPE,
+            'show_in_rest'       => true,
+            'supports'           => [ 'title', 'author', 'revisions' ],
+            'has_archive'        => false,
+            'rewrite'            => false,
+            'capability_type'    => 'post',
+        ] );
+        register_post_meta( self::SHOPPING_LIST_POST_TYPE, self::META_SHOPPING_ITEMS, [
+            'type'         => 'array',
+            'single'       => true,
+            'show_in_rest' => [
+                'schema' => [
+                    'type'  => 'array',
+                    'items' => [ 'type' => 'object' ],
+                ],
+            ],
+            'auth_callback' => function() { return current_user_can( 'edit_posts' ); },
+        ] );
+
+        register_post_type( self::WEEK_PLAN_POST_TYPE, [
+            'labels' => [
+                'name'          => __( 'Week plans', 'cookbook' ),
+                'singular_name' => __( 'Week plan', 'cookbook' ),
+                'edit_item'     => __( 'Edit week plan', 'cookbook' ),
+                'view_item'     => __( 'View week plan', 'cookbook' ),
+                'not_found'     => __( 'No week plans yet', 'cookbook' ),
+            ],
+            'public'             => false,
+            'publicly_queryable' => false,
+            'show_ui'            => true,
+            'show_in_menu'       => 'edit.php?post_type=' . self::POST_TYPE,
+            'show_in_rest'       => true,
+            'supports'           => [ 'title', 'author', 'revisions' ],
+            'has_archive'        => false,
+            'rewrite'            => false,
+            'capability_type'    => 'post',
+        ] );
+        register_post_meta( self::WEEK_PLAN_POST_TYPE, self::META_WEEK_START, [
+            'type'         => 'string',
+            'single'       => true,
+            'show_in_rest' => true,
+            'auth_callback' => function() { return current_user_can( 'edit_posts' ); },
+        ] );
+        register_post_meta( self::WEEK_PLAN_POST_TYPE, self::META_WEEK_MEALS, [
+            'type'         => 'object',
+            'single'       => true,
+            'show_in_rest' => [
+                'schema' => [
+                    'type'  => 'object',
+                    'additionalProperties' => [
+                        'type'  => 'object',
+                        'additionalProperties' => [ 'type' => 'integer' ],
+                    ],
+                ],
+            ],
+            'auth_callback' => function() { return current_user_can( 'edit_posts' ); },
+        ] );
     }
 
     public function register_taxonomies(): void {
@@ -255,6 +341,164 @@ class App extends BaseApp {
         $user_id = $user_id ?: get_current_user_id();
         $pref    = get_user_meta( $user_id, self::USER_PREF_UNITS, true );
         return in_array( $pref, [ 'metric', 'imperial' ], true ) ? $pref : 'metric';
+    }
+
+    public static function meal_slots(): array {
+        $labels = [
+            'breakfast' => __( 'Breakfast', 'cookbook' ),
+            'lunch'     => __( 'Lunch', 'cookbook' ),
+            'dinner'    => __( 'Dinner', 'cookbook' ),
+        ];
+        return array_intersect_key( $labels, array_flip( self::MEAL_SLOTS ) );
+    }
+
+    public static function normalize_week_start( string $date = '' ): string {
+        $timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+        try {
+            $dt = $date !== ''
+                ? new \DateTimeImmutable( $date, $timezone )
+                : new \DateTimeImmutable( 'today', $timezone );
+        } catch ( \Exception $e ) {
+            $dt = new \DateTimeImmutable( 'today', $timezone );
+        }
+
+        $start_of_week = (int) get_option( 'start_of_week', 1 );
+        $diff = ( (int) $dt->format( 'w' ) - $start_of_week + 7 ) % 7;
+        if ( $diff > 0 ) {
+            $dt = $dt->modify( '-' . $diff . ' days' );
+        }
+        return $dt->format( 'Y-m-d' );
+    }
+
+    public static function week_days( string $week_start ): array {
+        $timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+        try {
+            $start = new \DateTimeImmutable( $week_start, $timezone );
+        } catch ( \Exception $e ) {
+            $start = new \DateTimeImmutable( self::normalize_week_start(), $timezone );
+        }
+
+        $days = [];
+        for ( $i = 0; $i < 7; $i++ ) {
+            $day = $start->modify( '+' . $i . ' days' );
+            $timestamp = $day->getTimestamp();
+            $days[ $day->format( 'Y-m-d' ) ] = [
+                'short' => wp_date( 'D', $timestamp ),
+                'label' => wp_date( get_option( 'date_format' ), $timestamp ),
+            ];
+        }
+        return $days;
+    }
+
+    public static function get_current_user_shopping_list_id( bool $create = true ): int {
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) {
+            return 0;
+        }
+
+        $ids = get_posts( [
+            'post_type'      => self::SHOPPING_LIST_POST_TYPE,
+            'post_status'    => [ 'publish', 'private', 'draft' ],
+            'author'         => $user_id,
+            'posts_per_page' => 1,
+            'orderby'        => 'date',
+            'order'          => 'ASC',
+            'fields'         => 'ids',
+        ] );
+        if ( $ids ) {
+            return (int) $ids[0];
+        }
+        if ( ! $create ) {
+            return 0;
+        }
+
+        $user  = get_userdata( $user_id );
+        $title = $user
+            ? sprintf(
+                /* translators: %s: user display name */
+                __( "%s's shopping list", 'cookbook' ),
+                $user->display_name
+            )
+            : __( 'Shopping list', 'cookbook' );
+        $post_id = wp_insert_post( [
+            'post_type'   => self::SHOPPING_LIST_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title'  => $title,
+            'post_author' => $user_id,
+        ], true );
+        if ( is_wp_error( $post_id ) ) {
+            return 0;
+        }
+        update_post_meta( (int) $post_id, self::META_SHOPPING_ITEMS, [] );
+        return (int) $post_id;
+    }
+
+    public static function get_user_week_plan_id( string $week_start, bool $create = true ): int {
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) {
+            return 0;
+        }
+        $week_start = self::normalize_week_start( $week_start );
+
+        $ids = get_posts( [
+            'post_type'      => self::WEEK_PLAN_POST_TYPE,
+            'post_status'    => [ 'publish', 'private', 'draft' ],
+            'author'         => $user_id,
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- exact lookup for one user's weekly plan.
+            'meta_query'     => [
+                [
+                    'key'   => self::META_WEEK_START,
+                    'value' => $week_start,
+                ],
+            ],
+        ] );
+        if ( $ids ) {
+            return (int) $ids[0];
+        }
+        if ( ! $create ) {
+            return 0;
+        }
+
+        $timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+        try {
+            $start = new \DateTimeImmutable( $week_start, $timezone );
+        } catch ( \Exception $e ) {
+            $start = new \DateTimeImmutable( self::normalize_week_start(), $timezone );
+        }
+        $title = sprintf(
+            /* translators: %s: formatted date */
+            __( 'Week of %s', 'cookbook' ),
+            wp_date( get_option( 'date_format' ), $start->getTimestamp() )
+        );
+        $post_id = wp_insert_post( [
+            'post_type'   => self::WEEK_PLAN_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title'  => $title,
+            'post_author' => $user_id,
+        ], true );
+        if ( is_wp_error( $post_id ) ) {
+            return 0;
+        }
+        update_post_meta( (int) $post_id, self::META_WEEK_START, $week_start );
+        update_post_meta( (int) $post_id, self::META_WEEK_MEALS, [] );
+        return (int) $post_id;
+    }
+
+    public static function get_shopping_items( int $list_id ): array {
+        if ( ! $list_id ) {
+            return [];
+        }
+        return self::normalize_shopping_items( (array) get_post_meta( $list_id, self::META_SHOPPING_ITEMS, true ) );
+    }
+
+    public static function get_week_meals( int $plan_id ): array {
+        if ( ! $plan_id ) {
+            return [];
+        }
+        $raw = get_post_meta( $plan_id, self::META_WEEK_MEALS, true );
+        return is_array( $raw ) ? $raw : [];
     }
 
     public function handle_save(): void {
@@ -601,6 +845,348 @@ class App extends BaseApp {
 
         wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $id . '?refetch=ok' ) );
         exit;
+    }
+
+    public function handle_add_to_shopping_list(): void {
+        if ( ! is_user_logged_in() ) {
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
+        }
+        check_admin_referer( 'cookbook_add_to_shopping_list' );
+
+        $recipe_id = isset( $_POST['recipe_id'] ) ? absint( $_POST['recipe_id'] ) : 0;
+        $servings  = isset( $_POST['servings'] ) ? max( 1, absint( $_POST['servings'] ) ) : 0;
+        $post      = $this->get_recipe_or_die( $recipe_id );
+
+        $items = $this->collect_recipe_shopping_items( $recipe_id, $servings );
+        $added = $this->add_items_to_shopping_list( $items );
+
+        wp_safe_redirect( add_query_arg( [
+            'shopping' => 'added',
+            'items'    => $added,
+        ], home_url( '/' . $this->get_url_path() . '/recipe/' . $post->ID ) ) );
+        exit;
+    }
+
+    public function handle_update_shopping_list(): void {
+        if ( ! is_user_logged_in() ) {
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
+        }
+        check_admin_referer( 'cookbook_update_shopping_list' );
+
+        $command = isset( $_POST['list_command'] ) ? sanitize_text_field( wp_unslash( $_POST['list_command'] ) ) : 'save';
+        $list_id = isset( $_POST['list_id'] ) ? absint( $_POST['list_id'] ) : 0;
+        if ( ! $list_id && in_array( $command, [ 'clear_all', 'clear_checked' ], true ) ) {
+            wp_safe_redirect( add_query_arg( 'saved', '1', home_url( '/' . $this->get_url_path() . '/shopping-list' ) ) );
+            exit;
+        }
+        $list_id = $list_id ?: self::get_current_user_shopping_list_id( true );
+        $this->get_owned_post_or_die( $list_id, self::SHOPPING_LIST_POST_TYPE );
+
+        if ( $command === 'clear_all' ) {
+            $items = [];
+        } else {
+            $rows = isset( $_POST['items'] ) && is_array( $_POST['items'] )
+                ? wp_unslash( $_POST['items'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+                : [];
+            $items = self::normalize_shopping_items( $rows );
+
+            $new_rows = isset( $_POST['new_items'] ) && is_array( $_POST['new_items'] )
+                ? wp_unslash( $_POST['new_items'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+                : [];
+            $items = array_merge( $items, self::normalize_shopping_items( $new_rows ) );
+
+            if ( $command === 'clear_checked' ) {
+                $items = array_values( array_filter( $items, function( $item ) {
+                    return empty( $item['checked'] );
+                } ) );
+            }
+        }
+
+        update_post_meta( $list_id, self::META_SHOPPING_ITEMS, $items );
+        wp_safe_redirect( add_query_arg( 'saved', '1', home_url( '/' . $this->get_url_path() . '/shopping-list' ) ) );
+        exit;
+    }
+
+    public function handle_save_planner(): void {
+        if ( ! is_user_logged_in() ) {
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
+        }
+        check_admin_referer( 'cookbook_save_planner' );
+
+        $week_start = isset( $_POST['week_start'] ) ? sanitize_text_field( wp_unslash( $_POST['week_start'] ) ) : '';
+        $week_start = self::normalize_week_start( $week_start );
+        $plan_id    = isset( $_POST['plan_id'] ) ? absint( $_POST['plan_id'] ) : 0;
+
+        if ( $plan_id ) {
+            $plan = $this->get_owned_post_or_die( $plan_id, self::WEEK_PLAN_POST_TYPE );
+            $stored_week_start = (string) get_post_meta( $plan->ID, self::META_WEEK_START, true );
+            if ( self::normalize_week_start( $stored_week_start ) !== $week_start ) {
+                $plan_id = self::get_user_week_plan_id( $week_start, true );
+            }
+        } else {
+            $plan_id = self::get_user_week_plan_id( $week_start, true );
+        }
+        $this->get_owned_post_or_die( $plan_id, self::WEEK_PLAN_POST_TYPE );
+
+        $raw_meals = isset( $_POST['meals'] ) && is_array( $_POST['meals'] )
+            ? wp_unslash( $_POST['meals'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+            : [];
+        $raw_labels = isset( $_POST['meal_labels'] ) && is_array( $_POST['meal_labels'] )
+            ? wp_unslash( $_POST['meal_labels'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+            : [];
+        $meals = $this->sanitize_planner_meals( $raw_meals, $week_start, $raw_labels );
+
+        update_post_meta( $plan_id, self::META_WEEK_START, $week_start );
+        update_post_meta( $plan_id, self::META_WEEK_MEALS, $meals );
+        wp_safe_redirect( add_query_arg( [
+            'week'  => $week_start,
+            'saved' => '1',
+        ], home_url( '/' . $this->get_url_path() . '/planner' ) ) );
+        exit;
+    }
+
+    public function handle_add_planner_to_shopping_list(): void {
+        if ( ! is_user_logged_in() ) {
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
+        }
+        check_admin_referer( 'cookbook_add_planner_to_shopping_list' );
+
+        $week_start = isset( $_POST['week_start'] ) ? sanitize_text_field( wp_unslash( $_POST['week_start'] ) ) : '';
+        $week_start = self::normalize_week_start( $week_start );
+        $plan_id    = self::get_user_week_plan_id( $week_start, false );
+        $items      = [];
+
+        if ( $plan_id ) {
+            $this->get_owned_post_or_die( $plan_id, self::WEEK_PLAN_POST_TYPE );
+            $meals = self::get_week_meals( $plan_id );
+            foreach ( self::week_days( $week_start ) as $date => $day ) {
+                foreach ( array_keys( self::meal_slots() ) as $slot ) {
+                    $recipe_id = isset( $meals[ $date ][ $slot ] ) ? absint( $meals[ $date ][ $slot ] ) : 0;
+                    if ( $recipe_id ) {
+                        $items = array_merge( $items, $this->collect_recipe_shopping_items( $recipe_id, 0 ) );
+                    }
+                }
+            }
+        }
+
+        $added = $this->add_items_to_shopping_list( $items );
+        wp_safe_redirect( add_query_arg( [
+            'week'     => $week_start,
+            'shopping' => 'added',
+            'items'    => $added,
+        ], home_url( '/' . $this->get_url_path() . '/planner' ) ) );
+        exit;
+    }
+
+    private function get_owned_post_or_die( int $post_id, string $post_type ): \WP_Post {
+        $post = $post_id ? get_post( $post_id ) : null;
+        if ( ! $post || $post->post_type !== $post_type ) {
+            wp_die( esc_html__( 'Not found.', 'cookbook' ), 404 );
+        }
+        if ( (int) $post->post_author !== get_current_user_id() && ! current_user_can( 'edit_post', $post_id ) ) {
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
+        }
+        return $post;
+    }
+
+    private function get_recipe_or_die( int $recipe_id ): \WP_Post {
+        $post = $recipe_id ? get_post( $recipe_id ) : null;
+        if ( ! $post || $post->post_type !== self::POST_TYPE ) {
+            wp_die( esc_html__( 'Recipe not found.', 'cookbook' ), 404 );
+        }
+        return $post;
+    }
+
+    private function collect_recipe_shopping_items( int $recipe_id, int $servings = 0 ): array {
+        $post = $this->get_recipe_or_die( $recipe_id );
+        $ingredients = (array) get_post_meta( $recipe_id, self::META_INGREDIENTS, true );
+        if ( ! $ingredients ) {
+            return [];
+        }
+
+        $base_servings = max( 1, (int) get_post_meta( $recipe_id, self::META_SERVINGS, true ) ?: 4 );
+        $wanted_servings = $servings > 0 ? $servings : $base_servings;
+        $scale = $wanted_servings / $base_servings;
+        $preference = self::get_user_unit_preference();
+        $items = [];
+
+        foreach ( $ingredients as $ingredient ) {
+            if ( ! is_array( $ingredient ) || empty( $ingredient['name'] ) ) {
+                continue;
+            }
+            $rendered = Units::render_ingredient( $ingredient, $scale, $preference );
+            $items[] = [
+                'amount'              => (string) ( $rendered['amount'] ?? '' ),
+                'unit'                => (string) ( $rendered['unit'] ?? '' ),
+                'name'                => (string) ( $rendered['name'] ?? '' ),
+                'notes'               => (string) ( $rendered['notes'] ?? '' ),
+                'checked'             => false,
+                'source_recipe_id'    => $recipe_id,
+                'source_recipe_title' => get_the_title( $post ),
+            ];
+        }
+        return self::normalize_shopping_items( $items );
+    }
+
+    private function add_items_to_shopping_list( array $incoming ): int {
+        $incoming = self::normalize_shopping_items( $incoming );
+        if ( ! $incoming ) {
+            return 0;
+        }
+
+        $list_id = self::get_current_user_shopping_list_id( true );
+        if ( ! $list_id ) {
+            return 0;
+        }
+        $this->get_owned_post_or_die( $list_id, self::SHOPPING_LIST_POST_TYPE );
+
+        $existing = self::get_shopping_items( $list_id );
+        $items = $this->merge_shopping_items( $existing, $incoming );
+        update_post_meta( $list_id, self::META_SHOPPING_ITEMS, $items );
+        return count( $incoming );
+    }
+
+    private static function normalize_shopping_items( array $items ): array {
+        $normalized = [];
+        foreach ( $items as $item ) {
+            if ( ! is_array( $item ) ) {
+                continue;
+            }
+            $name = isset( $item['name'] ) ? sanitize_text_field( (string) $item['name'] ) : '';
+            if ( $name === '' ) {
+                continue;
+            }
+            $id = isset( $item['id'] ) ? sanitize_key( (string) $item['id'] ) : '';
+            if ( $id === '' ) {
+                $id = wp_generate_uuid4();
+            }
+            $normalized[] = [
+                'id'                  => $id,
+                'amount'              => isset( $item['amount'] ) ? sanitize_text_field( (string) $item['amount'] ) : '',
+                'unit'                => isset( $item['unit'] ) ? sanitize_text_field( (string) $item['unit'] ) : '',
+                'name'                => $name,
+                'notes'               => isset( $item['notes'] ) ? sanitize_text_field( (string) $item['notes'] ) : '',
+                'checked'             => ! empty( $item['checked'] ),
+                'source_recipe_id'    => isset( $item['source_recipe_id'] ) ? absint( $item['source_recipe_id'] ) : 0,
+                'source_recipe_title' => isset( $item['source_recipe_title'] ) ? sanitize_text_field( (string) $item['source_recipe_title'] ) : '',
+            ];
+        }
+        return $normalized;
+    }
+
+    private function merge_shopping_items( array $existing, array $incoming ): array {
+        $items = self::normalize_shopping_items( $existing );
+        $index = [];
+        foreach ( $items as $i => $item ) {
+            $index[ $this->shopping_item_key( $item ) ][] = $i;
+        }
+
+        foreach ( self::normalize_shopping_items( $incoming ) as $item ) {
+            $key = $this->shopping_item_key( $item );
+            $matching_index = null;
+            foreach ( $index[ $key ] ?? [] as $candidate_index ) {
+                if ( $this->can_combine_shopping_items( $items[ $candidate_index ], $item ) ) {
+                    $matching_index = $candidate_index;
+                    break;
+                }
+            }
+
+            if ( $matching_index !== null ) {
+                $i = $matching_index;
+                $existing_amount = Units::parse_amount( $items[ $i ]['amount'] );
+                $incoming_amount = Units::parse_amount( $item['amount'] );
+                if ( $existing_amount !== null && $incoming_amount !== null ) {
+                    $items[ $i ]['amount'] = Units::format_number( $existing_amount + $incoming_amount, 2 );
+                }
+                $items[ $i ]['checked'] = false;
+                if (
+                    $items[ $i ]['source_recipe_id']
+                    && $item['source_recipe_id']
+                    && $items[ $i ]['source_recipe_id'] !== $item['source_recipe_id']
+                ) {
+                    $items[ $i ]['source_recipe_id'] = 0;
+                    $items[ $i ]['source_recipe_title'] = __( 'Multiple recipes', 'cookbook' );
+                }
+                continue;
+            }
+
+            $items[] = $item;
+            $index[ $key ][] = count( $items ) - 1;
+        }
+
+        return array_values( $items );
+    }
+
+    private function shopping_item_key( array $item ): string {
+        $name = sanitize_title( $item['name'] ?? '' );
+        $unit = Units::normalize_unit( (string) ( $item['unit'] ?? '' ) );
+        $notes = sanitize_title( $item['notes'] ?? '' );
+        return implode( '|', [ $name, $unit, $notes ] );
+    }
+
+    private function can_combine_shopping_items( array $a, array $b ): bool {
+        if ( $this->shopping_item_key( $a ) !== $this->shopping_item_key( $b ) ) {
+            return false;
+        }
+        $amount_a = Units::parse_amount( $a['amount'] ?? '' );
+        $amount_b = Units::parse_amount( $b['amount'] ?? '' );
+        if ( $amount_a !== null && $amount_b !== null ) {
+            return true;
+        }
+        return trim( (string) ( $a['amount'] ?? '' ) ) === '' && trim( (string) ( $b['amount'] ?? '' ) ) === '';
+    }
+
+    private function sanitize_planner_meals( array $raw_meals, string $week_start, array $raw_labels = [] ): array {
+        $meals = [];
+        $days = array_keys( self::week_days( $week_start ) );
+        $slots = array_keys( self::meal_slots() );
+
+        foreach ( $days as $date ) {
+            foreach ( $slots as $slot ) {
+                $recipe_id = isset( $raw_meals[ $date ][ $slot ] ) ? absint( $raw_meals[ $date ][ $slot ] ) : 0;
+                $has_label = isset( $raw_labels[ $date ][ $slot ] );
+                $label = $has_label ? sanitize_text_field( (string) $raw_labels[ $date ][ $slot ] ) : '';
+                if ( $has_label ) {
+                    if ( trim( $label ) === '' ) {
+                        continue;
+                    }
+                    $recipe_id = $this->resolve_planner_recipe_label( $label );
+                }
+                if ( $recipe_id && $this->recipe_exists( $recipe_id ) ) {
+                    $meals[ $date ][ $slot ] = $recipe_id;
+                }
+            }
+        }
+        return $meals;
+    }
+
+    private function resolve_planner_recipe_label( string $label ): int {
+        $label = trim( $label );
+        if ( $label === '' ) {
+            return 0;
+        }
+        if ( preg_match( '/\(#(\d+)\)$/', $label, $m ) ) {
+            $recipe_id = absint( $m[1] );
+            return $this->recipe_exists( $recipe_id ) ? $recipe_id : 0;
+        }
+
+        $candidates = get_posts( [
+            'post_type'      => self::POST_TYPE,
+            'post_status'    => [ 'publish', 'draft' ],
+            'posts_per_page' => 10,
+            's'              => $label,
+        ] );
+        foreach ( $candidates as $candidate ) {
+            if ( get_the_title( $candidate ) === $label ) {
+                return (int) $candidate->ID;
+            }
+        }
+        return 0;
+    }
+
+    private function recipe_exists( int $recipe_id ): bool {
+        $post = $recipe_id ? get_post( $recipe_id ) : null;
+        return $post && $post->post_type === self::POST_TYPE;
     }
 
     /**

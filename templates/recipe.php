@@ -39,6 +39,10 @@ $tags     = wp_get_object_terms( $id, App::TAX_TAG );
 
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
 $refetch_status = isset( $_GET['refetch'] ) ? sanitize_text_field( wp_unslash( $_GET['refetch'] ) ) : '';
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
+$shopping_status = isset( $_GET['shopping'] ) ? sanitize_text_field( wp_unslash( $_GET['shopping'] ) ) : '';
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
+$shopping_items = isset( $_GET['items'] ) ? absint( $_GET['items'] ) : 0;
 
 include __DIR__ . '/_header.php';
 ?>
@@ -101,6 +105,16 @@ include __DIR__ . '/_header.php';
         <button type="button" class="<?php echo $preference === 'imperial' ? 'active' : ''; ?>" data-units="imperial"><?php esc_html_e( 'Imperial', 'cookbook' ); ?></button>
     </div>
     <span class="spacer"></span>
+    <?php if ( $ingredients ) : ?>
+        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline">
+            <?php wp_nonce_field( 'cookbook_add_to_shopping_list' ); ?>
+            <input type="hidden" name="action" value="cookbook_add_to_shopping_list">
+            <input type="hidden" name="recipe_id" value="<?php echo (int) $id; ?>">
+            <input type="hidden" id="shopping-servings" name="servings" value="<?php echo (int) $servings_default; ?>">
+            <button class="btn fresh" type="submit"><?php esc_html_e( 'Add to shopping list', 'cookbook' ); ?></button>
+        </form>
+        <a class="btn secondary" href="<?php echo esc_url( add_query_arg( 'recipe_id', $id, home_url( '/cookbook/planner' ) ) ); ?>"><?php esc_html_e( 'Plan recipe', 'cookbook' ); ?></a>
+    <?php endif; ?>
     <?php if ( $source_url ) : ?>
         <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline" onsubmit="return confirm('<?php echo esc_js( __( 'Re-fetch this recipe from its source URL? Ingredients, instructions, times and image will be replaced with the latest parsed data. Notes and tags are kept.', 'cookbook' ) ); ?>')">
             <?php wp_nonce_field( 'cookbook_refetch' ); ?>
@@ -118,6 +132,17 @@ include __DIR__ . '/_header.php';
     <div class="notice error"><?php esc_html_e( 'Could not re-parse the source URL — recipe left unchanged.', 'cookbook' ); ?></div>
 <?php elseif ( $refetch_status === 'no_url' ) : ?>
     <div class="notice error"><?php esc_html_e( 'No source URL stored on this recipe.', 'cookbook' ); ?></div>
+<?php endif; ?>
+<?php if ( $shopping_status === 'added' ) : ?>
+    <div class="notice success">
+        <?php
+        echo esc_html( sprintf(
+            /* translators: %d: shopping-list items */
+            _n( '%d ingredient added to your shopping list.', '%d ingredients added to your shopping list.', $shopping_items, 'cookbook' ),
+            $shopping_items
+        ) );
+        ?>
+    </div>
 <?php endif; ?>
 
 <?php if ( $post->post_content ) : ?>
@@ -199,6 +224,7 @@ include __DIR__ . '/_header.php';
 (function () {
     const ingredients = document.getElementById('ingredients');
     const servingsInput = document.getElementById('servings');
+    const shoppingServings = document.getElementById('shopping-servings');
     const unitButtons = document.querySelectorAll('.unit-toggle button');
     if (!ingredients || !servingsInput) return;
 
@@ -261,6 +287,7 @@ include __DIR__ . '/_header.php';
 
     function rerender() {
         const wanted = Math.max(1, parseInt(servingsInput.value, 10) || baseServings);
+        if (shoppingServings) shoppingServings.value = wanted;
         const scale = wanted / baseServings;
         ingredients.querySelectorAll('li').forEach(li => {
             const amt = li.querySelector('.amt');
