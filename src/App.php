@@ -874,9 +874,14 @@ class App extends BaseApp {
         check_admin_referer( 'cookbook_update_shopping_list' );
 
         $command = isset( $_POST['list_command'] ) ? sanitize_text_field( wp_unslash( $_POST['list_command'] ) ) : 'save';
+        $return_mode = isset( $_POST['return_mode'] ) ? sanitize_key( wp_unslash( $_POST['return_mode'] ) ) : '';
+        $redirect_args = [ 'saved' => '1' ];
+        if ( $return_mode === 'shop' ) {
+            $redirect_args['mode'] = 'shop';
+        }
         $list_id = isset( $_POST['list_id'] ) ? absint( $_POST['list_id'] ) : 0;
         if ( ! $list_id && in_array( $command, [ 'clear_all', 'clear_checked' ], true ) ) {
-            wp_safe_redirect( add_query_arg( 'saved', '1', home_url( '/' . $this->get_url_path() . '/shopping-list' ) ) );
+            wp_safe_redirect( add_query_arg( $redirect_args, home_url( '/' . $this->get_url_path() . '/shopping-list' ) ) );
             exit;
         }
         $list_id = $list_id ?: self::get_current_user_shopping_list_id( true );
@@ -903,7 +908,7 @@ class App extends BaseApp {
         }
 
         update_post_meta( $list_id, self::META_SHOPPING_ITEMS, $items );
-        wp_safe_redirect( add_query_arg( 'saved', '1', home_url( '/' . $this->get_url_path() . '/shopping-list' ) ) );
+        wp_safe_redirect( add_query_arg( $redirect_args, home_url( '/' . $this->get_url_path() . '/shopping-list' ) ) );
         exit;
     }
 
