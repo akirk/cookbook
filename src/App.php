@@ -62,6 +62,7 @@ class App extends BaseApp {
         add_action( 'admin_post_cookbook_settings', [ $this, 'handle_settings' ] );
         add_action( 'admin_post_cookbook_import', [ $this, 'handle_import' ] );
         add_action( 'admin_post_cookbook_refetch', [ $this, 'handle_refetch' ] );
+        add_action( 'admin_post_cookbook_replace_ingredient', [ $this, 'handle_replace_ingredient' ] );
         add_action( 'admin_post_cookbook_add_to_shopping_list', [ $this, 'handle_add_to_shopping_list' ] );
         add_action( 'admin_post_cookbook_update_shopping_list', [ $this, 'handle_update_shopping_list' ] );
         add_action( 'admin_post_cookbook_save_planner', [ $this, 'handle_save_planner' ] );
@@ -192,6 +193,7 @@ class App extends BaseApp {
                     'items' => [ 'type' => 'object' ],
                 ],
             ],
+            'revisions_enabled' => true,
             'auth_callback' => function() { return current_user_can( 'edit_posts' ); },
         ] );
         register_post_meta( self::POST_TYPE, self::META_INSTRUCTIONS, [
@@ -598,6 +600,10 @@ class App extends BaseApp {
             wp_set_object_terms( $post_id, $tags, self::TAX_TAG );
         }
 
+        if ( $id ) {
+            $this->save_recipe_revision_snapshot( $post_id );
+        }
+
         wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $post_id ) );
         exit;
     }
@@ -671,6 +677,12 @@ class App extends BaseApp {
         }
         update_post_meta( $post_id, self::META_INGREDIENTS, $clean );
         wp_set_object_terms( $post_id, array_keys( $term_ids ), self::TAX_INGREDIENT, false );
+    }
+
+    private function save_recipe_revision_snapshot( int $post_id ): void {
+        if ( function_exists( 'wp_save_post_revision' ) ) {
+            wp_save_post_revision( $post_id );
+        }
     }
 
     /**
@@ -844,6 +856,48 @@ class App extends BaseApp {
         $this->apply_parsed_payload( $id, $parsed, $url, true );
 
         wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $id . '?refetch=ok' ) );
+        exit;
+    }
+
+    public function handle_replace_ingredient(): void {
+        if ( ! is_user_logged_in() ) {
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
+        }
+
+        $id    = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
+        $index = isset( $_POST['ingredient_index'] ) ? absint( $_POST['ingredient_index'] ) : 0;
+        check_admin_referer( 'cookbook_replace_ingredient_' . $id . '_' . $index );
+
+        $post = $id ? get_post( $id ) : null;
+        if ( ! $post || $post->post_type !== self::POST_TYPE ) {
+            wp_die( esc_html__( 'Recipe not found.', 'cookbook' ), 404 );
+        }
+        if ( ! current_user_can( 'edit_post', $id ) ) {
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
+        }
+
+        $ingredients = (array) get_post_meta( $id, self::META_INGREDIENTS, true );
+        if ( ! isset( $ingredients[ $index ] ) || ! is_array( $ingredients[ $index ] ) ) {
+            wp_die( esc_html__( 'Ingredient not found.', 'cookbook' ), 404 );
+        }
+
+        $name = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+        if ( $name === '' ) {
+            wp_die( esc_html__( 'Replacement ingredient is required.', 'cookbook' ), 400 );
+        }
+
+        $ingredients[ $index ] = [
+            'amount' => isset( $_POST['amount'] ) ? sanitize_text_field( wp_unslash( $_POST['amount'] ) ) : '',
+            'unit'   => isset( $_POST['unit'] ) ? sanitize_text_field( wp_unslash( $_POST['unit'] ) ) : '',
+            'name'   => $name,
+            'notes'  => isset( $_POST['notes'] ) ? sanitize_text_field( wp_unslash( $_POST['notes'] ) ) : '',
+        ];
+
+        $this->save_recipe_revision_snapshot( $id );
+        $this->persist_ingredients( $id, $ingredients );
+        $this->save_recipe_revision_snapshot( $id );
+
+        wp_safe_redirect( add_query_arg( 'replaced', '1', home_url( '/' . $this->get_url_path() . '/recipe/' . $id . '#ingredients' ) ) );
         exit;
     }
 
