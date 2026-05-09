@@ -18,6 +18,7 @@ Built on the [WpApp framework](https://github.com/akirk/wp-app), so the app live
 - **Week planner.** Plan breakfast, lunch, and dinner for a week, prefill a recipe into the planner from its recipe page, then add the planned recipes' ingredients to your shopping list.
 - **Recipe variations.** Link recipes as parent/child variations, browse the variation family from parent or child recipe pages, and use **Edit as variation** to create a prefilled child recipe from an existing one.
 - **Recipe editing.** Create recipes manually, edit structured ingredients and instructions, categorize by category/cuisine/tags, add notes, replace photos through file upload or image URL, and remove photos.
+- **Abilities API.** When available, Cookbook registers abilities for recipe search/read/create/import, recipe variation creation, and week-plan read/save.
 - **Dark mode** via CSS `light-dark()`, respects the WpApp masterbar's dark-mode toggle.
 - **Translatable** with the `cookbook` text domain.
 
@@ -56,6 +57,20 @@ Then activate **Cookbook** in WordPress and visit `/cookbook/`.
 Install the [Friends browser extension](https://github.com/akirk/browser-extension), authorise it for your site, and a **Save as Recipe** action will appear in the popup. Open any recipe page in your browser, click the action, and the importer will create a draft you can review.
 
 The integration uses the `friends_browser_extension_actions` filter — same pattern as the [Post Collection](https://wordpress.org/plugins/post-collection/) plugin.
+
+### Abilities API
+
+When the WordPress Abilities API is available, Cookbook registers a `cookbook` category with these abilities:
+
+- `cookbook/search-recipes` searches recipes by text, category, tag, ingredient, status, and limit.
+- `cookbook/get-recipe` returns one structured recipe by post ID, including ingredients, instructions, taxonomy terms, source URL, and `view_url` for linking to the user-facing recipe page.
+- `cookbook/create-recipe` creates a structured recipe from provided fields.
+- `cookbook/import-recipe` imports from `source_url` or pasted recipe text, optionally sideloads `image_url`, and creates a draft recipe.
+- `cookbook/create-recipe-variation` copies an existing recipe into a child variation, allowing supplied fields to replace ingredients, instructions, notes, or other recipe details.
+- `cookbook/get-week-plan` returns the signed-in user's week planner for a normalized week.
+- `cookbook/save-week-plan` saves recipe IDs into the signed-in user's breakfast, lunch, and dinner slots for a normalized week.
+
+Cookbook also registers `ai_assistant_ability_domains` hints for recipe, ingredient, shopping-list, and meal-planning prompts so the AI Assistant knows to inspect Cookbook abilities instead of falling back to generic tools.
 
 ## Architecture
 
