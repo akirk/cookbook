@@ -27,6 +27,14 @@ $instructions     = (array) get_post_meta( $id, App::META_INSTRUCTIONS, true );
 $source_url       = (string) get_post_meta( $id, App::META_SOURCE_URL, true );
 $notes            = (string) get_post_meta( $id, App::META_NOTES, true );
 
+$clean_instructions = [];
+foreach ( $instructions as $step ) {
+    $step = Importer::clean_step( (string) $step );
+    if ( $step !== '' ) {
+        $clean_instructions[] = $step;
+    }
+}
+
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only display preference, validated against an allow-list below.
 $units_param = isset( $_GET['units'] ) ? sanitize_text_field( wp_unslash( $_GET['units'] ) ) : '';
 $preference  = in_array( $units_param, [ 'metric', 'imperial' ], true )
@@ -107,6 +115,9 @@ include __DIR__ . '/_header.php';
         <button type="button" class="<?php echo $preference === 'imperial' ? 'active' : ''; ?>" data-units="imperial"><?php esc_html_e( 'Imperial', 'cookbook' ); ?></button>
     </div>
     <span class="spacer"></span>
+    <?php if ( $clean_instructions ) : ?>
+        <button class="btn" type="button" id="cook-mode-open"><?php esc_html_e( 'Cook mode', 'cookbook' ); ?></button>
+    <?php endif; ?>
     <?php if ( $ingredients ) : ?>
         <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline">
             <?php wp_nonce_field( 'cookbook_add_to_shopping_list' ); ?>
@@ -226,14 +237,11 @@ include __DIR__ . '/_header.php';
 <?php endif; ?>
 
 <h2><?php esc_html_e( 'Instructions', 'cookbook' ); ?></h2>
-<?php if ( ! $instructions ) : ?>
+<?php if ( ! $clean_instructions ) : ?>
     <p class="help"><?php esc_html_e( 'No instructions yet.', 'cookbook' ); ?></p>
 <?php else : ?>
 <ol class="instruction-list">
-    <?php foreach ( $instructions as $step ) :
-        $step = Importer::clean_step( (string) $step );
-        if ( $step === '' ) continue;
-        ?>
+    <?php foreach ( $clean_instructions as $step ) : ?>
         <li><?php echo wp_kses_post( $step ); ?></li>
     <?php endforeach; ?>
 </ol>
@@ -242,6 +250,104 @@ include __DIR__ . '/_header.php';
 <?php if ( $notes ) : ?>
     <h2><?php esc_html_e( 'Notes', 'cookbook' ); ?></h2>
     <div><?php echo wp_kses_post( wpautop( $notes ) ); ?></div>
+<?php endif; ?>
+
+<?php if ( $clean_instructions ) : ?>
+<div class="cook-mode" id="cook-mode" role="dialog" aria-modal="true" aria-labelledby="cook-mode-title" hidden>
+    <div class="cook-mode-shell">
+        <header class="cook-mode-topbar">
+            <div class="cook-mode-title">
+                <p class="cook-mode-kicker"><?php esc_html_e( 'Cook mode', 'cookbook' ); ?></p>
+                <h2 id="cook-mode-title"><?php echo esc_html( get_the_title( $post ) ); ?></h2>
+            </div>
+            <button class="btn secondary" type="button" id="cook-mode-close"><?php esc_html_e( 'Exit', 'cookbook' ); ?></button>
+        </header>
+
+        <div class="cook-mode-layout">
+            <?php if ( $ingredients ) : ?>
+                <aside class="cook-mode-panel cook-mode-ingredients">
+                    <h3><?php esc_html_e( 'Ingredients', 'cookbook' ); ?></h3>
+                    <ul class="cook-ingredient-list">
+                        <?php foreach ( $ingredients as $i => $ing ) :
+                            $rendered = Units::render_ingredient( $ing, 1.0, $preference );
+                            $quantity = trim( $rendered['amount'] . ' ' . $rendered['unit'] );
+                            ?>
+                            <li class="cook-ingredient" data-cook-ingredient-index="<?php echo (int) $i; ?>">
+                                <label for="cook-ingredient-<?php echo (int) $i; ?>">
+                                    <input id="cook-ingredient-<?php echo (int) $i; ?>" type="checkbox" data-cook-ingredient-check>
+                                    <span class="cook-ingredient-amount"><?php echo esc_html( $quantity ); ?></span>
+                                    <span class="cook-ingredient-name">
+                                        <?php echo esc_html( $rendered['name'] ); ?>
+                                        <?php if ( ! empty( $rendered['notes'] ) ) : ?>
+                                            <span class="cook-ingredient-note"> - <?php echo esc_html( $rendered['notes'] ); ?></span>
+                                        <?php endif; ?>
+                                    </span>
+                                </label>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </aside>
+            <?php endif; ?>
+
+            <section class="cook-mode-main">
+                <div class="cook-mode-panel cook-mode-progress">
+                    <div class="cook-mode-progress-row">
+                        <strong id="cook-step-count"></strong>
+                        <span id="cook-step-done-count"></span>
+                    </div>
+                    <progress id="cook-step-progress" value="1" max="<?php echo (int) count( $clean_instructions ); ?>"></progress>
+                </div>
+
+                <div class="cook-active-step" id="cook-active-step" tabindex="-1"></div>
+
+                <div class="cook-mode-nav">
+                    <label class="cook-active-check" for="cook-active-check">
+                        <input id="cook-active-check" type="checkbox">
+                        <?php esc_html_e( 'Step done', 'cookbook' ); ?>
+                    </label>
+                    <div class="cook-mode-nav-group">
+                        <button class="btn secondary" type="button" id="cook-prev-step"><?php esc_html_e( 'Previous', 'cookbook' ); ?></button>
+                        <button class="btn" type="button" id="cook-next-step"><?php esc_html_e( 'Next', 'cookbook' ); ?></button>
+                        <button class="btn secondary" type="button" id="cook-reset"><?php esc_html_e( 'Reset', 'cookbook' ); ?></button>
+                    </div>
+                </div>
+
+                <ol class="cook-step-list">
+                    <?php foreach ( $clean_instructions as $i => $step ) : ?>
+                        <li class="cook-step-row" data-cook-step-index="<?php echo (int) $i; ?>">
+                            <div class="cook-step-full" hidden><?php echo wp_kses_post( $step ); ?></div>
+                            <div class="cook-step-list-row">
+                                <input
+                                    id="cook-step-check-<?php echo (int) $i; ?>"
+                                    class="cook-step-check"
+                                    type="checkbox"
+                                    data-cook-step-check
+                                    aria-label="<?php echo esc_attr( sprintf(
+                                        /* translators: %d: step number */
+                                        __( 'Step %d done', 'cookbook' ),
+                                        (int) $i + 1
+                                    ) ); ?>"
+                                >
+                                <button class="cook-step-jump" type="button" data-cook-step-jump="<?php echo (int) $i; ?>">
+                                    <span class="cook-step-list-index">
+                                        <?php
+                                        echo esc_html( sprintf(
+                                            /* translators: %d: step number */
+                                            __( 'Step %d', 'cookbook' ),
+                                            (int) $i + 1
+                                        ) );
+                                        ?>
+                                    </span>
+                                    <span class="cook-step-list-text"><?php echo esc_html( wp_strip_all_tags( $step ) ); ?></span>
+                                </button>
+                            </div>
+                        </li>
+                    <?php endforeach; ?>
+                </ol>
+            </section>
+        </div>
+    </div>
+</div>
 <?php endif; ?>
 
 <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:2rem" onsubmit="return confirm('<?php echo esc_js( __( 'Move this recipe to trash?', 'cookbook' ) ); ?>')">
@@ -258,8 +364,48 @@ include __DIR__ . '/_header.php';
     const shoppingServings = document.getElementById('shopping-servings');
     const unitButtons = document.querySelectorAll('.unit-toggle button');
     const editUrl = '<?php echo esc_js( home_url( '/cookbook/recipe/' . $id . '/edit' ) ); ?>';
+    const cookMode = document.getElementById('cook-mode');
+    const cookOpen = document.getElementById('cook-mode-open');
+    const cookClose = document.getElementById('cook-mode-close');
+    const cookActiveStep = document.getElementById('cook-active-step');
+    const cookActiveCheck = document.getElementById('cook-active-check');
+    const cookPrev = document.getElementById('cook-prev-step');
+    const cookNext = document.getElementById('cook-next-step');
+    const cookReset = document.getElementById('cook-reset');
+    const cookProgress = document.getElementById('cook-step-progress');
+    const cookStepCount = document.getElementById('cook-step-count');
+    const cookDoneCount = document.getElementById('cook-step-done-count');
+    const cookStepRows = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-step-index]')) : [];
+    const cookStepChecks = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-step-check]')) : [];
+    const cookIngredientRows = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-ingredient-index]')) : [];
+    const cookIngredientChecks = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-ingredient-check]')) : [];
+    const cookStrings = {
+        stepOf: <?php echo wp_json_encode( __( 'Step %1$d of %2$d', 'cookbook' ) ); ?>,
+        doneCount: <?php echo wp_json_encode( __( '%1$d of %2$d done', 'cookbook' ) ); ?>
+    };
+    const cookStateKey = 'cookbook:cook-mode:<?php echo (int) $id; ?>';
+    let activeCookStep = 0;
+    let wakeLock = null;
 
     document.addEventListener('keydown', (e) => {
+        if (isCookModeOpen()) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeCookMode();
+                return;
+            }
+            if (e.target && e.target.closest && e.target.closest('input, textarea, select, button, [contenteditable="true"]')) return;
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                setCookStep(activeCookStep - 1, true);
+                return;
+            }
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                setCookStep(activeCookStep + 1, true);
+                return;
+            }
+        }
         if (e.defaultPrevented || e.key.toLowerCase() !== 'e' || e.metaKey || e.ctrlKey || e.altKey) return;
         const target = e.target;
         if (
@@ -272,29 +418,29 @@ include __DIR__ . '/_header.php';
         window.location.href = editUrl;
     });
 
-    if (!ingredients || !servingsInput) return;
-
-    const baseServings = parseInt(servingsInput.dataset.default, 10) || 1;
     let preference = '<?php echo esc_js( $preference ); ?>';
+    const baseServings = servingsInput ? (parseInt(servingsInput.dataset.default, 10) || 1) : 1;
 
-    ingredients.addEventListener('click', (e) => {
-        const toggle = e.target.closest('.ingredient-replace-toggle');
-        if (toggle) {
-            const form = document.getElementById(toggle.dataset.replaceTarget);
-            if (!form) return;
-            form.hidden = !form.hidden;
-            if (!form.hidden) {
-                const input = form.querySelector('input[name="name"]');
-                if (input) input.focus();
+    if (ingredients) {
+        ingredients.addEventListener('click', (e) => {
+            const toggle = e.target.closest('.ingredient-replace-toggle');
+            if (toggle) {
+                const form = document.getElementById(toggle.dataset.replaceTarget);
+                if (!form) return;
+                form.hidden = !form.hidden;
+                if (!form.hidden) {
+                    const input = form.querySelector('input[name="name"]');
+                    if (input) input.focus();
+                }
+                return;
             }
-            return;
-        }
 
-        if (e.target.classList && e.target.classList.contains('ingredient-replace-cancel')) {
-            const form = e.target.closest('.ingredient-replace-form');
-            if (form) form.hidden = true;
-        }
-    });
+            if (e.target.classList && e.target.classList.contains('ingredient-replace-cancel')) {
+                const form = e.target.closest('.ingredient-replace-form');
+                if (form) form.hidden = true;
+            }
+        });
+    }
 
     // Conversion tables (kept in sync with src/Units.php).
     const MASS = { g:1, kg:1000, oz:28.3495, lb:453.592 };
@@ -350,7 +496,20 @@ include __DIR__ . '/_header.php';
         return { amount: fmt(canonical / VOLUME.tsp, 1), unit: 'tsp' };
     }
 
+    function syncCookIngredientAmounts() {
+        if (!ingredients || !cookMode) return;
+        ingredients.querySelectorAll('.ingredient-row').forEach((li, index) => {
+            const amount = li.querySelector('.amt');
+            const target = cookMode.querySelector('[data-cook-ingredient-index="' + index + '"] .cook-ingredient-amount');
+            if (amount && target) target.textContent = amount.textContent;
+        });
+    }
+
     function rerender() {
+        if (!ingredients || !servingsInput) {
+            syncCookIngredientAmounts();
+            return;
+        }
         const wanted = Math.max(1, parseInt(servingsInput.value, 10) || baseServings);
         if (shoppingServings) shoppingServings.value = wanted;
         const scale = wanted / baseServings;
@@ -366,14 +525,174 @@ include __DIR__ . '/_header.php';
             const out = convert(value, unit, preference);
             amt.textContent = (out.amount + ' ' + (out.unit || '')).trim();
         });
+        syncCookIngredientAmounts();
     }
 
-    servingsInput.addEventListener('input', rerender);
+    function formatCookString(template, first, second) {
+        return template.replace('%1$d', first).replace('%2$d', second);
+    }
+
+    function isCookModeOpen() {
+        return cookMode && !cookMode.hidden;
+    }
+
+    function loadCookState() {
+        if (!cookMode) return;
+        try {
+            const state = JSON.parse(window.localStorage.getItem(cookStateKey) || '{}');
+            activeCookStep = Math.max(0, Math.min(cookStepRows.length - 1, parseInt(state.activeStep, 10) || 0));
+            const checkedSteps = Array.isArray(state.checkedSteps) ? state.checkedSteps : [];
+            const checkedIngredients = Array.isArray(state.checkedIngredients) ? state.checkedIngredients : [];
+            cookStepChecks.forEach((check, index) => {
+                check.checked = checkedSteps.indexOf(index) >= 0;
+            });
+            cookIngredientChecks.forEach((check, index) => {
+                check.checked = checkedIngredients.indexOf(index) >= 0;
+            });
+        } catch (e) {
+            activeCookStep = 0;
+        }
+    }
+
+    function saveCookState() {
+        if (!cookMode) return;
+        try {
+            window.localStorage.setItem(cookStateKey, JSON.stringify({
+                activeStep: activeCookStep,
+                checkedSteps: cookStepChecks.reduce((out, check, index) => {
+                    if (check.checked) out.push(index);
+                    return out;
+                }, []),
+                checkedIngredients: cookIngredientChecks.reduce((out, check, index) => {
+                    if (check.checked) out.push(index);
+                    return out;
+                }, [])
+            }));
+        } catch (e) {}
+    }
+
+    function updateCookState() {
+        if (!cookMode || !cookStepRows.length) return;
+        const completed = cookStepChecks.filter(check => check.checked).length;
+        cookStepRows.forEach((row, index) => {
+            row.classList.toggle('is-active', index === activeCookStep);
+            row.classList.toggle('is-checked', !!(cookStepChecks[index] && cookStepChecks[index].checked));
+        });
+        cookIngredientRows.forEach((row, index) => {
+            row.classList.toggle('is-checked', !!(cookIngredientChecks[index] && cookIngredientChecks[index].checked));
+        });
+        if (cookActiveCheck) {
+            cookActiveCheck.checked = !!(cookStepChecks[activeCookStep] && cookStepChecks[activeCookStep].checked);
+        }
+        if (cookPrev) cookPrev.disabled = activeCookStep <= 0;
+        if (cookNext) cookNext.disabled = activeCookStep >= cookStepRows.length - 1;
+        if (cookProgress) {
+            cookProgress.max = cookStepRows.length;
+            cookProgress.value = activeCookStep + 1;
+        }
+        if (cookStepCount) {
+            cookStepCount.textContent = formatCookString(cookStrings.stepOf, activeCookStep + 1, cookStepRows.length);
+        }
+        if (cookDoneCount) {
+            cookDoneCount.textContent = formatCookString(cookStrings.doneCount, completed, cookStepRows.length);
+        }
+        saveCookState();
+    }
+
+    function setCookStep(index, focusStep) {
+        if (!cookMode || !cookStepRows.length) return;
+        activeCookStep = Math.max(0, Math.min(cookStepRows.length - 1, index));
+        const text = cookStepRows[activeCookStep].querySelector('.cook-step-full');
+        if (cookActiveStep && text) {
+            cookActiveStep.innerHTML = text.innerHTML;
+            if (focusStep) cookActiveStep.focus({ preventScroll: true });
+        }
+        updateCookState();
+    }
+
+    async function requestWakeLock() {
+        if (!('wakeLock' in navigator) || wakeLock) return;
+        try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            wakeLock.addEventListener('release', () => {
+                wakeLock = null;
+            });
+        } catch (e) {}
+    }
+
+    function releaseWakeLock() {
+        if (!wakeLock) return;
+        wakeLock.release().catch(() => {});
+        wakeLock = null;
+    }
+
+    function openCookMode() {
+        if (!cookMode) return;
+        loadCookState();
+        syncCookIngredientAmounts();
+        cookMode.hidden = false;
+        document.body.classList.add('cook-mode-active');
+        setCookStep(activeCookStep, true);
+        requestWakeLock();
+    }
+
+    function closeCookMode() {
+        if (!cookMode) return;
+        cookMode.hidden = true;
+        document.body.classList.remove('cook-mode-active');
+        releaseWakeLock();
+        if (cookOpen) cookOpen.focus();
+    }
+
+    if (servingsInput) servingsInput.addEventListener('input', rerender);
     unitButtons.forEach(btn => btn.addEventListener('click', () => {
         preference = btn.dataset.units;
         unitButtons.forEach(b => b.classList.toggle('active', b === btn));
         rerender();
     }));
+
+    if (cookOpen) cookOpen.addEventListener('click', openCookMode);
+    if (cookClose) cookClose.addEventListener('click', closeCookMode);
+    if (cookPrev) cookPrev.addEventListener('click', () => setCookStep(activeCookStep - 1, true));
+    if (cookNext) cookNext.addEventListener('click', () => setCookStep(activeCookStep + 1, true));
+    if (cookReset) {
+        cookReset.addEventListener('click', () => {
+            cookStepChecks.forEach(check => { check.checked = false; });
+            cookIngredientChecks.forEach(check => { check.checked = false; });
+            setCookStep(0, true);
+        });
+    }
+    if (cookActiveCheck) {
+        cookActiveCheck.addEventListener('change', () => {
+            if (cookStepChecks[activeCookStep]) {
+                cookStepChecks[activeCookStep].checked = cookActiveCheck.checked;
+            }
+            updateCookState();
+        });
+    }
+    cookStepChecks.forEach((check, index) => {
+        check.addEventListener('change', () => {
+            if (index === activeCookStep && cookActiveCheck) {
+                cookActiveCheck.checked = check.checked;
+            }
+            updateCookState();
+        });
+    });
+    cookIngredientChecks.forEach(check => {
+        check.addEventListener('change', updateCookState);
+    });
+    if (cookMode) {
+        cookMode.querySelectorAll('[data-cook-step-jump]').forEach(button => {
+            button.addEventListener('click', () => {
+                setCookStep(parseInt(button.dataset.cookStepJump, 10) || 0, true);
+            });
+        });
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && isCookModeOpen()) requestWakeLock();
+    });
+
+    rerender();
 })();
 </script>
 
