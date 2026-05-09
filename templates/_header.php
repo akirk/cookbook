@@ -70,6 +70,15 @@ if ( ! defined( 'ABSPATH' ) ) {
         .ingredient-list { list-style: none; padding: 0; }
         .ingredient-list li { padding: 0.35rem 0; border-bottom: 1px dashed var(--line); display: flex; gap: 0.5rem; }
         .ingredient-list .amt { min-width: 5rem; font-weight: 600; }
+        .ingredient-list .ingredient-row { display: block; }
+        .ingredient-line { display: flex; gap: 0.5rem; align-items: baseline; }
+        .ingredient-line .ingredient-name { flex: 1; min-width: 0; }
+        .ingredient-actions { opacity: 0; transition: opacity 0.1s; }
+        .ingredient-row:hover .ingredient-actions,
+        .ingredient-row:focus-within .ingredient-actions { opacity: 1; }
+        .ingredient-replace-toggle { background: transparent; border: 0; color: var(--accent); cursor: pointer; font: inherit; padding: 0; }
+        .ingredient-replace-form { display: grid; grid-template-columns: 5rem 5.5rem minmax(9rem, 1fr) minmax(8rem, 1fr) auto auto; gap: 0.4rem; align-items: center; margin: 0.5rem 0 0 5.5rem; }
+        .ingredient-replace-form[hidden] { display: none; }
         .instruction-list { padding-left: 1.25rem; }
         .instruction-list li { margin: 0.5rem 0; }
         .notice { background: var(--notice-bg); border: 1px solid var(--notice-bd); padding: 0.6rem 0.9rem; border-radius: 4px; margin: 0.75rem 0; }
@@ -142,7 +151,9 @@ if ( ! defined( 'ABSPATH' ) ) {
             .page-head { display: block; }
             .page-actions { justify-content: flex-start; margin-top: 0.75rem; }
             .shopping-fields,
-            .manual-item-row { grid-template-columns: 1fr 1fr; }
+            .manual-item-row,
+            .ingredient-replace-form { grid-template-columns: 1fr 1fr; }
+            .ingredient-replace-form { margin-left: 0; }
             .manual-item-row .remove { justify-self: start; }
             .shop-bar { top: 0.25rem; }
             .shop-add { grid-template-columns: 1fr; }

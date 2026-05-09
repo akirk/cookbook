@@ -43,6 +43,8 @@ $refetch_status = isset( $_GET['refetch'] ) ? sanitize_text_field( wp_unslash( $
 $shopping_status = isset( $_GET['shopping'] ) ? sanitize_text_field( wp_unslash( $_GET['shopping'] ) ) : '';
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
 $shopping_items = isset( $_GET['items'] ) ? absint( $_GET['items'] ) : 0;
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
+$replaced = isset( $_GET['replaced'] );
 
 include __DIR__ . '/_header.php';
 ?>
@@ -144,6 +146,9 @@ include __DIR__ . '/_header.php';
         ?>
     </div>
 <?php endif; ?>
+<?php if ( $replaced ) : ?>
+    <div class="notice success"><?php esc_html_e( 'Ingredient replaced.', 'cookbook' ); ?></div>
+<?php endif; ?>
 
 <?php if ( $post->post_content ) : ?>
     <div class="description"><?php echo wp_kses_post( wpautop( $post->post_content ) ); ?></div>
@@ -162,7 +167,7 @@ include __DIR__ . '/_header.php';
     </p>
 <?php else : ?>
 <ul class="ingredient-list" id="ingredients">
-    <?php foreach ( $ingredients as $ing ) :
+    <?php foreach ( $ingredients as $i => $ing ) :
         $rendered = Units::render_ingredient( $ing, 1.0, $preference );
         $raw_amount = isset( $ing['amount'] ) ? $ing['amount'] : '';
         $parsed_amount = Units::parse_amount( $raw_amount );
@@ -171,24 +176,50 @@ include __DIR__ . '/_header.php';
             data-amount="<?php echo esc_attr( $parsed_amount ?? '' ); ?>"
             data-amount-raw="<?php echo esc_attr( $raw_amount ); ?>"
             data-unit="<?php echo esc_attr( Units::normalize_unit( $ing['unit'] ?? '' ) ); ?>"
+            class="ingredient-row"
         >
-            <span class="amt"><?php
-                echo esc_html( trim( $rendered['amount'] . ' ' . $rendered['unit'] ) );
-            ?></span>
-            <span>
-                <?php
-                $ing_term_id = isset( $ing['term_id'] ) ? (int) $ing['term_id'] : 0;
-                $ing_term    = $ing_term_id ? get_term( $ing_term_id, App::TAX_INGREDIENT ) : null;
-                if ( $ing_term && ! is_wp_error( $ing_term ) ) :
-                    ?>
-                    <a href="<?php echo esc_url( home_url( '/cookbook/ingredient/' . $ing_term->slug ) ); ?>"><?php echo esc_html( $rendered['name'] ); ?></a>
-                <?php else : ?>
-                    <?php echo esc_html( $rendered['name'] ); ?>
+            <div class="ingredient-line">
+                <span class="amt"><?php
+                    echo esc_html( trim( $rendered['amount'] . ' ' . $rendered['unit'] ) );
+                ?></span>
+                <span class="ingredient-name">
+                    <?php
+                    $ing_term_id = isset( $ing['term_id'] ) ? (int) $ing['term_id'] : 0;
+                    $ing_term    = $ing_term_id ? get_term( $ing_term_id, App::TAX_INGREDIENT ) : null;
+                    if ( $ing_term && ! is_wp_error( $ing_term ) ) :
+                        ?>
+                        <a href="<?php echo esc_url( home_url( '/cookbook/ingredient/' . $ing_term->slug ) ); ?>"><?php echo esc_html( $rendered['name'] ); ?></a>
+                    <?php else : ?>
+                        <?php echo esc_html( $rendered['name'] ); ?>
+                    <?php endif; ?>
+                    <?php if ( ! empty( $rendered['notes'] ) ) : ?>
+                        <span style="color:var(--muted)"> – <?php echo esc_html( $rendered['notes'] ); ?></span>
+                    <?php endif; ?>
+                </span>
+                <?php if ( current_user_can( 'edit_post', $id ) ) : ?>
+                    <span class="ingredient-actions">
+                        <button type="button" class="ingredient-replace-toggle" data-replace-target="replace-ingredient-<?php echo (int) $i; ?>"><?php esc_html_e( 'Replace', 'cookbook' ); ?></button>
+                    </span>
                 <?php endif; ?>
-                <?php if ( ! empty( $rendered['notes'] ) ) : ?>
-                    <span style="color:var(--muted)"> – <?php echo esc_html( $rendered['notes'] ); ?></span>
-                <?php endif; ?>
-            </span>
+            </div>
+            <?php if ( current_user_can( 'edit_post', $id ) ) : ?>
+                <form id="replace-ingredient-<?php echo (int) $i; ?>" class="ingredient-replace-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" hidden>
+                    <?php wp_nonce_field( 'cookbook_replace_ingredient_' . $id . '_' . $i ); ?>
+                    <input type="hidden" name="action" value="cookbook_replace_ingredient">
+                    <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
+                    <input type="hidden" name="ingredient_index" value="<?php echo (int) $i; ?>">
+                    <input type="text" name="amount" value="<?php echo esc_attr( $ing['amount'] ?? '' ); ?>" placeholder="<?php esc_attr_e( '2', 'cookbook' ); ?>">
+                    <input type="text" name="unit" value="<?php echo esc_attr( $ing['unit'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'g', 'cookbook' ); ?>">
+                    <input type="text" name="name" value="" placeholder="<?php echo esc_attr( sprintf(
+                        /* translators: %s: ingredient name */
+                        __( 'Replace %s with...', 'cookbook' ),
+                        $ing['name'] ?? ''
+                    ) ); ?>" required>
+                    <input type="text" name="notes" value="<?php echo esc_attr( $ing['notes'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'notes', 'cookbook' ); ?>">
+                    <button class="btn fresh" type="submit"><?php esc_html_e( 'Save', 'cookbook' ); ?></button>
+                    <button class="btn secondary ingredient-replace-cancel" type="button"><?php esc_html_e( 'Cancel', 'cookbook' ); ?></button>
+                </form>
+            <?php endif; ?>
         </li>
     <?php endforeach; ?>
 </ul>
@@ -226,10 +257,44 @@ include __DIR__ . '/_header.php';
     const servingsInput = document.getElementById('servings');
     const shoppingServings = document.getElementById('shopping-servings');
     const unitButtons = document.querySelectorAll('.unit-toggle button');
+    const editUrl = '<?php echo esc_js( home_url( '/cookbook/recipe/' . $id . '/edit' ) ); ?>';
+
+    document.addEventListener('keydown', (e) => {
+        if (e.defaultPrevented || e.key.toLowerCase() !== 'e' || e.metaKey || e.ctrlKey || e.altKey) return;
+        const target = e.target;
+        if (
+            target.closest &&
+            target.closest('input, textarea, select, button, [contenteditable="true"]')
+        ) {
+            return;
+        }
+        e.preventDefault();
+        window.location.href = editUrl;
+    });
+
     if (!ingredients || !servingsInput) return;
 
     const baseServings = parseInt(servingsInput.dataset.default, 10) || 1;
     let preference = '<?php echo esc_js( $preference ); ?>';
+
+    ingredients.addEventListener('click', (e) => {
+        const toggle = e.target.closest('.ingredient-replace-toggle');
+        if (toggle) {
+            const form = document.getElementById(toggle.dataset.replaceTarget);
+            if (!form) return;
+            form.hidden = !form.hidden;
+            if (!form.hidden) {
+                const input = form.querySelector('input[name="name"]');
+                if (input) input.focus();
+            }
+            return;
+        }
+
+        if (e.target.classList && e.target.classList.contains('ingredient-replace-cancel')) {
+            const form = e.target.closest('.ingredient-replace-form');
+            if (form) form.hidden = true;
+        }
+    });
 
     // Conversion tables (kept in sync with src/Units.php).
     const MASS = { g:1, kg:1000, oz:28.3495, lb:453.592 };
