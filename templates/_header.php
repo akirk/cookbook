@@ -102,6 +102,19 @@ if ( ! defined( 'ABSPATH' ) ) {
         .manual-item-row { display: grid; grid-template-columns: 5rem 5.5rem minmax(9rem, 1fr) minmax(8rem, 1fr) auto; gap: 0.45rem; align-items: center; margin-bottom: 0.5rem; }
         .shopping-fields .remove,
         .manual-item-row .remove { background: transparent; border: 0; color: #b32d2e; cursor: pointer; font-size: 1.2rem; }
+        .shop-bar { position: sticky; top: 0.5rem; z-index: 5; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem; margin: 1rem 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .shop-bar strong { margin-right: auto; }
+        .shop-toggle { display: inline-flex; gap: 0.35rem; align-items: center; margin: 0; font-weight: 400; color: var(--muted); }
+        .shop-list { list-style: none; padding: 0; margin: 1rem 0; display: grid; gap: 0.55rem; }
+        .shop-item { border: 1px solid var(--line); border-radius: 6px; background: var(--card); }
+        .shop-item label { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.75rem; align-items: center; margin: 0; padding: 0.9rem; cursor: pointer; font-weight: 400; }
+        .shop-item strong { display: block; font-size: 1.05rem; }
+        .shop-item small { display: block; color: var(--muted); font-size: 0.9rem; margin-top: 0.1rem; }
+        .shop-check { width: 1.35rem; height: 1.35rem; }
+        .shop-item.is-checked { opacity: 0.62; }
+        .shop-item.is-checked strong { text-decoration: line-through; }
+        .shop-list.hide-checked .shop-item.is-checked { display: none; }
+        .shop-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; margin-top: 1rem; }
         .planner-nav { display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; margin: 1rem 0; }
         .planner-grid { display: grid; grid-template-columns: 1fr; gap: 0.75rem; margin: 1rem 0; }
         .planner-day { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.85rem; }
@@ -131,6 +144,8 @@ if ( ! defined( 'ABSPATH' ) ) {
             .shopping-fields,
             .manual-item-row { grid-template-columns: 1fr 1fr; }
             .manual-item-row .remove { justify-self: start; }
+            .shop-bar { top: 0.25rem; }
+            .shop-add { grid-template-columns: 1fr; }
         }
     </style>
 </head>
