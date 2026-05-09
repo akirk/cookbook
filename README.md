@@ -6,9 +6,11 @@ Built on the [WpApp framework](https://github.com/akirk/wp-app), so the app live
 
 ## Features
 
-- **Native WordPress storage.** Every recipe is a `cb-recipes` custom post type with `recipe_category` (hierarchical), `recipe_cuisine` (hierarchical) and `recipe_tag` (flat) taxonomies, plus structured post meta for ingredients, instructions, servings, prep/cook times, source URL and notes.
+- **Native WordPress storage.** Every recipe is a `cb-recipes` custom post type with `recipe_category` (hierarchical), `recipe_cuisine` (hierarchical) and `recipe_tag` (flat) taxonomies, plus structured post meta for ingredients, instructions, servings, prep/cook times, source URL and notes. Shopping lists and week plans are separate user-authored CPTs.
 - **Metric ⇄ Imperial.** Recipes are stored in their original units; conversion happens on display. Set your preference in `/cookbook/settings`, or flip the live toggle on any recipe page. Unit aliases cover English and German (`EL`, `TL`, `Stk`, `Prise`, `Bund`, …).
 - **Live portion scaling.** Type the number of servings you want and every parsed amount rescales and reconverts immediately, client-side.
+- **Shopping list.** Add a recipe's scaled ingredients to your personal shopping list, check items off, add manual items, and clear checked items.
+- **Week planner.** Plan breakfast, lunch, and dinner for a week, then add the planned recipes' ingredients to your shopping list.
 - **Import from the web.** Paste a URL, the plugin extracts schema.org `Recipe` JSON-LD (handling `@graph`, `HowToSection`, `ImageObject`); paste plain text and a fallback parser splits ingredients and instructions from `Ingredients` / `Method` / `Directions` headers. Photos are sideloaded into the WordPress media library and set as the recipe's featured image.
 - **One-click save from any browser tab** via the [Friends browser extension](https://github.com/akirk/browser-extension): a "Save as Recipe" action POSTs the current page's HTML to the site, where the importer turns it into a draft recipe.
 - **Replace photos** through the edit form (file upload + remove checkbox).
@@ -33,6 +35,8 @@ Then activate **Cookbook** in WordPress and visit `/cookbook/`.
 | `/cookbook/`                     | All recipes                                |
 | `/cookbook/new`                  | Create a recipe                            |
 | `/cookbook/import`               | Paste a URL or recipe text to import       |
+| `/cookbook/shopping-list`        | Personal shopping list                     |
+| `/cookbook/planner`              | Weekly meal planner                        |
 | `/cookbook/recipe/{id}`          | View                                       |
 | `/cookbook/recipe/{id}/edit`     | Edit                                       |
 | `/cookbook/category/{slug}`      | Browse by category                         |
@@ -60,6 +64,8 @@ templates/
   new.php             Create new
   _form.php           Shared edit form
   import.php          Paste URL or text
+  shopping-list.php   User-authored shopping list CPT view
+  planner.php         User-authored week plan CPT view
   settings.php        User preferences
   category.php tag.php  Taxonomy archives
 ```

@@ -57,6 +57,32 @@ if ( is_wp_error( $top_ingredients ) ) {
 }
 $top_ingredient_max = 0;
 foreach ( $top_ingredients as $t ) { $top_ingredient_max = max( $top_ingredient_max, (int) $t->count ); }
+$ingredient_count = 0;
+if ( ! $is_searching ) {
+    $ingredient_ids = get_terms( [
+        'taxonomy'   => App::TAX_INGREDIENT,
+        'hide_empty' => true,
+        'fields'     => 'ids',
+    ] );
+    $ingredient_count = is_wp_error( $ingredient_ids ) ? 0 : count( $ingredient_ids );
+}
+
+$shopping_items_count = 0;
+$shopping_list_id = App::get_current_user_shopping_list_id( false );
+if ( $shopping_list_id ) {
+    $shopping_items_count = count( App::get_shopping_items( $shopping_list_id ) );
+}
+
+$planned_meals_count = 0;
+$current_week_start = App::normalize_week_start();
+$current_plan_id = App::get_user_week_plan_id( $current_week_start, false );
+if ( $current_plan_id ) {
+    foreach ( App::get_week_meals( $current_plan_id ) as $day_meals ) {
+        if ( is_array( $day_meals ) ) {
+            $planned_meals_count += count( array_filter( $day_meals ) );
+        }
+    }
+}
 
 $recipes_by_letter = [];
 foreach ( $recipes as $recipe ) {
@@ -89,18 +115,70 @@ include __DIR__ . '/_header.php';
     .recipe-alpha-list a:hover .recipe-title { color: var(--accent); }
     .recipe-alpha-list .recipe-title { flex: 1; min-width: 0; }
     .recipe-alpha-list .meta { font-size: 0.82rem; gap: 0.45rem; }
+    .home-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; margin: 1rem 0; }
+    .home-tools { display: grid; grid-template-columns: 1fr; gap: 0.6rem; margin: 0.75rem 0 1.25rem; }
+    .home-tool { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: inherit; text-decoration: none; }
+    .home-tool:hover { border-color: var(--accent); }
+    .home-tool strong { color: var(--fg); }
+    .home-tool span { color: var(--muted); font-size: 0.86rem; white-space: nowrap; }
+    @media (min-width: 720px) { .home-tools { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } }
 </style>
-<h1><?php esc_html_e( 'Cookbook', 'cookbook' ); ?></h1>
-<p class="subtitle"><?php esc_html_e( 'Your personal recipes.', 'cookbook' ); ?></p>
+<div class="page-head">
+    <div>
+        <h1><?php esc_html_e( 'Cookbook', 'cookbook' ); ?></h1>
+        <p class="subtitle"><?php esc_html_e( 'Your personal recipes.', 'cookbook' ); ?></p>
+    </div>
+    <div class="page-actions">
+        <a class="btn fresh" href="<?php echo esc_url( home_url( '/cookbook/new' ) ); ?>"><?php esc_html_e( '+ New recipe', 'cookbook' ); ?></a>
+        <a class="btn secondary" id="cookbook-import-link" href="<?php echo esc_url( home_url( '/cookbook/import' ) ); ?>"><?php esc_html_e( 'Import from web', 'cookbook' ); ?></a>
+    </div>
+</div>
 
-<form method="get" action="" class="toolbar">
+<form method="get" action="" class="home-search">
     <input id="cookbook-search" type="text" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search recipes or paste a URL to import…', 'cookbook' ); ?>">
     <button class="btn" type="submit"><?php esc_html_e( 'Search', 'cookbook' ); ?></button>
-    <span class="spacer"></span>
-    <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>"><?php esc_html_e( 'By ingredients', 'cookbook' ); ?></a>
-    <a class="btn" href="<?php echo esc_url( home_url( '/cookbook/new' ) ); ?>"><?php esc_html_e( '+ New recipe', 'cookbook' ); ?></a>
-    <a class="btn secondary" id="cookbook-import-link" href="<?php echo esc_url( home_url( '/cookbook/import' ) ); ?>"><?php esc_html_e( 'Import from web', 'cookbook' ); ?></a>
 </form>
+<?php if ( ! $is_searching ) : ?>
+    <nav class="home-tools" aria-label="<?php esc_attr_e( 'Cookbook tools', 'cookbook' ); ?>">
+        <a class="home-tool" href="<?php echo esc_url( home_url( '/cookbook/shopping-list' ) ); ?>">
+            <strong><?php esc_html_e( 'Shopping list', 'cookbook' ); ?></strong>
+            <span>
+                <?php
+                echo esc_html( sprintf(
+                    /* translators: %d: number of shopping-list items */
+                    _n( '%d item', '%d items', $shopping_items_count, 'cookbook' ),
+                    $shopping_items_count
+                ) );
+                ?>
+            </span>
+        </a>
+        <a class="home-tool" href="<?php echo esc_url( home_url( '/cookbook/planner' ) ); ?>">
+            <strong><?php esc_html_e( 'Week planner', 'cookbook' ); ?></strong>
+            <span>
+                <?php
+                echo esc_html( sprintf(
+                    /* translators: %d: number of planned meals */
+                    _n( '%d meal planned', '%d meals planned', $planned_meals_count, 'cookbook' ),
+                    $planned_meals_count
+                ) );
+                ?>
+            </span>
+        </a>
+        <a class="home-tool" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>">
+            <strong><?php esc_html_e( 'By ingredients', 'cookbook' ); ?></strong>
+            <span>
+                <?php
+                echo esc_html( sprintf(
+                    /* translators: %d: number of ingredients */
+                    _n( '%d ingredient', '%d ingredients', $ingredient_count, 'cookbook' ),
+                    $ingredient_count
+                ) );
+                ?>
+            </span>
+        </a>
+    </nav>
+<?php endif; ?>
 <script>
 (function () {
     var input = document.getElementById('cookbook-search');

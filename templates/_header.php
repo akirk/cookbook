@@ -35,6 +35,7 @@ if ( ! defined( 'ABSPATH' ) ) {
             --error-bd:     light-dark(#f5c2bd, #7a3a3a);
             --success-bg:   light-dark(#e8f5e9, #1f3621);
             --success-bd:   light-dark(#b6dab8, #3f6b42);
+            --fresh:        light-dark(#18a558, #37c978);
         }
         /* Allow the WpApp masterbar's dark-mode toggle to force a scheme. */
         :root[data-theme="dark"]  { color-scheme: dark;  }
@@ -50,6 +51,7 @@ if ( ! defined( 'ABSPATH' ) ) {
         .btn, button.btn, input[type="submit"].btn { display: inline-block; background: var(--accent); color: #fff; border: 0; padding: 0.5rem 0.9rem; border-radius: 4px; text-decoration: none; font: inherit; cursor: pointer; }
         .btn.secondary { background: var(--secondary-bg); color: var(--secondary-fg); }
         .btn.danger { background: #b32d2e; color: #fff; }
+        .btn.fresh { background: var(--fresh); color: #fff; }
         .meta { display: flex; gap: 1rem; color: var(--muted); font-size: 0.9rem; flex-wrap: wrap; }
         .badge { display: inline-block; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.85rem; color: #555; margin-right: 0.25rem; text-decoration: none; }
         .recipe-card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1rem 1.25rem; margin: 0.75rem 0; display: block; text-decoration: none; color: inherit; }
@@ -86,6 +88,50 @@ if ( ! defined( 'ABSPATH' ) ) {
         .ing-chip input { position: absolute; opacity: 0; pointer-events: none; }
         .ing-chip-count { color: var(--muted); font-size: 0.8em; }
         .ing-chip.on .ing-chip-count { color: rgba(255,255,255,0.8); }
+        .page-head { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; }
+        .page-head h1 { margin-top: 0; }
+        .page-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+        .soft-panel { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1rem; }
+        .shopping-list { list-style: none; padding: 0; margin: 1rem 0; border-top: 1px solid var(--line); }
+        .shopping-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.75rem; align-items: start; padding: 0.75rem 0; border-bottom: 1px solid var(--line); }
+        .shopping-row.is-checked { color: var(--muted); }
+        .shopping-row.is-checked .shopping-fields input[type="text"] { text-decoration: line-through; }
+        .shopping-check { margin-top: 0.55rem; }
+        .shopping-fields { display: grid; grid-template-columns: 5rem 5.5rem minmax(9rem, 1fr) minmax(8rem, 1fr) auto; gap: 0.45rem; align-items: center; }
+        .shopping-source { margin-top: 0.35rem; color: var(--muted); font-size: 0.85rem; }
+        .manual-item-row { display: grid; grid-template-columns: 5rem 5.5rem minmax(9rem, 1fr) minmax(8rem, 1fr) auto; gap: 0.45rem; align-items: center; margin-bottom: 0.5rem; }
+        .shopping-fields .remove,
+        .manual-item-row .remove { background: transparent; border: 0; color: #b32d2e; cursor: pointer; font-size: 1.2rem; }
+        .planner-nav { display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; margin: 1rem 0; }
+        .planner-grid { display: grid; grid-template-columns: 1fr; gap: 0.75rem; margin: 1rem 0; }
+        .planner-day { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.85rem; }
+        .planner-day h3 { margin: 0 0 0.75rem; font-size: 1rem; display: flex; justify-content: space-between; gap: 0.75rem; }
+        .planner-day h3 span { color: var(--muted); font-weight: 400; }
+        .planner-slot { display: grid; gap: 0.25rem; margin-bottom: 0.65rem; }
+        .planner-slot:last-child { margin-bottom: 0; }
+        .planner-slot label { margin: 0; font-size: 0.85rem; color: var(--muted); }
+        .planned-strip { display: grid; grid-template-columns: 1fr; gap: 0.75rem; margin: 1rem 0; }
+        .planned-card { display: flex; gap: 0.75rem; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.65rem; color: inherit; text-decoration: none; }
+        .planned-card img,
+        .planned-card .planned-thumb { width: 68px; height: 68px; object-fit: cover; border-radius: 5px; flex-shrink: 0; background: var(--secondary-bg); }
+        .planned-card .planned-thumb { display: flex; align-items: center; justify-content: center; color: var(--muted); font-weight: 700; }
+        .planned-card strong { display: block; color: var(--fg); }
+        .planned-card span { display: block; color: var(--muted); font-size: 0.85rem; }
+        @media (min-width: 680px) {
+            .planner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .planned-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (min-width: 980px) {
+            .planner-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .planned-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (max-width: 640px) {
+            .page-head { display: block; }
+            .page-actions { justify-content: flex-start; margin-top: 0.75rem; }
+            .shopping-fields,
+            .manual-item-row { grid-template-columns: 1fr 1fr; }
+            .manual-item-row .remove { justify-self: start; }
+        }
     </style>
 </head>
 <body>
