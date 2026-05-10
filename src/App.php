@@ -66,7 +66,6 @@ class App extends BaseApp {
         add_action( 'admin_post_cookbook_add_to_shopping_list', [ $this, 'handle_add_to_shopping_list' ] );
         add_action( 'admin_post_cookbook_update_shopping_list', [ $this, 'handle_update_shopping_list' ] );
         add_action( 'admin_post_cookbook_save_planner', [ $this, 'handle_save_planner' ] );
-        add_action( 'admin_post_cookbook_copy_planner_to_current_week', [ $this, 'handle_copy_planner_to_current_week' ] );
         add_action( 'admin_post_cookbook_add_planner_to_shopping_list', [ $this, 'handle_add_planner_to_shopping_list' ] );
         add_action( 'admin_post_cookbook_merge_ingredients', [ $this, 'handle_merge_ingredients' ] );
         add_action( 'admin_post_cookbook_group_ingredients', [ $this, 'handle_group_ingredients' ] );
@@ -1141,50 +1140,6 @@ class App extends BaseApp {
         wp_safe_redirect( add_query_arg( [
             'week'  => $week_start,
             'saved' => '1',
-        ], home_url( '/' . $this->get_url_path() . '/planner' ) ) );
-        exit;
-    }
-
-    public function handle_copy_planner_to_current_week(): void {
-        if ( ! is_user_logged_in() ) {
-            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
-        }
-        check_admin_referer( 'cookbook_copy_planner_to_current_week' );
-
-        $source_week_start = isset( $_POST['source_week_start'] ) ? sanitize_text_field( wp_unslash( $_POST['source_week_start'] ) ) : '';
-        $source_week_start = self::normalize_week_start( $source_week_start );
-        $target_week_start = self::normalize_week_start();
-
-        $source_plan_id = self::get_user_week_plan_id( $source_week_start, false );
-        $this->get_owned_post_or_die( $source_plan_id, self::WEEK_PLAN_POST_TYPE );
-
-        $source_meals = self::get_week_meals( $source_plan_id );
-        $source_dates = array_keys( self::week_days( $source_week_start ) );
-        $target_dates = array_keys( self::week_days( $target_week_start ) );
-        $slots = array_keys( self::meal_slots() );
-        $target_meals = [];
-
-        foreach ( $target_dates as $day_index => $target_date ) {
-            $source_date = $source_dates[ $day_index ] ?? '';
-            if ( $source_date === '' ) {
-                continue;
-            }
-            foreach ( $slots as $slot ) {
-                $recipe_id = isset( $source_meals[ $source_date ][ $slot ] ) ? absint( $source_meals[ $source_date ][ $slot ] ) : 0;
-                if ( $recipe_id && $this->recipe_exists( $recipe_id ) ) {
-                    $target_meals[ $target_date ][ $slot ] = $recipe_id;
-                }
-            }
-        }
-
-        $target_plan_id = self::get_user_week_plan_id( $target_week_start, true );
-        $this->get_owned_post_or_die( $target_plan_id, self::WEEK_PLAN_POST_TYPE );
-        update_post_meta( $target_plan_id, self::META_WEEK_START, $target_week_start );
-        update_post_meta( $target_plan_id, self::META_WEEK_MEALS, $target_meals );
-
-        wp_safe_redirect( add_query_arg( [
-            'week'   => $target_week_start,
-            'copied' => '1',
         ], home_url( '/' . $this->get_url_path() . '/planner' ) ) );
         exit;
     }
