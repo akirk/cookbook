@@ -36,6 +36,9 @@ if ( ! defined( 'ABSPATH' ) ) {
             --success-bg:   light-dark(#e8f5e9, #1f3621);
             --success-bd:   light-dark(#b6dab8, #3f6b42);
             --fresh:        light-dark(#18a558, #37c978);
+            --household:    light-dark(#2f6f73, #49a9ae);
+            --cookbook-masterbar-height: var(--wp-admin--admin-bar--height, 32px);
+            --cookbook-sticky-gap: 0.5rem;
         }
         /* Allow the WpApp masterbar's dark-mode toggle to force a scheme. */
         :root[data-theme="dark"]  { color-scheme: dark;  }
@@ -52,6 +55,7 @@ if ( ! defined( 'ABSPATH' ) ) {
         .btn.secondary { background: var(--secondary-bg); color: var(--secondary-fg); }
         .btn.danger { background: #b32d2e; color: #fff; }
         .btn.fresh { background: var(--fresh); color: #fff; }
+        .btn.household { background: var(--household); color: #fff; }
         .meta { display: flex; gap: 1rem; color: var(--muted); font-size: 0.9rem; flex-wrap: wrap; }
         .badge { display: inline-block; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.85rem; color: #555; margin-right: 0.25rem; text-decoration: none; }
         .recipe-card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1rem 1.25rem; margin: 0.75rem 0; display: block; text-decoration: none; color: inherit; }
@@ -150,17 +154,21 @@ if ( ! defined( 'ABSPATH' ) ) {
         .soft-panel { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1rem; }
         .shopping-list { list-style: none; padding: 0; margin: 1rem 0; border-top: 1px solid var(--line); }
         .shopping-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.75rem; align-items: start; padding: 0.75rem 0; border-bottom: 1px solid var(--line); }
-        .shopping-row.is-checked { color: var(--muted); }
-        .shopping-row.is-checked .shopping-fields input[type="text"] { text-decoration: line-through; }
-        .shopping-check { margin-top: 0.55rem; }
+        .shopping-row.is-selected { background: var(--secondary-bg); }
+        .shopping-check,
+        .shopping-row-select { margin-top: 0.55rem; }
         .shopping-fields { display: grid; grid-template-columns: 5rem 5.5rem minmax(9rem, 1fr) minmax(8rem, 1fr) auto; gap: 0.45rem; align-items: center; }
         .shopping-source { margin-top: 0.35rem; color: var(--muted); font-size: 0.85rem; }
+        .shopping-bulk-bar { position: fixed; left: 50%; bottom: 1rem; z-index: 30; transform: translateX(-50%); width: min(820px, calc(100vw - 2rem)); display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; background: var(--secondary-bg); border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem; margin: 0; box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
+        .shopping-bulk-bar[hidden] { display: none; }
+        .shopping-bulk-bar input { width: min(18rem, 100%); }
+        #shopping-list-form.has-shopping-bulk-bar { padding-bottom: 5.5rem; }
         .manual-item-row { display: grid; grid-template-columns: 5rem 5.5rem minmax(9rem, 1fr) minmax(8rem, 1fr) auto; gap: 0.45rem; align-items: center; margin-bottom: 0.5rem; }
         .shopping-fields .remove,
         .manual-item-row .remove { background: transparent; border: 0; color: #b32d2e; cursor: pointer; font-size: 1.2rem; }
-        .shop-bar { position: sticky; top: 0.5rem; z-index: 5; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem; margin: 1rem 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
-        .shop-bar strong { margin-right: auto; }
-        .shop-toggle { display: inline-flex; gap: 0.35rem; align-items: center; margin: 0; font-weight: 400; color: var(--muted); }
+        .shop-bar { position: sticky; top: calc(var(--cookbook-masterbar-height) + var(--cookbook-sticky-gap)); z-index: 5; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem; margin: 1rem 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .shop-bar-main { margin-right: auto; display: flex; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; min-width: min(100%, 18rem); }
+        .shop-household-summary { color: var(--muted); font-size: 0.9rem; overflow-wrap: anywhere; }
         .shop-list { list-style: none; padding: 0; margin: 1rem 0; display: grid; gap: 0.55rem; }
         .shop-item { border: 1px solid var(--line); border-radius: 6px; background: var(--card); }
         .shop-item label { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.75rem; align-items: center; margin: 0; padding: 0.9rem; cursor: pointer; font-weight: 400; }
@@ -169,8 +177,15 @@ if ( ! defined( 'ABSPATH' ) ) {
         .shop-check { width: 1.35rem; height: 1.35rem; }
         .shop-item.is-checked { opacity: 0.62; }
         .shop-item.is-checked strong { text-decoration: line-through; }
-        .shop-list.hide-checked .shop-item.is-checked { display: none; }
         .shop-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; margin-top: 1rem; }
+        .household-reminders { margin: 1rem 0; }
+        .household-reminders h2 { margin-top: 0; }
+        .household-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.45rem; }
+        .household-list li { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; border-bottom: 1px dashed var(--line); padding: 0.45rem 0; }
+        .household-list li:last-child { border-bottom: 0; }
+        .household-list strong,
+        .household-list small { display: block; }
+        .household-list small { color: var(--muted); font-size: 0.9rem; }
         .planner-nav { display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; margin: 1rem 0; }
         .planner-grid { display: grid; grid-template-columns: 1fr; gap: 0.75rem; margin: 1rem 0; }
         .planner-day { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.85rem; }
@@ -214,6 +229,10 @@ if ( ! defined( 'ABSPATH' ) ) {
             .planned-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
         @media (max-width: 640px) {
+            :root {
+                --cookbook-masterbar-height: var(--wp-admin--admin-bar--height, 46px);
+                --cookbook-sticky-gap: 0.25rem;
+            }
             .page-head { display: block; }
             .page-actions { justify-content: flex-start; margin-top: 0.75rem; }
             .shopping-fields,
@@ -221,8 +240,9 @@ if ( ! defined( 'ABSPATH' ) ) {
             .ingredient-replace-form { grid-template-columns: 1fr 1fr; }
             .ingredient-replace-form { margin-left: 0; }
             .manual-item-row .remove { justify-self: start; }
-            .shop-bar { top: 0.25rem; }
             .shop-add { grid-template-columns: 1fr; }
+            #shopping-list-form.has-shopping-bulk-bar { padding-bottom: 8.5rem; }
+            .household-list li { align-items: flex-start; flex-direction: column; }
             .cook-mode-topbar { align-items: flex-start; flex-direction: column; }
             .cook-mode-layout { grid-template-columns: 1fr; }
             .cook-mode-main { order: 1; }

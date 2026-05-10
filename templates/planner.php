@@ -16,6 +16,7 @@ $saved = isset( $_GET['saved'] );
 $copy_source_param = isset( $_GET['copy-form'] ) ? sanitize_text_field( wp_unslash( $_GET['copy-form'] ) ) : '';
 $shopping_status = isset( $_GET['shopping'] ) ? sanitize_text_field( wp_unslash( $_GET['shopping'] ) ) : '';
 $shopping_items = isset( $_GET['items'] ) ? absint( $_GET['items'] ) : 0;
+$shopping_household = isset( $_GET['household'] ) ? absint( $_GET['household'] ) : 0;
 // phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 $week_start = App::normalize_week_start( $week_param );
@@ -155,11 +156,19 @@ include __DIR__ . '/_header.php';
 <?php if ( $shopping_status === 'added' ) : ?>
     <div class="notice success">
         <?php
-        echo esc_html( sprintf(
+        $shopping_message = sprintf(
             /* translators: %d: shopping-list items */
             _n( '%d planned ingredient added to your shopping list.', '%d planned ingredients added to your shopping list.', $shopping_items, 'cookbook' ),
             $shopping_items
-        ) );
+        );
+        if ( $shopping_household ) {
+            $shopping_message .= ' ' . sprintf(
+                /* translators: %d: household ingredients */
+                _n( '%d household ingredient listed as at home.', '%d household ingredients listed as at home.', $shopping_household, 'cookbook' ),
+                $shopping_household
+            );
+        }
+        echo esc_html( $shopping_message );
         ?>
     </div>
 <?php endif; ?>

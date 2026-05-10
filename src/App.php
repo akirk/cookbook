@@ -26,12 +26,21 @@ class App extends BaseApp {
 
     const SHOPPING_LIST_POST_TYPE = 'cb-shopping-list';
     const WEEK_PLAN_POST_TYPE     = 'cb-week-plan';
+    const SHOPPING_ITEM_STATUS_CHECKED = 'cb_checked';
 
     const META_SHOPPING_ITEMS = '_cookbook_shopping_items';
+    const META_SHOPPING_ITEM_AMOUNT = '_cookbook_shopping_item_amount';
+    const META_SHOPPING_ITEM_UNIT = '_cookbook_shopping_item_unit';
+    const META_SHOPPING_ITEM_NOTES = '_cookbook_shopping_item_notes';
+    const META_SHOPPING_ITEM_SOURCE_RECIPE_ID = '_cookbook_shopping_item_source_recipe_id';
+    const META_SHOPPING_ITEM_SOURCE_RECIPE_TITLE = '_cookbook_shopping_item_source_recipe_title';
+    const META_SHOPPING_ITEM_SOURCE_RECIPES = '_cookbook_shopping_item_source_recipes';
+    const META_SHOPPING_HOUSEHOLD_REMINDERS = '_cookbook_shopping_household_reminders';
     const META_WEEK_START     = '_cookbook_week_start';
     const META_WEEK_MEALS     = '_cookbook_week_meals';
 
     const USER_PREF_UNITS = 'cookbook_unit_preference';
+    const USER_HOUSEHOLD_INGREDIENTS = 'cookbook_household_ingredient_ids';
 
     const MEAL_SLOTS = [ 'breakfast', 'lunch', 'dinner' ];
 
@@ -1441,6 +1450,16 @@ class App extends BaseApp {
             'auth_callback' => function() { return current_user_can( 'edit_posts' ); },
         ] );
 
+        register_post_status( self::SHOPPING_ITEM_STATUS_CHECKED, [
+            'label'                     => __( 'Checked', 'cookbook' ),
+            'public'                    => false,
+            'internal'                  => false,
+            'exclude_from_search'       => true,
+            'show_in_admin_all_list'    => true,
+            'show_in_admin_status_list' => true,
+            'label_count'               => _n_noop( 'Checked <span class="count">(%s)</span>', 'Checked <span class="count">(%s)</span>', 'cookbook' ),
+        ] );
+
         register_post_type( self::SHOPPING_LIST_POST_TYPE, [
             'labels' => [
                 'name'          => __( 'Shopping lists', 'cookbook' ),
@@ -1454,12 +1473,38 @@ class App extends BaseApp {
             'show_ui'            => true,
             'show_in_menu'       => 'edit.php?post_type=' . self::POST_TYPE,
             'show_in_rest'       => true,
-            'supports'           => [ 'title', 'author', 'revisions' ],
+            'hierarchical'       => true,
+            'supports'           => [ 'title', 'author', 'page-attributes' ],
             'has_archive'        => false,
             'rewrite'            => false,
             'capability_type'    => 'post',
         ] );
         register_post_meta( self::SHOPPING_LIST_POST_TYPE, self::META_SHOPPING_ITEMS, [
+            'type'         => 'array',
+            'single'       => true,
+            'show_in_rest' => [
+                'schema' => [
+                    'type'  => 'array',
+                    'items' => [ 'type' => 'object' ],
+                ],
+            ],
+            'auth_callback' => function() { return current_user_can( 'edit_posts' ); },
+        ] );
+        foreach ( [
+            self::META_SHOPPING_ITEM_AMOUNT              => 'string',
+            self::META_SHOPPING_ITEM_UNIT                => 'string',
+            self::META_SHOPPING_ITEM_NOTES               => 'string',
+            self::META_SHOPPING_ITEM_SOURCE_RECIPE_ID    => 'integer',
+            self::META_SHOPPING_ITEM_SOURCE_RECIPE_TITLE => 'string',
+        ] as $meta_key => $type ) {
+            register_post_meta( self::SHOPPING_LIST_POST_TYPE, $meta_key, [
+                'type'         => $type,
+                'single'       => true,
+                'show_in_rest' => true,
+                'auth_callback' => function() { return current_user_can( 'edit_posts' ); },
+            ] );
+        }
+        register_post_meta( self::SHOPPING_LIST_POST_TYPE, self::META_SHOPPING_ITEM_SOURCE_RECIPES, [
             'type'         => 'array',
             'single'       => true,
             'show_in_rest' => [
@@ -1545,7 +1590,7 @@ class App extends BaseApp {
             'show_admin_column' => true,
             'rewrite'           => false,
         ] );
-        register_taxonomy( self::TAX_INGREDIENT, self::POST_TYPE, [
+        register_taxonomy( self::TAX_INGREDIENT, [ self::POST_TYPE, self::SHOPPING_LIST_POST_TYPE ], [
             'labels' => [
                 'name'          => __( 'Ingredients', 'cookbook' ),
                 'singular_name' => __( 'Ingredient', 'cookbook' ),
@@ -1564,6 +1609,76 @@ class App extends BaseApp {
         $user_id = $user_id ?: get_current_user_id();
         $pref    = get_user_meta( $user_id, self::USER_PREF_UNITS, true );
         return in_array( $pref, [ 'metric', 'imperial' ], true ) ? $pref : 'metric';
+    }
+
+    public static function get_user_household_ingredient_ids( int $user_id = 0 ): array {
+        $user_id = $user_id ?: get_current_user_id();
+        if ( ! $user_id ) {
+            return [];
+        }
+
+        $ids = get_user_meta( $user_id, self::USER_HOUSEHOLD_INGREDIENTS, true );
+        if ( ! is_array( $ids ) ) {
+            return [];
+        }
+
+        return array_values( array_unique( array_filter( array_map( 'absint', $ids ) ) ) );
+    }
+
+    public static function is_household_ingredient_term( int $term_id, int $user_id = 0 ): bool {
+        $term_id = absint( $term_id );
+        if ( ! $term_id ) {
+            return false;
+        }
+
+        $household_ids = self::get_user_household_ingredient_ids( $user_id );
+        if ( ! $household_ids ) {
+            return false;
+        }
+
+        if ( in_array( $term_id, $household_ids, true ) ) {
+            return true;
+        }
+
+        $ancestors = get_ancestors( $term_id, self::TAX_INGREDIENT, 'taxonomy' );
+        foreach ( $ancestors as $ancestor_id ) {
+            if ( in_array( (int) $ancestor_id, $household_ids, true ) ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function add_user_household_ingredient_terms( array $term_ids, int $user_id = 0 ): int {
+        $user_id = $user_id ?: get_current_user_id();
+        if ( ! $user_id ) {
+            return 0;
+        }
+
+        $existing = self::get_user_household_ingredient_ids( $user_id );
+        $merged   = array_values( array_unique( array_filter( array_merge( $existing, array_map( 'absint', $term_ids ) ) ) ) );
+        update_user_meta( $user_id, self::USER_HOUSEHOLD_INGREDIENTS, $merged );
+
+        return max( 0, count( $merged ) - count( $existing ) );
+    }
+
+    private static function remove_user_household_ingredient_terms( array $term_ids, int $user_id = 0 ): int {
+        $user_id = $user_id ?: get_current_user_id();
+        if ( ! $user_id ) {
+            return 0;
+        }
+
+        $remove   = array_values( array_unique( array_filter( array_map( 'absint', $term_ids ) ) ) );
+        $existing = self::get_user_household_ingredient_ids( $user_id );
+        if ( ! $remove || ! $existing ) {
+            return 0;
+        }
+
+        $remaining = array_values( array_diff( $existing, $remove ) );
+        update_user_meta( $user_id, self::USER_HOUSEHOLD_INGREDIENTS, $remaining );
+
+        return count( $existing ) - count( $remaining );
     }
 
     public static function meal_slots(): array {
@@ -1622,6 +1737,7 @@ class App extends BaseApp {
         $ids = get_posts( [
             'post_type'      => self::SHOPPING_LIST_POST_TYPE,
             'post_status'    => [ 'publish', 'private', 'draft' ],
+            'post_parent'    => 0,
             'author'         => $user_id,
             'posts_per_page' => 1,
             'orderby'        => 'date',
@@ -1713,7 +1829,108 @@ class App extends BaseApp {
         if ( ! $list_id ) {
             return [];
         }
-        return self::normalize_shopping_items( (array) get_post_meta( $list_id, self::META_SHOPPING_ITEMS, true ) );
+        self::migrate_legacy_shopping_items( $list_id );
+        $items = [];
+        foreach ( self::get_shopping_item_posts( $list_id ) as $post ) {
+            $items[] = self::shopping_item_from_post( $post );
+        }
+        return self::sort_shopping_items( $items );
+    }
+
+    public static function get_shopping_household_reminders( int $list_id ): array {
+        if ( ! $list_id ) {
+            return [];
+        }
+
+        $list = get_post( $list_id );
+        if ( ! $list || $list->post_type !== self::SHOPPING_LIST_POST_TYPE || (int) $list->post_parent !== 0 ) {
+            return [];
+        }
+
+        $reminders = get_post_meta( $list_id, self::META_SHOPPING_HOUSEHOLD_REMINDERS, true );
+        if ( ! is_array( $reminders ) ) {
+            return [];
+        }
+
+        return self::sort_shopping_items( self::normalize_shopping_items( $reminders ) );
+    }
+
+    private static function get_shopping_item_posts( int $list_id ): array {
+        if ( ! $list_id ) {
+            return [];
+        }
+
+        return get_posts( [
+            'post_type'      => self::SHOPPING_LIST_POST_TYPE,
+            'post_parent'    => $list_id,
+            'post_status'    => [ 'publish', self::SHOPPING_ITEM_STATUS_CHECKED ],
+            'posts_per_page' => -1,
+            'orderby'        => 'menu_order title',
+            'order'          => 'ASC',
+        ] );
+    }
+
+    private static function migrate_legacy_shopping_items( int $list_id ): void {
+        if ( self::get_shopping_item_posts( $list_id ) ) {
+            return;
+        }
+
+        $legacy = get_post_meta( $list_id, self::META_SHOPPING_ITEMS, true );
+        if ( ! is_array( $legacy ) || ! $legacy ) {
+            return;
+        }
+
+        $created = [];
+        foreach ( self::normalize_shopping_items( $legacy ) as $index => $item ) {
+            $item_id = self::create_shopping_item_post( $list_id, $item, $index );
+            if ( ! $item_id ) {
+                foreach ( $created as $created_id ) {
+                    wp_delete_post( $created_id, true );
+                }
+                return;
+            }
+            $created[] = $item_id;
+        }
+        update_post_meta( $list_id, self::META_SHOPPING_ITEMS, [] );
+    }
+
+    private static function shopping_item_from_post( \WP_Post $post ): array {
+        $source_recipe_id = (int) get_post_meta( $post->ID, self::META_SHOPPING_ITEM_SOURCE_RECIPE_ID, true );
+        $source_recipe_title = (string) get_post_meta( $post->ID, self::META_SHOPPING_ITEM_SOURCE_RECIPE_TITLE, true );
+        if ( $source_recipe_id && $source_recipe_title === '' ) {
+            $source_recipe_title = get_the_title( $source_recipe_id );
+        }
+        $source_recipes = get_post_meta( $post->ID, self::META_SHOPPING_ITEM_SOURCE_RECIPES, true );
+        $source_recipes = self::shopping_item_source_recipes( [
+            'source_recipe_id'    => $source_recipe_id,
+            'source_recipe_title' => $source_recipe_title,
+            'source_recipes'      => is_array( $source_recipes ) ? $source_recipes : [],
+        ] );
+        $source_summary = self::shopping_item_source_summary( $source_recipes, [
+            'source_recipe_id'    => $source_recipe_id,
+            'source_recipe_title' => $source_recipe_title,
+        ] );
+
+        $term_ids = wp_get_object_terms( $post->ID, self::TAX_INGREDIENT, [ 'fields' => 'ids' ] );
+        if ( is_wp_error( $term_ids ) ) {
+            $term_ids = [];
+        }
+        $term_ids = array_values( array_filter( array_map( 'absint', (array) $term_ids ) ) );
+
+        return [
+            'id'                  => (string) $post->ID,
+            'amount'              => (string) get_post_meta( $post->ID, self::META_SHOPPING_ITEM_AMOUNT, true ),
+            'unit'                => (string) get_post_meta( $post->ID, self::META_SHOPPING_ITEM_UNIT, true ),
+            'name'                => $post->post_title,
+            'notes'               => (string) get_post_meta( $post->ID, self::META_SHOPPING_ITEM_NOTES, true ),
+            'checked'             => $post->post_status === self::SHOPPING_ITEM_STATUS_CHECKED,
+            'source_recipe_id'    => $source_summary['id'],
+            'source_recipe_title' => $source_summary['title'],
+            'source_recipes'      => $source_recipes,
+            'term_id'             => $term_ids ? (int) $term_ids[0] : 0,
+            'term_ids'            => $term_ids,
+            'sort'                => (int) $post->menu_order,
+        ];
     }
 
     public static function get_week_meals( int $plan_id ): array {
@@ -2024,7 +2241,7 @@ class App extends BaseApp {
             if ( ! is_array( $row ) ) continue;
             $name = isset( $row['name'] ) ? (string) $row['name'] : '';
             if ( $name === '' ) continue;
-            $term_id = $this->resolve_ingredient_term( $name );
+            $term_id = self::resolve_ingredient_term( $name );
             $clean[] = [
                 'amount'  => isset( $row['amount'] ) ? (string) $row['amount'] : '',
                 'unit'    => isset( $row['unit'] ) ? (string) $row['unit'] : '',
@@ -2055,7 +2272,7 @@ class App extends BaseApp {
      * stripping — grouping similar ingredients is a manual step via the
      * hierarchical taxonomy's parent/child UI.
      */
-    private function resolve_ingredient_term( string $name ): ?int {
+    private static function resolve_ingredient_term( string $name ): ?int {
         $name = trim( $name );
         if ( $name === '' ) return null;
         $slug = sanitize_title( $name );
@@ -2320,12 +2537,13 @@ class App extends BaseApp {
         $servings  = isset( $_POST['servings'] ) ? max( 1, absint( $_POST['servings'] ) ) : 0;
         $post      = $this->get_recipe_or_die( $recipe_id );
 
-        $items = $this->collect_recipe_shopping_items( $recipe_id, $servings );
-        $added = $this->add_items_to_shopping_list( $items );
+        $payload = $this->collect_recipe_shopping_payload( $recipe_id, $servings );
+        $added   = $this->add_items_to_shopping_list( $payload['items'], $payload['household'] );
 
         wp_safe_redirect( add_query_arg( [
-            'shopping' => 'added',
-            'items'    => $added,
+            'shopping'  => 'added',
+            'items'     => $added,
+            'household' => count( $payload['household'] ),
         ], home_url( '/' . $this->get_url_path() . '/recipe/' . $post->ID ) ) );
         exit;
     }
@@ -2337,10 +2555,17 @@ class App extends BaseApp {
         check_admin_referer( 'cookbook_update_shopping_list' );
 
         $command = isset( $_POST['list_command'] ) ? sanitize_text_field( wp_unslash( $_POST['list_command'] ) ) : 'save';
+        $restore_household_index = null;
+        if ( preg_match( '/^restore_household:(\d+)$/', $command, $m ) ) {
+            $restore_household_index = absint( $m[1] );
+            $command = 'restore_household';
+        }
         $return_mode = isset( $_POST['return_mode'] ) ? sanitize_key( wp_unslash( $_POST['return_mode'] ) ) : '';
         $redirect_args = [ 'saved' => '1' ];
         if ( $return_mode === 'shop' ) {
             $redirect_args['mode'] = 'shop';
+        } elseif ( $return_mode === 'edit' ) {
+            $redirect_args['mode'] = 'edit';
         }
         $list_id = isset( $_POST['list_id'] ) ? absint( $_POST['list_id'] ) : 0;
         if ( ! $list_id && in_array( $command, [ 'clear_all', 'clear_checked' ], true ) ) {
@@ -2348,10 +2573,12 @@ class App extends BaseApp {
             exit;
         }
         $list_id = $list_id ?: self::get_current_user_shopping_list_id( true );
-        $this->get_owned_post_or_die( $list_id, self::SHOPPING_LIST_POST_TYPE );
+        $this->get_owned_shopping_list_or_die( $list_id );
+        self::migrate_legacy_shopping_items( $list_id );
 
         if ( $command === 'clear_all' ) {
-            $items = [];
+            self::delete_shopping_item_posts( $list_id );
+            delete_post_meta( $list_id, self::META_SHOPPING_HOUSEHOLD_REMINDERS );
         } else {
             $rows = isset( $_POST['items'] ) && is_array( $_POST['items'] )
                 ? wp_unslash( $_POST['items'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
@@ -2363,14 +2590,34 @@ class App extends BaseApp {
                 : [];
             $items = array_merge( $items, self::normalize_shopping_items( $new_rows ) );
 
+            if ( $command === 'mark_household' ) {
+                $selected = isset( $_POST['selected_items'] ) && is_array( $_POST['selected_items'] )
+                    ? array_values( array_unique( array_filter( array_map( 'sanitize_key', wp_unslash( $_POST['selected_items'] ) ) ) ) )
+                    : [];
+                [ $items, $reminders, $term_ids ] = self::split_household_selected_items( $items, $selected );
+                self::add_user_household_ingredient_terms( $term_ids );
+                self::add_household_reminders_to_shopping_list( $list_id, $reminders );
+                $this->replace_shopping_item_posts( $list_id, $items );
+            } elseif ( $command === 'restore_household' && $restore_household_index !== null ) {
+                $reminders = self::get_shopping_household_reminders( $list_id );
+                if ( isset( $reminders[ $restore_household_index ] ) ) {
+                    $restored = $reminders[ $restore_household_index ];
+                    unset( $reminders[ $restore_household_index ] );
+                    self::remove_user_household_ingredient_terms( self::shopping_item_term_ids( $restored ) );
+                    $items[] = $restored;
+                    self::replace_household_reminders( $list_id, array_values( $reminders ) );
+                }
+                $this->replace_shopping_item_posts( $list_id, $items );
+            } else {
+                $this->replace_shopping_item_posts( $list_id, $items );
+            }
+
             if ( $command === 'clear_checked' ) {
-                $items = array_values( array_filter( $items, function( $item ) {
-                    return empty( $item['checked'] );
-                } ) );
+                self::delete_checked_shopping_item_posts( $list_id );
             }
         }
 
-        update_post_meta( $list_id, self::META_SHOPPING_ITEMS, $items );
+        update_post_meta( $list_id, self::META_SHOPPING_ITEMS, [] );
         wp_safe_redirect( add_query_arg( $redirect_args, home_url( '/' . $this->get_url_path() . '/shopping-list' ) ) );
         exit;
     }
@@ -2423,6 +2670,7 @@ class App extends BaseApp {
         $week_start = self::normalize_week_start( $week_start );
         $plan_id    = self::get_user_week_plan_id( $week_start, false );
         $items      = [];
+        $household  = [];
 
         if ( $plan_id ) {
             $this->get_owned_post_or_die( $plan_id, self::WEEK_PLAN_POST_TYPE );
@@ -2431,17 +2679,20 @@ class App extends BaseApp {
                 foreach ( array_keys( self::meal_slots() ) as $slot ) {
                     $recipe_id = isset( $meals[ $date ][ $slot ] ) ? absint( $meals[ $date ][ $slot ] ) : 0;
                     if ( $recipe_id ) {
-                        $items = array_merge( $items, $this->collect_recipe_shopping_items( $recipe_id, 0 ) );
+                        $payload   = $this->collect_recipe_shopping_payload( $recipe_id, 0 );
+                        $items     = array_merge( $items, $payload['items'] );
+                        $household = array_merge( $household, $payload['household'] );
                     }
                 }
             }
         }
 
-        $added = $this->add_items_to_shopping_list( $items );
+        $added = $this->add_items_to_shopping_list( $items, $household );
         wp_safe_redirect( add_query_arg( [
-            'week'     => $week_start,
-            'shopping' => 'added',
-            'items'    => $added,
+            'week'      => $week_start,
+            'shopping'  => 'added',
+            'items'     => $added,
+            'household' => count( $household ),
         ], home_url( '/' . $this->get_url_path() . '/planner' ) ) );
         exit;
     }
@@ -2457,6 +2708,14 @@ class App extends BaseApp {
         return $post;
     }
 
+    private function get_owned_shopping_list_or_die( int $post_id ): \WP_Post {
+        $post = $this->get_owned_post_or_die( $post_id, self::SHOPPING_LIST_POST_TYPE );
+        if ( (int) $post->post_parent !== 0 ) {
+            wp_die( esc_html__( 'Shopping list not found.', 'cookbook' ), 404 );
+        }
+        return $post;
+    }
+
     private function get_recipe_or_die( int $recipe_id ): \WP_Post {
         $post = $recipe_id ? get_post( $recipe_id ) : null;
         if ( ! $post || $post->post_type !== self::POST_TYPE ) {
@@ -2466,10 +2725,18 @@ class App extends BaseApp {
     }
 
     private function collect_recipe_shopping_items( int $recipe_id, int $servings = 0 ): array {
+        $payload = $this->collect_recipe_shopping_payload( $recipe_id, $servings );
+        return $payload['items'];
+    }
+
+    private function collect_recipe_shopping_payload( int $recipe_id, int $servings = 0 ): array {
         $post = $this->get_recipe_or_die( $recipe_id );
         $ingredients = (array) get_post_meta( $recipe_id, self::META_INGREDIENTS, true );
         if ( ! $ingredients ) {
-            return [];
+            return [
+                'items'     => [],
+                'household' => [],
+            ];
         }
 
         $base_servings = max( 1, (int) get_post_meta( $recipe_id, self::META_SERVINGS, true ) ?: 4 );
@@ -2477,13 +2744,14 @@ class App extends BaseApp {
         $scale = $wanted_servings / $base_servings;
         $preference = self::get_user_unit_preference();
         $items = [];
+        $household = [];
 
         foreach ( $ingredients as $ingredient ) {
             if ( ! is_array( $ingredient ) || empty( $ingredient['name'] ) ) {
                 continue;
             }
             $rendered = Units::render_ingredient( $ingredient, $scale, $preference );
-            $items[] = [
+            $item = [
                 'amount'              => (string) ( $rendered['amount'] ?? '' ),
                 'unit'                => (string) ( $rendered['unit'] ?? '' ),
                 'name'                => (string) ( $rendered['name'] ?? '' ),
@@ -2491,14 +2759,31 @@ class App extends BaseApp {
                 'checked'             => false,
                 'source_recipe_id'    => $recipe_id,
                 'source_recipe_title' => get_the_title( $post ),
+                'source_recipes'      => [
+                    [
+                        'id'    => $recipe_id,
+                        'title' => get_the_title( $post ),
+                    ],
+                ],
+                'term_id'             => isset( $ingredient['term_id'] ) ? absint( $ingredient['term_id'] ) : 0,
             ];
+
+            if ( ! empty( $item['term_id'] ) && self::is_household_ingredient_term( (int) $item['term_id'] ) ) {
+                $household[] = $item;
+            } else {
+                $items[] = $item;
+            }
         }
-        return self::normalize_shopping_items( $items );
+        return [
+            'items'     => self::normalize_shopping_items( $items ),
+            'household' => self::normalize_shopping_items( $household ),
+        ];
     }
 
-    private function add_items_to_shopping_list( array $incoming ): int {
+    private function add_items_to_shopping_list( array $incoming, array $household_reminders = [] ): int {
         $incoming = self::normalize_shopping_items( $incoming );
-        if ( ! $incoming ) {
+        $household_reminders = self::normalize_shopping_items( $household_reminders );
+        if ( ! $incoming && ! $household_reminders ) {
             return 0;
         }
 
@@ -2506,12 +2791,118 @@ class App extends BaseApp {
         if ( ! $list_id ) {
             return 0;
         }
-        $this->get_owned_post_or_die( $list_id, self::SHOPPING_LIST_POST_TYPE );
+        $this->get_owned_shopping_list_or_die( $list_id );
+        self::migrate_legacy_shopping_items( $list_id );
+        self::add_household_reminders_to_shopping_list( $list_id, $household_reminders );
 
-        $existing = self::get_shopping_items( $list_id );
-        $items = $this->merge_shopping_items( $existing, $incoming );
-        update_post_meta( $list_id, self::META_SHOPPING_ITEMS, $items );
+        $order = count( self::get_shopping_item_posts( $list_id ) );
+        foreach ( $incoming as $item ) {
+            self::create_shopping_item_post( $list_id, $item, $order++ );
+        }
+        update_post_meta( $list_id, self::META_SHOPPING_ITEMS, [] );
         return count( $incoming );
+    }
+
+    private static function add_household_reminders_to_shopping_list( int $list_id, array $reminders ): void {
+        $reminders = self::normalize_shopping_items( $reminders );
+        if ( ! $reminders ) {
+            return;
+        }
+
+        $existing = self::get_shopping_household_reminders( $list_id );
+        update_post_meta( $list_id, self::META_SHOPPING_HOUSEHOLD_REMINDERS, self::merge_household_reminders( $existing, $reminders ) );
+    }
+
+    private static function replace_household_reminders( int $list_id, array $reminders ): void {
+        $reminders = self::normalize_shopping_items( $reminders );
+        if ( ! $reminders ) {
+            delete_post_meta( $list_id, self::META_SHOPPING_HOUSEHOLD_REMINDERS );
+            return;
+        }
+
+        update_post_meta( $list_id, self::META_SHOPPING_HOUSEHOLD_REMINDERS, self::merge_household_reminders( [], $reminders ) );
+    }
+
+    private static function merge_household_reminders( array $existing, array $incoming ): array {
+        $merged = [];
+        foreach ( array_merge( self::normalize_shopping_items( $existing ), self::normalize_shopping_items( $incoming ) ) as $item ) {
+            $key = self::household_reminder_key( $item );
+            if ( ! isset( $merged[ $key ] ) ) {
+                $merged[ $key ] = $item;
+                continue;
+            }
+
+            $sources = self::normalize_shopping_source_recipes( array_merge(
+                $merged[ $key ]['source_recipes'] ?? [],
+                $item['source_recipes'] ?? []
+            ) );
+            $source_summary = self::shopping_item_source_summary( $sources );
+            $term_ids = array_values( array_unique( array_merge(
+                self::shopping_item_term_ids( $merged[ $key ] ),
+                self::shopping_item_term_ids( $item )
+            ) ) );
+            $notes = array_values( array_unique( array_filter( [
+                trim( (string) ( $merged[ $key ]['notes'] ?? '' ) ),
+                trim( (string) ( $item['notes'] ?? '' ) ),
+            ] ) ) );
+
+            $merged[ $key ]['notes']               = implode( '; ', $notes );
+            $merged[ $key ]['source_recipe_id']    = $source_summary['id'];
+            $merged[ $key ]['source_recipe_title'] = $source_summary['title'];
+            $merged[ $key ]['source_recipes']      = $sources;
+            $merged[ $key ]['term_id']             = $term_ids ? (int) $term_ids[0] : 0;
+            $merged[ $key ]['term_ids']            = $term_ids;
+        }
+
+        return self::sort_shopping_items( array_values( $merged ) );
+    }
+
+    private static function household_reminder_key( array $item ): string {
+        $term_ids = self::shopping_item_term_ids( $item );
+        if ( $term_ids ) {
+            sort( $term_ids, SORT_NUMERIC );
+            return 'term:' . implode( '-', $term_ids );
+        }
+
+        return 'name:' . sanitize_title( (string) ( $item['name'] ?? '' ) );
+    }
+
+    private static function split_household_selected_items( array $items, array $selected_ids ): array {
+        $selected_ids = array_values( array_unique( array_filter( array_map( 'sanitize_key', $selected_ids ) ) ) );
+        if ( ! $selected_ids ) {
+            return [ $items, [], [] ];
+        }
+
+        $remaining = [];
+        $reminders = [];
+        $term_ids  = [];
+        foreach ( self::normalize_shopping_items( $items ) as $item ) {
+            if ( ! in_array( sanitize_key( (string) ( $item['id'] ?? '' ) ), $selected_ids, true ) ) {
+                $remaining[] = $item;
+                continue;
+            }
+
+            $item_term_ids = self::shopping_item_term_ids( $item );
+            if ( ! $item_term_ids ) {
+                $term_id = self::resolve_ingredient_term( (string) ( $item['name'] ?? '' ) );
+                if ( $term_id ) {
+                    $item_term_ids[] = $term_id;
+                }
+            }
+            if ( $item_term_ids ) {
+                $item['term_id']  = (int) $item_term_ids[0];
+                $item['term_ids'] = $item_term_ids;
+                $term_ids         = array_merge( $term_ids, $item_term_ids );
+            }
+            $item['checked'] = false;
+            $reminders[]     = $item;
+        }
+
+        return [
+            $remaining,
+            $reminders,
+            array_values( array_unique( array_filter( array_map( 'absint', $term_ids ) ) ) ),
+        ];
     }
 
     private static function normalize_shopping_items( array $items ): array {
@@ -2525,9 +2916,9 @@ class App extends BaseApp {
                 continue;
             }
             $id = isset( $item['id'] ) ? sanitize_key( (string) $item['id'] ) : '';
-            if ( $id === '' ) {
-                $id = wp_generate_uuid4();
-            }
+            $source_recipes = self::shopping_item_source_recipes( $item );
+            $source_summary = self::shopping_item_source_summary( $source_recipes, $item );
+            $term_ids = self::shopping_item_term_ids( $item );
             $normalized[] = [
                 'id'                  => $id,
                 'amount'              => isset( $item['amount'] ) ? sanitize_text_field( (string) $item['amount'] ) : '',
@@ -2535,73 +2926,244 @@ class App extends BaseApp {
                 'name'                => $name,
                 'notes'               => isset( $item['notes'] ) ? sanitize_text_field( (string) $item['notes'] ) : '',
                 'checked'             => ! empty( $item['checked'] ),
-                'source_recipe_id'    => isset( $item['source_recipe_id'] ) ? absint( $item['source_recipe_id'] ) : 0,
-                'source_recipe_title' => isset( $item['source_recipe_title'] ) ? sanitize_text_field( (string) $item['source_recipe_title'] ) : '',
+                'source_recipe_id'    => $source_summary['id'],
+                'source_recipe_title' => $source_summary['title'],
+                'source_recipes'      => $source_recipes,
+                'term_id'             => $term_ids ? (int) $term_ids[0] : 0,
+                'term_ids'            => $term_ids,
+                'sort'                => isset( $item['sort'] ) ? absint( $item['sort'] ) : 0,
             ];
         }
         return $normalized;
     }
 
-    private function merge_shopping_items( array $existing, array $incoming ): array {
-        $items = self::normalize_shopping_items( $existing );
-        $index = [];
-        foreach ( $items as $i => $item ) {
-            $index[ $this->shopping_item_key( $item ) ][] = $i;
+    private static function shopping_item_source_recipes( array $item ): array {
+        $sources = [];
+        if ( isset( $item['source_recipes'] ) && is_array( $item['source_recipes'] ) ) {
+            $sources = self::normalize_shopping_source_recipes( $item['source_recipes'] );
         }
 
-        foreach ( self::normalize_shopping_items( $incoming ) as $item ) {
-            $key = $this->shopping_item_key( $item );
-            $matching_index = null;
-            foreach ( $index[ $key ] ?? [] as $candidate_index ) {
-                if ( $this->can_combine_shopping_items( $items[ $candidate_index ], $item ) ) {
-                    $matching_index = $candidate_index;
-                    break;
-                }
+        if ( ! $sources ) {
+            $source_id = isset( $item['source_recipe_id'] ) ? absint( $item['source_recipe_id'] ) : 0;
+            $source_title = isset( $item['source_recipe_title'] ) ? sanitize_text_field( (string) $item['source_recipe_title'] ) : '';
+            if ( $source_id || $source_title !== '' ) {
+                $sources = self::normalize_shopping_source_recipes( [
+                    [
+                        'id'    => $source_id,
+                        'title' => $source_title,
+                    ],
+                ] );
             }
+        }
 
-            if ( $matching_index !== null ) {
-                $i = $matching_index;
-                $existing_amount = Units::parse_amount( $items[ $i ]['amount'] );
-                $incoming_amount = Units::parse_amount( $item['amount'] );
-                if ( $existing_amount !== null && $incoming_amount !== null ) {
-                    $items[ $i ]['amount'] = Units::format_number( $existing_amount + $incoming_amount, 2 );
-                }
-                $items[ $i ]['checked'] = false;
-                if (
-                    $items[ $i ]['source_recipe_id']
-                    && $item['source_recipe_id']
-                    && $items[ $i ]['source_recipe_id'] !== $item['source_recipe_id']
-                ) {
-                    $items[ $i ]['source_recipe_id'] = 0;
-                    $items[ $i ]['source_recipe_title'] = __( 'Multiple recipes', 'cookbook' );
-                }
+        return $sources;
+    }
+
+    private static function normalize_shopping_source_recipes( array $sources ): array {
+        $normalized = [];
+        foreach ( $sources as $source ) {
+            if ( ! is_array( $source ) ) {
+                continue;
+            }
+            $source_id = isset( $source['id'] )
+                ? absint( $source['id'] )
+                : ( isset( $source['source_recipe_id'] ) ? absint( $source['source_recipe_id'] ) : 0 );
+            $source_title = isset( $source['title'] )
+                ? sanitize_text_field( (string) $source['title'] )
+                : ( isset( $source['source_recipe_title'] ) ? sanitize_text_field( (string) $source['source_recipe_title'] ) : '' );
+            if ( $source_id && ( $source_title === '' || self::is_multiple_recipes_source_label( $source_title ) ) ) {
+                $source_title = get_the_title( $source_id );
+            }
+            if ( ! $source_id && ( $source_title === '' || self::is_multiple_recipes_source_label( $source_title ) ) ) {
+                continue;
+            }
+            $key = $source_id ? 'id:' . $source_id : 'title:' . sanitize_title( $source_title );
+            $normalized[ $key ] = [
+                'id'    => $source_id,
+                'title' => $source_title,
+            ];
+        }
+
+        uasort( $normalized, function( $a, $b ) {
+            return strnatcasecmp( $a['title'], $b['title'] );
+        } );
+
+        return array_values( $normalized );
+    }
+
+    private static function shopping_item_source_summary( array $source_recipes, array $fallback = [] ): array {
+        if ( count( $source_recipes ) === 1 ) {
+            return [
+                'id'    => (int) $source_recipes[0]['id'],
+                'title' => (string) $source_recipes[0]['title'],
+            ];
+        }
+        if ( count( $source_recipes ) > 1 ) {
+            return [
+                'id'    => 0,
+                'title' => __( 'Multiple recipes', 'cookbook' ),
+            ];
+        }
+
+        $fallback_title = isset( $fallback['source_recipe_title'] ) ? sanitize_text_field( (string) $fallback['source_recipe_title'] ) : '';
+        if ( self::is_multiple_recipes_source_label( $fallback_title ) ) {
+            $fallback_title = '';
+        }
+
+        return [
+            'id'    => isset( $fallback['source_recipe_id'] ) ? absint( $fallback['source_recipe_id'] ) : 0,
+            'title' => $fallback_title,
+        ];
+    }
+
+    private static function is_multiple_recipes_source_label( string $title ): bool {
+        $title = trim( $title );
+        if ( $title === '' ) {
+            return false;
+        }
+
+        return in_array( $title, array_unique( [
+            'Multiple recipes',
+            __( 'Multiple recipes', 'cookbook' ),
+        ] ), true );
+    }
+
+    private static function shopping_item_term_ids( array $item ): array {
+        $term_ids = [];
+        if ( isset( $item['term_ids'] ) && is_array( $item['term_ids'] ) ) {
+            $term_ids = array_map( 'absint', $item['term_ids'] );
+        }
+        if ( isset( $item['term_id'] ) ) {
+            $term_ids[] = absint( $item['term_id'] );
+        }
+        return array_values( array_unique( array_filter( $term_ids ) ) );
+    }
+
+    private function replace_shopping_item_posts( int $list_id, array $items ): void {
+        $existing = [];
+        foreach ( self::get_shopping_item_posts( $list_id ) as $post ) {
+            $existing[ (int) $post->ID ] = $post;
+        }
+
+        $kept = [];
+        foreach ( self::normalize_shopping_items( $items ) as $order => $item ) {
+            $item['sort'] = $order;
+            $item_id = absint( $item['id'] );
+            if ( $item_id && isset( $existing[ $item_id ] ) ) {
+                self::update_shopping_item_post( $item_id, $list_id, $item );
+                $kept[ $item_id ] = true;
                 continue;
             }
 
-            $items[] = $item;
-            $index[ $key ][] = count( $items ) - 1;
+            $created = self::create_shopping_item_post( $list_id, $item, $order );
+            if ( $created ) {
+                $kept[ $created ] = true;
+            }
         }
 
-        return array_values( $items );
+        foreach ( array_keys( $existing ) as $item_id ) {
+            if ( empty( $kept[ $item_id ] ) ) {
+                wp_delete_post( $item_id, true );
+            }
+        }
     }
 
-    private function shopping_item_key( array $item ): string {
-        $name = sanitize_title( $item['name'] ?? '' );
-        $unit = Units::normalize_unit( (string) ( $item['unit'] ?? '' ) );
-        $notes = sanitize_title( $item['notes'] ?? '' );
-        return implode( '|', [ $name, $unit, $notes ] );
+    private static function create_shopping_item_post( int $list_id, array $item, int $order = 0 ): int {
+        $list = get_post( $list_id );
+        if ( ! $list || $list->post_type !== self::SHOPPING_LIST_POST_TYPE || (int) $list->post_parent !== 0 ) {
+            return 0;
+        }
+
+        $post_id = wp_insert_post( [
+            'post_type'   => self::SHOPPING_LIST_POST_TYPE,
+            'post_status' => ! empty( $item['checked'] ) ? self::SHOPPING_ITEM_STATUS_CHECKED : 'publish',
+            'post_title'  => $item['name'],
+            'post_author' => (int) $list->post_author,
+            'post_parent' => $list_id,
+            'menu_order'  => $order,
+        ], true );
+        if ( is_wp_error( $post_id ) ) {
+            return 0;
+        }
+
+        self::save_shopping_item_post_data( (int) $post_id, $item );
+        return (int) $post_id;
     }
 
-    private function can_combine_shopping_items( array $a, array $b ): bool {
-        if ( $this->shopping_item_key( $a ) !== $this->shopping_item_key( $b ) ) {
-            return false;
+    private static function update_shopping_item_post( int $item_id, int $list_id, array $item ): void {
+        $post = get_post( $item_id );
+        if ( ! $post || $post->post_type !== self::SHOPPING_LIST_POST_TYPE || (int) $post->post_parent !== $list_id ) {
+            return;
         }
-        $amount_a = Units::parse_amount( $a['amount'] ?? '' );
-        $amount_b = Units::parse_amount( $b['amount'] ?? '' );
-        if ( $amount_a !== null && $amount_b !== null ) {
-            return true;
+
+        wp_update_post( [
+            'ID'          => $item_id,
+            'post_status' => ! empty( $item['checked'] ) ? self::SHOPPING_ITEM_STATUS_CHECKED : 'publish',
+            'post_title'  => $item['name'],
+            'post_parent' => $list_id,
+            'menu_order'  => isset( $item['sort'] ) ? absint( $item['sort'] ) : 0,
+        ] );
+        self::save_shopping_item_post_data( $item_id, $item );
+    }
+
+    private static function save_shopping_item_post_data( int $item_id, array $item ): void {
+        update_post_meta( $item_id, self::META_SHOPPING_ITEM_AMOUNT, $item['amount'] ?? '' );
+        update_post_meta( $item_id, self::META_SHOPPING_ITEM_UNIT, $item['unit'] ?? '' );
+        update_post_meta( $item_id, self::META_SHOPPING_ITEM_NOTES, $item['notes'] ?? '' );
+        update_post_meta( $item_id, self::META_SHOPPING_ITEM_SOURCE_RECIPE_ID, isset( $item['source_recipe_id'] ) ? absint( $item['source_recipe_id'] ) : 0 );
+        update_post_meta( $item_id, self::META_SHOPPING_ITEM_SOURCE_RECIPE_TITLE, isset( $item['source_recipe_title'] ) ? sanitize_text_field( (string) $item['source_recipe_title'] ) : '' );
+        update_post_meta( $item_id, self::META_SHOPPING_ITEM_SOURCE_RECIPES, self::shopping_item_source_recipes( $item ) );
+
+        $term_ids = self::shopping_item_term_ids( $item );
+        if ( ! $term_ids ) {
+            $term_id = self::resolve_ingredient_term( (string) ( $item['name'] ?? '' ) ) ?: 0;
+            if ( $term_id ) {
+                $term_ids[] = $term_id;
+            }
         }
-        return trim( (string) ( $a['amount'] ?? '' ) ) === '' && trim( (string) ( $b['amount'] ?? '' ) ) === '';
+        wp_set_object_terms( $item_id, $term_ids, self::TAX_INGREDIENT, false );
+    }
+
+    private static function delete_shopping_item_posts( int $list_id ): void {
+        foreach ( self::get_shopping_item_posts( $list_id ) as $post ) {
+            wp_delete_post( $post->ID, true );
+        }
+    }
+
+    private static function delete_checked_shopping_item_posts( int $list_id ): void {
+        foreach ( self::get_shopping_item_posts( $list_id ) as $post ) {
+            if ( $post->post_status === self::SHOPPING_ITEM_STATUS_CHECKED ) {
+                wp_delete_post( $post->ID, true );
+            }
+        }
+    }
+
+    private static function sort_shopping_items( array $items ): array {
+        usort( $items, function( $a, $b ) {
+            $checked = (int) ! empty( $a['checked'] ) <=> (int) ! empty( $b['checked'] );
+            if ( $checked !== 0 ) {
+                return $checked;
+            }
+
+            $sort = (int) ( $a['sort'] ?? 0 ) <=> (int) ( $b['sort'] ?? 0 );
+            if ( $sort !== 0 ) {
+                return $sort;
+            }
+
+            $name = strnatcasecmp( sanitize_title( $a['name'] ?? '' ), sanitize_title( $b['name'] ?? '' ) );
+            if ( $name !== 0 ) {
+                return $name;
+            }
+
+            $notes = strnatcasecmp( sanitize_title( $a['notes'] ?? '' ), sanitize_title( $b['notes'] ?? '' ) );
+            if ( $notes !== 0 ) {
+                return $notes;
+            }
+
+            return (int) ( $a['id'] ?? 0 ) <=> (int) ( $b['id'] ?? 0 );
+        } );
+
+        return $items;
     }
 
     private function sanitize_planner_meals( array $raw_meals, string $week_start, array $raw_labels = [] ): array {
