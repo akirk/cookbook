@@ -4,12 +4,14 @@ on:
   push:
     branches:
       - '**'
+  delete:
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: github.event_name == 'push' && !startsWith(github.ref_name, 'dist/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,3 +35,16 @@ jobs:
           git add -f vendor/
           git commit -m "Build: add vendor"
           git push origin HEAD:dist/${BRANCH_NAME} --force
+
+  delete-dist:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'dist/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Delete dist branch
+        env:
+          BRANCH_NAME: ${{ github.event.ref }}
+        run: |
+          git push origin ":refs/heads/dist/${BRANCH_NAME}" || true
