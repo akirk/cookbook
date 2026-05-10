@@ -1349,7 +1349,9 @@ class App extends BaseApp {
                     if ( trim( $label ) === '' ) {
                         continue;
                     }
-                    $recipe_id = $this->resolve_planner_recipe_label( $label );
+                    if ( ! $recipe_id || ! $this->planner_recipe_label_matches_id( $label, $recipe_id ) ) {
+                        $recipe_id = $this->resolve_planner_recipe_label( $label );
+                    }
                 }
                 if ( $recipe_id && $this->recipe_exists( $recipe_id ) ) {
                     $meals[ $date ][ $slot ] = $recipe_id;
@@ -1357,6 +1359,30 @@ class App extends BaseApp {
             }
         }
         return $meals;
+    }
+
+    private function planner_recipe_label_matches_id( string $label, int $recipe_id ): bool {
+        if ( ! $recipe_id || ! $this->recipe_exists( $recipe_id ) ) {
+            return false;
+        }
+
+        $post = get_post( $recipe_id );
+        if ( ! $post || $post->post_type !== self::POST_TYPE ) {
+            return false;
+        }
+
+        $label = trim( $label );
+        $title = get_the_title( $post );
+        if ( $label === $title ) {
+            return true;
+        }
+
+        return $label === sprintf(
+            /* translators: 1: recipe title, 2: recipe ID */
+            __( '%1$s (#%2$d)', 'cookbook' ),
+            $title,
+            $recipe_id
+        );
     }
 
     private function resolve_planner_recipe_label( string $label ): int {

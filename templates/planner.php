@@ -104,7 +104,7 @@ include __DIR__ . '/_header.php';
     </div>
     <div class="page-actions">
         <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/shopping-list' ) ); ?>"><?php esc_html_e( 'Shopping list', 'cookbook' ); ?></a>
-        <a class="btn fresh" href="<?php echo esc_url( home_url( '/cookbook/new' ) ); ?>"><?php esc_html_e( '+ New recipe', 'cookbook' ); ?></a>
+        <button class="btn fresh" type="submit" form="planner-form"><?php esc_html_e( 'Save week', 'cookbook' ); ?></button>
     </div>
 </div>
 
@@ -160,7 +160,31 @@ include __DIR__ . '/_header.php';
                     $hidden_id = 'meal-id-' . $date . '-' . $slot;
                     ?>
                     <div class="planner-slot">
-                        <label for="<?php echo esc_attr( $field_id ); ?>"><?php echo esc_html( $slot_label ); ?></label>
+                        <div class="planner-slot-label">
+                            <label for="<?php echo esc_attr( $field_id ); ?>"><?php echo esc_html( $slot_label ); ?></label>
+                            <button
+                                class="planner-action"
+                                type="button"
+                                data-planner-here
+                                data-target-id="<?php echo esc_attr( $field_id ); ?>"
+                                data-day-label="<?php echo esc_attr( $day['short'] ); ?>"
+                                data-slot-label="<?php echo esc_attr( $slot_label ); ?>"
+                                hidden
+                            ><?php esc_html_e( 'Here', 'cookbook' ); ?></button>
+                            <button
+                                class="planner-action"
+                                type="button"
+                                data-planner-lift
+                                data-target-id="<?php echo esc_attr( $field_id ); ?>"
+                                aria-label="<?php echo esc_attr( sprintf(
+                                    /* translators: 1: day label, 2: meal slot label */
+                                    __( 'Lift recipe from %1$s %2$s', 'cookbook' ),
+                                    $day['short'],
+                                    $slot_label
+                                ) ); ?>"
+                                hidden
+                            ><?php esc_html_e( 'Lift', 'cookbook' ); ?></button>
+                        </div>
                         <input
                             id="<?php echo esc_attr( $field_id ); ?>"
                             type="text"
@@ -178,6 +202,13 @@ include __DIR__ . '/_header.php';
                 <?php endforeach; ?>
             </section>
         <?php endforeach; ?>
+        <section class="planner-day planner-stash" data-planner-stash hidden>
+            <h3>
+                <?php esc_html_e( 'Stash', 'cookbook' ); ?>
+                <span><?php esc_html_e( 'Temporary', 'cookbook' ); ?></span>
+            </h3>
+            <div class="planner-stash-items" data-planner-stash-items></div>
+        </section>
     </div>
     <datalist id="planner-recipe-options">
         <?php foreach ( $recipe_lookup as $recipe_option ) : ?>
@@ -228,29 +259,154 @@ include __DIR__ . '/_header.php';
     const recipes = <?php echo wp_json_encode( $recipe_lookup ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Encoded as JSON for local planner autocomplete. ?>;
     const valueToId = new Map(recipes.map(recipe => [recipe.value, String(recipe.id)]));
     const idToValue = new Map(recipes.map(recipe => [String(recipe.id), recipe.value]));
+    const stashPanel = form.querySelector('[data-planner-stash]');
+    const stashItems = form.querySelector('[data-planner-stash-items]');
+    const stash = [];
+    let selectedStashKey = '';
+    let stashCounter = 0;
+
+    function hiddenFor(input) {
+        const hidden = document.getElementById(input.dataset.hiddenId);
+        return hidden || null;
+    }
 
     function syncInput(input) {
-        const hidden = document.getElementById(input.dataset.hiddenId);
+        const hidden = hiddenFor(input);
         if (!hidden) return;
         hidden.value = valueToId.get(input.value.trim()) || '0';
     }
 
+    function slotItem(input) {
+        const hidden = hiddenFor(input);
+        if (!hidden || hidden.value === '0' || !input.value.trim()) return null;
+        return {
+            id: hidden.value,
+            value: input.value.trim()
+        };
+    }
+
+    function selectedStashItem() {
+        return stash.find(item => item.key === selectedStashKey) || null;
+    }
+
+    function addToStash(item, select = false) {
+        if (!item || !item.id || item.id === '0' || !item.value) return;
+        const stashItem = {
+            key: String(++stashCounter),
+            id: String(item.id),
+            value: item.value
+        };
+        stash.push(stashItem);
+        if (select || !selectedStashKey) {
+            selectedStashKey = stashItem.key;
+        }
+        renderStash();
+        updateSlotActions();
+    }
+
+    function removeFromStash(key) {
+        const index = stash.findIndex(item => item.key === key);
+        if (index === -1) return;
+        stash.splice(index, 1);
+        if (selectedStashKey === key) {
+            selectedStashKey = stash.length ? stash[Math.min(index, stash.length - 1)].key : '';
+        }
+    }
+
+    function setSlot(input, item) {
+        const hidden = hiddenFor(input);
+        if (!hidden) return;
+        input.value = item ? item.value : '';
+        hidden.value = item ? String(item.id) : '0';
+    }
+
+    function updateSlotActions() {
+        const selected = selectedStashItem();
+        inputs.forEach(input => {
+            const here = form.querySelector('[data-planner-here][data-target-id="' + input.id + '"]');
+            const lift = form.querySelector('[data-planner-lift][data-target-id="' + input.id + '"]');
+            const item = slotItem(input);
+            if (here) {
+                here.hidden = !selected;
+                if (selected) {
+                    here.setAttribute('aria-label', '<?php echo esc_js( __( 'Place selected recipe here', 'cookbook' ) ); ?>');
+                    here.title = selected.value;
+                }
+            }
+            if (lift) {
+                lift.hidden = !item;
+            }
+        });
+    }
+
+    function renderStash() {
+        if (!stashPanel || !stashItems) return;
+        stashPanel.hidden = stash.length === 0;
+        stashItems.textContent = '';
+        stash.forEach(item => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'planner-stash-item' + (item.key === selectedStashKey ? ' is-selected' : '');
+            button.textContent = item.value;
+            button.setAttribute('aria-pressed', item.key === selectedStashKey ? 'true' : 'false');
+            button.addEventListener('click', () => {
+                selectedStashKey = item.key;
+                renderStash();
+                updateSlotActions();
+            });
+            stashItems.appendChild(button);
+        });
+    }
+
     const inputs = Array.from(form.querySelectorAll('[data-meal-input]'));
     inputs.forEach(input => {
-        input.addEventListener('input', () => syncInput(input));
-        input.addEventListener('change', () => syncInput(input));
+        input.addEventListener('input', () => {
+            syncInput(input);
+            updateSlotActions();
+        });
+        input.addEventListener('change', () => {
+            syncInput(input);
+            updateSlotActions();
+        });
     });
     form.addEventListener('submit', () => inputs.forEach(syncInput));
 
+    form.querySelectorAll('[data-planner-lift]').forEach(button => {
+        button.addEventListener('click', () => {
+            const target = document.getElementById(button.dataset.targetId);
+            if (!target) return;
+            const item = slotItem(target);
+            if (!item) return;
+            setSlot(target, null);
+            addToStash(item, true);
+            target.focus();
+        });
+    });
+
+    form.querySelectorAll('[data-planner-here]').forEach(button => {
+        button.addEventListener('click', () => {
+            const target = document.getElementById(button.dataset.targetId);
+            const selected = selectedStashItem();
+            if (!target || !selected) return;
+            const displaced = slotItem(target);
+            setSlot(target, selected);
+            removeFromStash(selected.key);
+            if (displaced) {
+                addToStash(displaced, true);
+            } else {
+                renderStash();
+                updateSlotActions();
+            }
+            target.focus();
+        });
+    });
+
     const pending = parseInt(form.dataset.pendingRecipe, 10) || 0;
-    if (!pending) return;
-    const pendingValue = idToValue.get(String(pending));
-    if (!pendingValue) return;
-    const target = inputs.find(input => input.dataset.slot === 'dinner' && !input.value.trim()) || inputs.find(input => !input.value.trim()) || inputs[0];
-    if (target) {
-        target.value = pendingValue;
-        syncInput(target);
+    const pendingValue = pending ? idToValue.get(String(pending)) : '';
+    if (pending && pendingValue) {
+        addToStash({ id: String(pending), value: pendingValue }, true);
     }
+    updateSlotActions();
 })();
 </script>
 

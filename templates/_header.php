@@ -179,6 +179,12 @@ if ( ! defined( 'ABSPATH' ) ) {
         .planner-slot { display: grid; gap: 0.25rem; margin-bottom: 0.65rem; }
         .planner-slot:last-child { margin-bottom: 0; }
         .planner-slot label { margin: 0; font-size: 0.85rem; color: var(--muted); }
+        .planner-slot-label { display: flex; gap: 0.4rem; align-items: baseline; }
+        .planner-action { background: transparent; border: 0; color: var(--accent); cursor: pointer; font: inherit; font-size: 0.8rem; padding: 0; text-decoration: underline; }
+        .planner-stash[hidden] { display: none; }
+        .planner-stash-items { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        .planner-stash-item { border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--muted); cursor: pointer; font: inherit; font-size: 0.85rem; padding: 0.2rem 0.55rem; }
+        .planner-stash-item.is-selected { border-color: var(--accent); color: var(--accent); }
         .planned-strip { display: grid; grid-template-columns: 1fr; gap: 0.75rem; margin: 1rem 0; }
         .planned-card { display: flex; gap: 0.75rem; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.65rem; color: inherit; text-decoration: none; }
         .planned-card img,
