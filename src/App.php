@@ -76,6 +76,10 @@ class App extends BaseApp {
         add_action( 'wp_loaded', [ $this, 'handle_extension_save' ], 100 );
         add_filter( 'friends_browser_extension_actions', [ $this, 'register_browser_extension_action' ] );
         add_action( 'wp_app_admin_bar_menu', [ $this, 'add_recipe_admin_bar_edit_link' ] );
+        add_action( 'wp_abilities_api_categories_init', [ $this, 'register_ability_categories' ] );
+        add_action( 'wp_abilities_api_init', [ $this, 'register_abilities' ] );
+        add_filter( 'ai_assistant_ability_domains', [ $this, 'register_ability_domains' ] );
+        add_filter( 'ai_assistant_ability_instructions', [ $this, 'ability_result_instructions' ], 10, 4 );
 
         parent::init();
     }
@@ -109,6 +113,1223 @@ class App extends BaseApp {
         $this->app->add_menu_item( 'new', __( 'New recipe', 'cookbook' ), $home . 'new' );
         $this->app->add_menu_item( 'import', __( 'Import from web', 'cookbook' ), $home . 'import' );
         $this->app->add_menu_item( 'settings', __( 'Settings', 'cookbook' ), $home . 'settings' );
+    }
+
+    /**
+     * Tell AI Assistant which user topics should prefer Cookbook abilities.
+     *
+     * @param array $domains Existing plugin domain hints.
+     * @return array
+     */
+    public function register_ability_domains( array $domains ): array {
+        $domains['cookbook'] = implode( ', ', [
+            'recipes',
+            'recipe',
+            'cooking',
+            'cookbook',
+            'ingredients',
+            'ingredient',
+            'meal planning',
+            'meal plan',
+            'week planner',
+            'shopping list',
+            'groceries',
+            'cuisine',
+            'servings',
+            'recipe variations',
+            'variation of a recipe',
+        ] );
+
+        return $domains;
+    }
+
+    /**
+     * Tell AI Assistant how to present Cookbook ability results.
+     *
+     * @param string $instructions Existing instructions.
+     * @param string $ability_id Ability ID.
+     * @param array  $args Ability arguments.
+     * @param mixed  $result Ability result.
+     * @return string
+     */
+    public function ability_result_instructions( string $instructions, string $ability_id, array $args, $result ): string {
+        if ( strpos( $ability_id, 'cookbook/' ) !== 0 || empty( $result ) ) {
+            return $instructions;
+        }
+
+        if ( in_array( $ability_id, [ 'cookbook/get-recipe', 'cookbook/create-recipe', 'cookbook/import-recipe', 'cookbook/create-recipe-variation' ], true ) ) {
+            return __( 'When presenting Cookbook recipes, include the recipe title and link it with view_url when present. For created recipes or variations, mention that the recipe was saved as a draft unless the returned status is publish.', 'cookbook' );
+        }
+
+        if ( $ability_id === 'cookbook/search-recipes' ) {
+            return __( 'When presenting Cookbook search results, show concise recipe matches and link each recipe with view_url when present. If no recipes match, say that no Cookbook recipe was found instead of guessing from the database.', 'cookbook' );
+        }
+
+        if ( in_array( $ability_id, [ 'cookbook/get-week-plan', 'cookbook/save-week-plan' ], true ) ) {
+            return __( 'When presenting Cookbook week plans, summarize planned meals by day and meal slot. Link planned recipes with their view_url when present, and link to the planner using the returned url.', 'cookbook' );
+        }
+
+        return $instructions;
+    }
+
+    /**
+     * Register the Cookbook ability category.
+     */
+    public function register_ability_categories(): void {
+        if ( ! function_exists( 'wp_register_ability_category' ) ) {
+            return;
+        }
+
+        wp_register_ability_category(
+            'cookbook',
+            [
+                'label'       => __( 'Cookbook', 'cookbook' ),
+                'description' => __( 'Abilities for working with Cookbook recipes and week plans.', 'cookbook' ),
+            ]
+        );
+    }
+
+    /**
+     * Register Abilities API actions for recipes and week plans.
+     */
+    public function register_abilities(): void {
+        if ( ! function_exists( 'wp_register_ability' ) ) {
+            return;
+        }
+
+        wp_register_ability(
+            'cookbook/search-recipes',
+            [
+                'label'               => __( 'Search Cookbook Recipes', 'cookbook' ),
+                'description'         => __( 'Searches Cookbook recipes and returns matching recipe summaries.', 'cookbook' ),
+                'category'            => 'cookbook',
+                'input_schema'        => self::recipe_search_input_schema(),
+                'output_schema'       => self::recipe_search_output_schema(),
+                'execute_callback'    => [ $this, 'ability_search_recipes' ],
+                'permission_callback' => [ $this, 'can_read_abilities' ],
+                'meta'                => [
+                    'annotations'  => [
+                        'instructions' => __( 'Use this when the user asks to find, list, filter, or choose Cookbook recipes. Return recipe IDs for follow-up get-recipe calls, and use view_url when linking results to the user.', 'cookbook' ),
+                        'readonly'    => true,
+                        'destructive' => false,
+                        'idempotent'  => true,
+                    ],
+                    'show_in_rest' => true,
+                ],
+            ]
+        );
+
+        wp_register_ability(
+            'cookbook/get-recipe',
+            [
+                'label'               => __( 'Get Cookbook Recipe', 'cookbook' ),
+                'description'         => __( 'Returns one structured Cookbook recipe by ID.', 'cookbook' ),
+                'category'            => 'cookbook',
+                'input_schema'        => [
+                    'type'                 => 'object',
+                    'required'             => [ 'id' ],
+                    'properties'           => [
+                        'id' => [
+                            'type'        => 'integer',
+                            'description' => __( 'Recipe post ID.', 'cookbook' ),
+                        ],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                'output_schema'       => self::recipe_output_schema(),
+                'execute_callback'    => [ $this, 'ability_get_recipe' ],
+                'permission_callback' => [ $this, 'can_read_abilities' ],
+                'meta'                => [
+                    'annotations'  => [
+                        'instructions' => __( 'Use this when the user asks about one known Cookbook recipe. The response includes view_url for linking, ingredients, instructions, notes, taxonomy terms, and variation family data.', 'cookbook' ),
+                        'readonly'    => true,
+                        'destructive' => false,
+                        'idempotent'  => true,
+                    ],
+                    'show_in_rest' => true,
+                ],
+            ]
+        );
+
+        wp_register_ability(
+            'cookbook/create-recipe',
+            [
+                'label'               => __( 'Create Cookbook Recipe', 'cookbook' ),
+                'description'         => __( 'Creates a structured Cookbook recipe from provided fields.', 'cookbook' ),
+                'category'            => 'cookbook',
+                'input_schema'        => self::recipe_create_input_schema(),
+                'output_schema'       => self::recipe_output_schema(),
+                'execute_callback'    => [ $this, 'ability_create_recipe' ],
+                'permission_callback' => [ $this, 'can_edit_abilities' ],
+                'meta'                => [
+                    'annotations'  => [
+                        'instructions' => __( 'Use this when the user asks to create a brand-new structured recipe. Prefer create-recipe-variation when adapting an existing recipe. After creation, link the result using view_url.', 'cookbook' ),
+                        'readonly'    => false,
+                        'destructive' => false,
+                        'idempotent'  => false,
+                    ],
+                    'show_in_rest' => true,
+                ],
+            ]
+        );
+
+        wp_register_ability(
+            'cookbook/import-recipe',
+            [
+                'label'               => __( 'Import Cookbook Recipe', 'cookbook' ),
+                'description'         => __( 'Imports a recipe from a URL or pasted recipe text and creates a draft recipe.', 'cookbook' ),
+                'category'            => 'cookbook',
+                'input_schema'        => [
+                    'type'                 => 'object',
+                    'properties'           => [
+                        'source_url' => [
+                            'type'        => 'string',
+                            'description' => __( 'Recipe page URL to parse.', 'cookbook' ),
+                        ],
+                        'paste'      => [
+                            'type'        => 'string',
+                            'description' => __( 'Plain recipe text to parse if no URL can be parsed.', 'cookbook' ),
+                        ],
+                        'image_url'  => [
+                            'type'        => 'string',
+                            'description' => __( 'Optional image URL to sideload as the recipe photo.', 'cookbook' ),
+                        ],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                'output_schema'       => self::recipe_output_schema(),
+                'execute_callback'    => [ $this, 'ability_import_recipe' ],
+                'permission_callback' => [ $this, 'can_edit_abilities' ],
+                'meta'                => [
+                    'annotations'  => [
+                        'instructions' => __( 'Use this when the user provides a recipe URL, pasted recipe text, or an image URL to import into Cookbook. This creates a draft recipe; link the result using view_url.', 'cookbook' ),
+                        'readonly'    => false,
+                        'destructive' => false,
+                        'idempotent'  => false,
+                    ],
+                    'show_in_rest' => true,
+                ],
+            ]
+        );
+
+        wp_register_ability(
+            'cookbook/create-recipe-variation',
+            [
+                'label'               => __( 'Create Cookbook Recipe Variation', 'cookbook' ),
+                'description'         => __( 'Creates a child recipe variation from an existing Cookbook recipe, copying omitted fields from the source.', 'cookbook' ),
+                'category'            => 'cookbook',
+                'input_schema'        => self::recipe_variation_input_schema(),
+                'output_schema'       => self::recipe_output_schema(),
+                'execute_callback'    => [ $this, 'ability_create_recipe_variation' ],
+                'permission_callback' => [ $this, 'can_edit_abilities' ],
+                'meta'                => [
+                    'annotations'  => [
+                        'instructions' => __( 'Use this when the user asks for an adapted version of an existing recipe, such as substituting an ingredient they do not have. First call get-recipe for the source, then pass the complete revised recipe fields here so omitted fields intentionally copy from the source. Link the created variation using view_url.', 'cookbook' ),
+                        'readonly'    => false,
+                        'destructive' => false,
+                        'idempotent'  => false,
+                    ],
+                    'show_in_rest' => true,
+                ],
+            ]
+        );
+
+        wp_register_ability(
+            'cookbook/get-week-plan',
+            [
+                'label'               => __( 'Get Cookbook Week Plan', 'cookbook' ),
+                'description'         => __( 'Returns the signed-in user\'s week planner for a normalized week.', 'cookbook' ),
+                'category'            => 'cookbook',
+                'input_schema'        => self::week_plan_get_input_schema(),
+                'output_schema'       => self::week_plan_output_schema(),
+                'execute_callback'    => [ $this, 'ability_get_week_plan' ],
+                'permission_callback' => [ $this, 'can_read_abilities' ],
+                'meta'                => [
+                    'annotations'  => [
+                        'instructions' => __( 'Use this when the user asks what meals are planned for a week. The week_start input can be any date in the week; use the returned url to link to the planner.', 'cookbook' ),
+                        'readonly'    => true,
+                        'destructive' => false,
+                        'idempotent'  => true,
+                    ],
+                    'show_in_rest' => true,
+                ],
+            ]
+        );
+
+        wp_register_ability(
+            'cookbook/save-week-plan',
+            [
+                'label'               => __( 'Save Cookbook Week Plan', 'cookbook' ),
+                'description'         => __( 'Saves recipe IDs into the signed-in user\'s week planner meal slots.', 'cookbook' ),
+                'category'            => 'cookbook',
+                'input_schema'        => self::week_plan_save_input_schema(),
+                'output_schema'       => self::week_plan_output_schema(),
+                'execute_callback'    => [ $this, 'ability_save_week_plan' ],
+                'permission_callback' => [ $this, 'can_plan_abilities' ],
+                'meta'                => [
+                    'annotations'  => [
+                        'instructions' => __( 'Use this when the user asks to add, move, clear, or replace recipes in their week planner. This can clear slots with recipe ID 0 or replace the whole week when replace is true, so confirm ambiguous planner edits before executing.', 'cookbook' ),
+                        'readonly'    => false,
+                        'destructive' => true,
+                        'idempotent'  => true,
+                    ],
+                    'show_in_rest' => true,
+                ],
+            ]
+        );
+    }
+
+    /**
+     * Permission callback for read-only abilities.
+     */
+    public function can_read_abilities(): bool {
+        return is_user_logged_in();
+    }
+
+    /**
+     * Permission callback for write abilities.
+     */
+    public function can_edit_abilities(): bool {
+        return is_user_logged_in() && current_user_can( 'edit_posts' );
+    }
+
+    /**
+     * Permission callback for user-owned planner abilities.
+     */
+    public function can_plan_abilities(): bool {
+        return is_user_logged_in();
+    }
+
+    /**
+     * Ability: search recipes.
+     *
+     * @param array $input Ability input.
+     * @return array
+     */
+    public function ability_search_recipes( $input = [] ): array {
+        $recipes = $this->search_recipes( is_array( $input ) ? $input : [] );
+
+        return [
+            'count'   => count( $recipes ),
+            'recipes' => array_map( function( $recipe ) {
+                return $this->recipe_payload( $recipe, false );
+            }, $recipes ),
+        ];
+    }
+
+    /**
+     * Ability: get one recipe.
+     *
+     * @param array $input Ability input.
+     * @return array|\WP_Error
+     */
+    public function ability_get_recipe( $input = [] ) {
+        $id = is_array( $input ) && isset( $input['id'] ) ? absint( $input['id'] ) : 0;
+        return $this->get_recipe_payload( $id, true );
+    }
+
+    /**
+     * Ability: import one recipe into a draft.
+     *
+     * @param array $input Ability input.
+     * @return array|\WP_Error
+     */
+    public function ability_import_recipe( $input = [] ) {
+        $input = is_array( $input ) ? $input : [];
+        $url   = isset( $input['source_url'] ) ? esc_url_raw( (string) $input['source_url'] ) : '';
+        $paste = isset( $input['paste'] ) ? wp_kses_post( (string) $input['paste'] ) : '';
+
+        $image_url = isset( $input['image_url'] ) ? esc_url_raw( (string) $input['image_url'] ) : '';
+
+        $post_id = $this->import_recipe_to_draft( $url, $paste, $image_url );
+        if ( is_wp_error( $post_id ) ) {
+            return $post_id;
+        }
+
+        return $this->get_recipe_payload( (int) $post_id, true );
+    }
+
+    /**
+     * Ability: create one recipe from structured fields.
+     *
+     * @param array $input Ability input.
+     * @return array|\WP_Error
+     */
+    public function ability_create_recipe( $input = [] ) {
+        $input     = is_array( $input ) ? $input : [];
+        $parent_id = isset( $input['parent_id'] ) ? absint( $input['parent_id'] ) : 0;
+        $parent_id = $this->sanitize_recipe_parent_id( $parent_id );
+
+        return $this->create_recipe_from_ability_input( $input, $parent_id );
+    }
+
+    /**
+     * Ability: create a child variation copied from an existing recipe.
+     *
+     * @param array $input Ability input.
+     * @return array|\WP_Error
+     */
+    public function ability_create_recipe_variation( $input = [] ) {
+        $input     = is_array( $input ) ? $input : [];
+        $source_id = isset( $input['source_recipe_id'] ) ? absint( $input['source_recipe_id'] ) : 0;
+        $source    = $source_id ? get_post( $source_id ) : null;
+        if ( ! $source || $source->post_type !== self::POST_TYPE ) {
+            return new \WP_Error( 'cookbook_recipe_not_found', __( 'Recipe not found.', 'cookbook' ) );
+        }
+
+        $parent_id = isset( $input['parent_id'] ) ? absint( $input['parent_id'] ) : $source_id;
+        $parent_id = $this->sanitize_recipe_parent_id( $parent_id );
+        if ( ! $parent_id ) {
+            return new \WP_Error( 'cookbook_variation_parent_not_found', __( 'Variation parent recipe not found.', 'cookbook' ) );
+        }
+
+        return $this->create_recipe_from_ability_input( $input, $parent_id, $source );
+    }
+
+    /**
+     * Ability: get the current user's week plan.
+     *
+     * @param array $input Ability input.
+     * @return array
+     */
+    public function ability_get_week_plan( $input = [] ): array {
+        $input = is_array( $input ) ? $input : [];
+        $week_start = isset( $input['week_start'] ) ? sanitize_text_field( (string) $input['week_start'] ) : '';
+        $week_start = self::normalize_week_start( $week_start );
+        $plan_id    = self::get_user_week_plan_id( $week_start, false );
+
+        return $this->week_plan_payload( $week_start, $plan_id );
+    }
+
+    /**
+     * Ability: save slots in the current user's week plan.
+     *
+     * @param array $input Ability input.
+     * @return array|\WP_Error
+     */
+    public function ability_save_week_plan( $input = [] ) {
+        $input      = is_array( $input ) ? $input : [];
+        $week_start = isset( $input['week_start'] ) ? sanitize_text_field( (string) $input['week_start'] ) : '';
+        $week_start = self::normalize_week_start( $week_start );
+        $raw_meals  = isset( $input['meals'] ) && is_array( $input['meals'] ) ? $input['meals'] : [];
+        $replace    = ! empty( $input['replace'] );
+
+        $plan_id = self::get_user_week_plan_id( $week_start, true );
+        if ( ! $plan_id ) {
+            return new \WP_Error( 'cookbook_week_plan_not_saved', __( 'Week plan could not be saved.', 'cookbook' ) );
+        }
+
+        $base  = $replace ? [] : self::get_week_meals( $plan_id );
+        $meals = $this->merge_week_plan_meals( $raw_meals, $week_start, $base );
+
+        update_post_meta( $plan_id, self::META_WEEK_START, $week_start );
+        update_post_meta( $plan_id, self::META_WEEK_MEALS, $meals );
+
+        return $this->week_plan_payload( $week_start, $plan_id );
+    }
+
+    /**
+     * Internal recipe search used by ability adapters and other app code.
+     */
+    private function search_recipes( array $filters = [] ): array {
+        $limit = isset( $filters['limit'] ) ? absint( $filters['limit'] ) : 20;
+        $limit = max( 1, min( 100, $limit ) );
+
+        $status = isset( $filters['status'] ) ? sanitize_key( (string) $filters['status'] ) : 'any';
+        if ( ! in_array( $status, [ 'publish', 'draft', 'any' ], true ) ) {
+            $status = 'any';
+        }
+
+        $args = [
+            'post_type'      => self::POST_TYPE,
+            'post_status'    => $status === 'any' ? [ 'publish', 'draft' ] : $status,
+            'posts_per_page' => $limit,
+            'orderby'        => 'title',
+            'order'          => 'ASC',
+        ];
+
+        $search = isset( $filters['search'] ) ? sanitize_text_field( (string) $filters['search'] ) : '';
+        if ( $search !== '' ) {
+            $args['s'] = $search;
+        }
+
+        $tax_query = [];
+        foreach ( [
+            'category'   => self::TAX_CATEGORY,
+            'tag'        => self::TAX_TAG,
+            'ingredient' => self::TAX_INGREDIENT,
+        ] as $field => $taxonomy ) {
+            $clause = $this->tax_query_clause( $filters[ $field ] ?? '', $taxonomy );
+            if ( $clause ) {
+                $tax_query[] = $clause;
+            }
+        }
+        if ( $tax_query ) {
+            if ( count( $tax_query ) > 1 ) {
+                $tax_query['relation'] = 'AND';
+            }
+            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- ability filters by requested taxonomy terms.
+            $args['tax_query'] = $tax_query;
+        }
+
+        return get_posts( $args );
+    }
+
+    /**
+     * Internal structured recipe payload used by ability adapters.
+     *
+     * @return array|\WP_Error
+     */
+    private function get_recipe_payload( int $id, bool $include_details ) {
+        $post = $id ? get_post( $id ) : null;
+        if ( ! $post || $post->post_type !== self::POST_TYPE ) {
+            return new \WP_Error( 'cookbook_recipe_not_found', __( 'Recipe not found.', 'cookbook' ) );
+        }
+
+        return $this->recipe_payload( $post, $include_details );
+    }
+
+    private function create_recipe_from_ability_input( array $input, int $parent_id = 0, $source = null ) {
+        $source = $source instanceof \WP_Post && $source->post_type === self::POST_TYPE ? $source : null;
+        $source_id = $source ? (int) $source->ID : 0;
+
+        $title = $this->ability_text_input(
+            $input,
+            'title',
+            $source
+                ? sprintf(
+                    /* translators: %s: source recipe title */
+                    __( '%s variation', 'cookbook' ),
+                    get_the_title( $source )
+                )
+                : __( 'Untitled recipe', 'cookbook' )
+        );
+        $description = $this->ability_html_input( $input, 'description', $source ? $source->post_content : '' );
+        $servings    = $this->ability_positive_int_input( $input, 'servings', $source_id ? (int) get_post_meta( $source_id, self::META_SERVINGS, true ) : 4, 1 );
+        $prep        = $this->ability_positive_int_input( $input, 'prep_time', $source_id ? (int) get_post_meta( $source_id, self::META_PREP, true ) : 0, 0 );
+        $cook        = $this->ability_positive_int_input( $input, 'cook_time', $source_id ? (int) get_post_meta( $source_id, self::META_COOK, true ) : 0, 0 );
+        $source_url  = isset( $input['source_url'] )
+            ? esc_url_raw( (string) $input['source_url'] )
+            : ( $source_id ? (string) get_post_meta( $source_id, self::META_SOURCE_URL, true ) : '' );
+        $notes       = $this->ability_html_input( $input, 'notes', $source_id ? (string) get_post_meta( $source_id, self::META_NOTES, true ) : '' );
+
+        if ( $source && ! empty( $input['change_summary'] ) ) {
+            $change_summary = sanitize_text_field( (string) $input['change_summary'] );
+            if ( $change_summary !== '' ) {
+                $notes = trim( $notes );
+                $notes .= ( $notes === '' ? '' : "\n\n" ) . sprintf(
+                    /* translators: %s: generated variation summary */
+                    __( 'Variation notes: %s', 'cookbook' ),
+                    $change_summary
+                );
+            }
+        }
+
+        $ingredients = isset( $input['ingredients'] ) && is_array( $input['ingredients'] )
+            ? $this->sanitize_recipe_ingredient_rows( $input['ingredients'] )
+            : ( $source_id ? (array) get_post_meta( $source_id, self::META_INGREDIENTS, true ) : [] );
+        $instructions = isset( $input['instructions'] ) && is_array( $input['instructions'] )
+            ? $this->sanitize_recipe_instruction_rows( $input['instructions'] )
+            : ( $source_id ? (array) get_post_meta( $source_id, self::META_INSTRUCTIONS, true ) : [] );
+
+        $status = isset( $input['status'] ) ? sanitize_key( (string) $input['status'] ) : 'draft';
+        if ( ! in_array( $status, [ 'draft', 'publish' ], true ) ) {
+            $status = 'draft';
+        }
+        if ( $status === 'publish' && ! current_user_can( 'publish_posts' ) ) {
+            $status = 'draft';
+        }
+
+        $post_id = wp_insert_post( [
+            'post_type'    => self::POST_TYPE,
+            'post_status'  => $status,
+            'post_title'   => $title !== '' ? $title : __( 'Untitled recipe', 'cookbook' ),
+            'post_content' => $description,
+            'post_author'  => get_current_user_id(),
+            'post_parent'  => $parent_id,
+        ], true );
+        if ( is_wp_error( $post_id ) ) {
+            return $post_id;
+        }
+        $post_id = (int) $post_id;
+
+        update_post_meta( $post_id, self::META_SERVINGS, $servings );
+        update_post_meta( $post_id, self::META_PREP, $prep );
+        update_post_meta( $post_id, self::META_COOK, $cook );
+        $this->persist_ingredients( $post_id, $ingredients );
+        update_post_meta( $post_id, self::META_INSTRUCTIONS, $instructions );
+        update_post_meta( $post_id, self::META_SOURCE_URL, $source_url );
+        update_post_meta( $post_id, self::META_NOTES, $notes );
+
+        $this->set_or_copy_ability_terms( $post_id, $input, 'categories', self::TAX_CATEGORY, $source_id );
+        $this->set_or_copy_ability_terms( $post_id, $input, 'cuisines', self::TAX_CUISINE, $source_id );
+        $this->set_or_copy_ability_terms( $post_id, $input, 'tags', self::TAX_TAG, $source_id );
+
+        $image_url = isset( $input['image_url'] ) ? esc_url_raw( (string) $input['image_url'] ) : '';
+        if ( $image_url !== '' ) {
+            $this->sideload_image_to_post( $post_id, $image_url );
+        } elseif (
+            $source_id
+            && ( ! array_key_exists( 'copy_source_thumbnail', $input ) || ! empty( $input['copy_source_thumbnail'] ) )
+            && has_post_thumbnail( $source_id )
+        ) {
+            set_post_thumbnail( $post_id, get_post_thumbnail_id( $source_id ) );
+        }
+
+        return $this->get_recipe_payload( $post_id, true );
+    }
+
+    private function week_plan_payload( string $week_start, int $plan_id = 0 ): array {
+        $week_start = self::normalize_week_start( $week_start );
+        $days       = self::week_days( $week_start );
+        $meal_slots = self::meal_slots();
+        $raw_meals  = $plan_id ? self::get_week_meals( $plan_id ) : [];
+        $meal_ids   = $this->sanitize_planner_meals( $raw_meals, $week_start );
+        $planned    = [];
+
+        foreach ( $days as $date => $day ) {
+            foreach ( $meal_slots as $slot => $slot_label ) {
+                $recipe_id = isset( $meal_ids[ $date ][ $slot ] ) ? absint( $meal_ids[ $date ][ $slot ] ) : 0;
+                if ( ! $recipe_id ) {
+                    continue;
+                }
+
+                $recipe = get_post( $recipe_id );
+                if ( ! $recipe || $recipe->post_type !== self::POST_TYPE ) {
+                    continue;
+                }
+
+                $planned[] = [
+                    'date'       => $date,
+                    'day_short'  => (string) $day['short'],
+                    'day_label'  => (string) $day['label'],
+                    'slot'       => $slot,
+                    'slot_label' => $slot_label,
+                    'recipe'     => $this->recipe_payload( $recipe, false ),
+                ];
+            }
+        }
+
+        $timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+        try {
+            $start = new \DateTimeImmutable( $week_start, $timezone );
+        } catch ( \Exception $e ) {
+            $start = new \DateTimeImmutable( self::normalize_week_start(), $timezone );
+        }
+
+        return [
+            'id'            => $plan_id,
+            'week_start'    => $week_start,
+            'url'           => add_query_arg( 'week', $week_start, home_url( '/' . $this->get_url_path() . '/planner' ) ),
+            'previous_week' => $start->modify( '-7 days' )->format( 'Y-m-d' ),
+            'next_week'     => $start->modify( '+7 days' )->format( 'Y-m-d' ),
+            'days'          => array_map( function( string $date, array $day ) {
+                return [
+                    'date'  => $date,
+                    'short' => (string) $day['short'],
+                    'label' => (string) $day['label'],
+                ];
+            }, array_keys( $days ), $days ),
+            'meal_slots'    => array_map( function( string $slot, string $label ) {
+                return [
+                    'slot'  => $slot,
+                    'label' => $label,
+                ];
+            }, array_keys( $meal_slots ), $meal_slots ),
+            'meal_ids'      => $meal_ids,
+            'planned_meals' => $planned,
+        ];
+    }
+
+    private function merge_week_plan_meals( array $raw_meals, string $week_start, array $base = [] ): array {
+        $meals = $this->sanitize_planner_meals( $base, $week_start );
+        $days  = array_keys( self::week_days( $week_start ) );
+        $slots = array_keys( self::meal_slots() );
+
+        foreach ( $days as $date ) {
+            if ( ! isset( $raw_meals[ $date ] ) || ! is_array( $raw_meals[ $date ] ) ) {
+                continue;
+            }
+
+            foreach ( $slots as $slot ) {
+                if ( ! array_key_exists( $slot, $raw_meals[ $date ] ) ) {
+                    continue;
+                }
+
+                $recipe_id = absint( $raw_meals[ $date ][ $slot ] );
+                if ( $recipe_id && $this->recipe_exists( $recipe_id ) ) {
+                    $meals[ $date ][ $slot ] = $recipe_id;
+                    continue;
+                }
+
+                unset( $meals[ $date ][ $slot ] );
+                if ( empty( $meals[ $date ] ) ) {
+                    unset( $meals[ $date ] );
+                }
+            }
+        }
+
+        return $meals;
+    }
+
+    private function ability_text_input( array $input, string $key, string $default = '' ): string {
+        if ( ! array_key_exists( $key, $input ) || ! is_scalar( $input[ $key ] ) ) {
+            return $default;
+        }
+
+        return sanitize_text_field( (string) $input[ $key ] );
+    }
+
+    private function ability_html_input( array $input, string $key, string $default = '' ): string {
+        if ( ! array_key_exists( $key, $input ) || ! is_scalar( $input[ $key ] ) ) {
+            return $default;
+        }
+
+        return wp_kses_post( (string) $input[ $key ] );
+    }
+
+    private function ability_positive_int_input( array $input, string $key, int $default, int $minimum ): int {
+        if ( ! array_key_exists( $key, $input ) ) {
+            return max( $minimum, $default );
+        }
+
+        return max( $minimum, absint( $input[ $key ] ) );
+    }
+
+    private function sanitize_recipe_ingredient_rows( array $rows ): array {
+        $ingredients = [];
+        foreach ( $rows as $row ) {
+            if ( ! is_array( $row ) ) {
+                continue;
+            }
+
+            $name = isset( $row['name'] ) ? sanitize_text_field( (string) $row['name'] ) : '';
+            if ( $name === '' ) {
+                continue;
+            }
+
+            $ingredients[] = [
+                'amount' => isset( $row['amount'] ) ? sanitize_text_field( (string) $row['amount'] ) : '',
+                'unit'   => isset( $row['unit'] ) ? sanitize_text_field( (string) $row['unit'] ) : '',
+                'name'   => $name,
+                'notes'  => isset( $row['notes'] ) ? sanitize_text_field( (string) $row['notes'] ) : '',
+            ];
+        }
+
+        return $ingredients;
+    }
+
+    private function sanitize_recipe_instruction_rows( array $rows ): array {
+        $instructions = [];
+        foreach ( $rows as $step ) {
+            if ( ! is_scalar( $step ) ) {
+                continue;
+            }
+
+            $step = Importer::clean_step( wp_kses_post( (string) $step ) );
+            if ( $step !== '' ) {
+                $instructions[] = $step;
+            }
+        }
+
+        return $instructions;
+    }
+
+    private function set_or_copy_ability_terms( int $post_id, array $input, string $field, string $taxonomy, int $source_id = 0 ): void {
+        if ( array_key_exists( $field, $input ) ) {
+            $values = is_array( $input[ $field ] ) ? $input[ $field ] : [];
+            $values = array_filter( array_map( function( $value ) {
+                return is_scalar( $value ) ? sanitize_text_field( (string) $value ) : '';
+            }, $values ) );
+            wp_set_object_terms( $post_id, $this->resolve_term_ids( $values, $taxonomy ), $taxonomy );
+            return;
+        }
+
+        if ( ! $source_id ) {
+            return;
+        }
+
+        $term_ids = wp_get_object_terms( $source_id, $taxonomy, [ 'fields' => 'ids' ] );
+        if ( is_wp_error( $term_ids ) ) {
+            return;
+        }
+
+        wp_set_object_terms( $post_id, array_map( 'intval', $term_ids ), $taxonomy );
+    }
+
+    private function tax_query_clause( $value, string $taxonomy ): array {
+        $value = is_scalar( $value ) ? trim( (string) $value ) : '';
+        if ( $value === '' ) {
+            return [];
+        }
+
+        return [
+            'taxonomy' => $taxonomy,
+            'field'    => ctype_digit( $value ) ? 'term_id' : 'slug',
+            'terms'    => ctype_digit( $value ) ? absint( $value ) : sanitize_title( $value ),
+        ];
+    }
+
+    private function recipe_payload( $post, bool $include_details ): array {
+        if ( ! $post instanceof \WP_Post ) {
+            return [];
+        }
+
+        $id = (int) $post->ID;
+        $payload = [
+            'id'            => $id,
+            'title'         => get_the_title( $post ),
+            'status'        => $post->post_status,
+            'url'           => home_url( '/' . $this->get_url_path() . '/recipe/' . $id ),
+            'view_url'      => home_url( '/' . $this->get_url_path() . '/recipe/' . $id ),
+            'edit_url'      => home_url( '/' . $this->get_url_path() . '/recipe/' . $id . '/edit' ),
+            'variation_url' => add_query_arg( 'variation_of', $id, home_url( '/' . $this->get_url_path() . '/new' ) ),
+            'parent_id'     => (int) $post->post_parent,
+            'variation_root_id' => self::get_recipe_variation_root_id( $id ),
+            'servings'      => (int) get_post_meta( $id, self::META_SERVINGS, true ),
+            'prep_time'     => (int) get_post_meta( $id, self::META_PREP, true ),
+            'cook_time'     => (int) get_post_meta( $id, self::META_COOK, true ),
+            'source_url'    => (string) get_post_meta( $id, self::META_SOURCE_URL, true ),
+            'thumbnail_url' => get_the_post_thumbnail_url( $id, 'large' ) ?: '',
+            'categories'    => $this->terms_payload( $id, self::TAX_CATEGORY ),
+            'cuisines'      => $this->terms_payload( $id, self::TAX_CUISINE ),
+            'tags'          => $this->terms_payload( $id, self::TAX_TAG ),
+            'ingredients'   => (array) get_post_meta( $id, self::META_INGREDIENTS, true ),
+        ];
+
+        if ( $include_details ) {
+            $payload['description']  = wp_strip_all_tags( $post->post_content );
+            $payload['instructions'] = (array) get_post_meta( $id, self::META_INSTRUCTIONS, true );
+            $payload['notes']        = wp_strip_all_tags( (string) get_post_meta( $id, self::META_NOTES, true ) );
+            $payload['variation_family'] = array_map( function( $item ) {
+                $variation = $item['post'] ?? null;
+                if ( ! $variation instanceof \WP_Post ) {
+                    return [];
+                }
+
+                return [
+                    'id'        => (int) $variation->ID,
+                    'title'     => get_the_title( $variation ),
+                    'status'    => $variation->post_status,
+                    'url'       => home_url( '/' . $this->get_url_path() . '/recipe/' . $variation->ID ),
+                    'view_url'  => home_url( '/' . $this->get_url_path() . '/recipe/' . $variation->ID ),
+                    'parent_id' => (int) $variation->post_parent,
+                    'depth'     => isset( $item['depth'] ) ? (int) $item['depth'] : 0,
+                ];
+            }, self::get_recipe_variation_family( $id ) );
+        }
+
+        return $payload;
+    }
+
+    private function terms_payload( int $post_id, string $taxonomy ): array {
+        $terms = wp_get_object_terms( $post_id, $taxonomy );
+        if ( is_wp_error( $terms ) || ! $terms ) {
+            return [];
+        }
+
+        return array_map( function( $term ) {
+            return [
+                'id'   => (int) $term->term_id,
+                'name' => (string) $term->name,
+                'slug' => (string) $term->slug,
+            ];
+        }, $terms );
+    }
+
+    private static function recipe_search_input_schema(): array {
+        return [
+            'type'                 => 'object',
+            'properties'           => [
+                'search'     => [
+                    'type'        => 'string',
+                    'description' => __( 'Optional search text for recipe title and content.', 'cookbook' ),
+                ],
+                'category'   => [
+                    'type'        => 'string',
+                    'description' => __( 'Optional category slug or term ID.', 'cookbook' ),
+                ],
+                'tag'        => [
+                    'type'        => 'string',
+                    'description' => __( 'Optional tag slug or term ID.', 'cookbook' ),
+                ],
+                'ingredient' => [
+                    'type'        => 'string',
+                    'description' => __( 'Optional ingredient slug or term ID.', 'cookbook' ),
+                ],
+                'status'     => [
+                    'type'        => 'string',
+                    'description' => __( 'Recipe status to include.', 'cookbook' ),
+                    'enum'        => [ 'publish', 'draft', 'any' ],
+                ],
+                'limit'      => [
+                    'type'        => 'integer',
+                    'description' => __( 'Maximum number of recipes to return, from 1 to 100.', 'cookbook' ),
+                    'minimum'     => 1,
+                    'maximum'     => 100,
+                ],
+            ],
+            'additionalProperties' => false,
+        ];
+    }
+
+    private static function recipe_search_output_schema(): array {
+        return [
+            'type'                 => 'object',
+            'required'             => [ 'count', 'recipes' ],
+            'properties'           => [
+                'count'   => [
+                    'type'        => 'integer',
+                    'description' => __( 'Number of recipes returned.', 'cookbook' ),
+                ],
+                'recipes' => [
+                    'type'  => 'array',
+                    'items' => self::recipe_summary_schema(),
+                ],
+            ],
+            'additionalProperties' => false,
+        ];
+    }
+
+    private static function recipe_summary_schema(): array {
+        return [
+            'type'                 => 'object',
+            'required'             => [ 'id', 'title', 'status', 'url', 'view_url', 'ingredients' ],
+            'properties'           => [
+                'id'            => [ 'type' => 'integer' ],
+                'title'         => [ 'type' => 'string' ],
+                'status'        => [ 'type' => 'string' ],
+                'url'           => [ 'type' => 'string' ],
+                'view_url'      => [
+                    'type'        => 'string',
+                    'description' => __( 'User-facing app URL for linking to the recipe.', 'cookbook' ),
+                ],
+                'edit_url'      => [ 'type' => 'string' ],
+                'variation_url' => [ 'type' => 'string' ],
+                'parent_id'     => [ 'type' => 'integer' ],
+                'variation_root_id' => [ 'type' => 'integer' ],
+                'servings'      => [ 'type' => 'integer' ],
+                'prep_time'     => [ 'type' => 'integer' ],
+                'cook_time'     => [ 'type' => 'integer' ],
+                'source_url'    => [ 'type' => 'string' ],
+                'thumbnail_url' => [ 'type' => 'string' ],
+                'categories'    => [
+                    'type'  => 'array',
+                    'items' => self::term_schema(),
+                ],
+                'cuisines'      => [
+                    'type'  => 'array',
+                    'items' => self::term_schema(),
+                ],
+                'tags'          => [
+                    'type'  => 'array',
+                    'items' => self::term_schema(),
+                ],
+                'ingredients'   => [
+                    'type'  => 'array',
+                    'items' => self::ingredient_schema(),
+                ],
+            ],
+            'additionalProperties' => false,
+        ];
+    }
+
+    private static function recipe_output_schema(): array {
+        $schema = self::recipe_summary_schema();
+        $schema['required'] = array_merge( $schema['required'], [ 'description', 'instructions', 'notes' ] );
+        $schema['properties']['description'] = [ 'type' => 'string' ];
+        $schema['properties']['instructions'] = [
+            'type'  => 'array',
+            'items' => [ 'type' => 'string' ],
+        ];
+        $schema['properties']['notes'] = [ 'type' => 'string' ];
+        $schema['properties']['variation_family'] = [
+            'type'  => 'array',
+            'items' => self::variation_family_item_schema(),
+        ];
+        return $schema;
+    }
+
+    private static function recipe_create_input_schema(): array {
+        return [
+            'type'                 => 'object',
+            'required'             => [ 'title' ],
+            'properties'           => self::recipe_create_input_properties(),
+            'additionalProperties' => false,
+        ];
+    }
+
+    private static function recipe_variation_input_schema(): array {
+        $properties = self::recipe_create_input_properties();
+        $properties['source_recipe_id'] = [
+            'type'        => 'integer',
+            'description' => __( 'Recipe post ID to copy as the source for the new variation.', 'cookbook' ),
+        ];
+        $properties['copy_source_thumbnail'] = [
+            'type'        => 'boolean',
+            'description' => __( 'Whether to reuse the source recipe photo when image_url is omitted. Defaults to true.', 'cookbook' ),
+        ];
+        $properties['change_summary'] = [
+            'type'        => 'string',
+            'description' => __( 'Short note describing what changed in this variation.', 'cookbook' ),
+        ];
+
+        return [
+            'type'                 => 'object',
+            'required'             => [ 'source_recipe_id' ],
+            'properties'           => $properties,
+            'additionalProperties' => false,
+        ];
+    }
+
+    private static function recipe_create_input_properties(): array {
+        return [
+            'title'       => [
+                'type'        => 'string',
+                'description' => __( 'Recipe title.', 'cookbook' ),
+            ],
+            'description' => [
+                'type'        => 'string',
+                'description' => __( 'Short recipe description.', 'cookbook' ),
+            ],
+            'ingredients' => [
+                'type'        => 'array',
+                'description' => __( 'Structured ingredient rows.', 'cookbook' ),
+                'items'       => self::ingredient_input_schema(),
+            ],
+            'instructions' => [
+                'type'        => 'array',
+                'description' => __( 'Recipe instruction steps.', 'cookbook' ),
+                'items'       => [ 'type' => 'string' ],
+            ],
+            'servings'    => [
+                'type'        => 'integer',
+                'description' => __( 'Default serving count.', 'cookbook' ),
+                'minimum'     => 1,
+            ],
+            'prep_time'   => [
+                'type'        => 'integer',
+                'description' => __( 'Prep time in minutes.', 'cookbook' ),
+                'minimum'     => 0,
+            ],
+            'cook_time'   => [
+                'type'        => 'integer',
+                'description' => __( 'Cook time in minutes.', 'cookbook' ),
+                'minimum'     => 0,
+            ],
+            'source_url'  => [
+                'type'        => 'string',
+                'description' => __( 'Optional source URL.', 'cookbook' ),
+            ],
+            'notes'       => [
+                'type'        => 'string',
+                'description' => __( 'Private recipe notes.', 'cookbook' ),
+            ],
+            'status'      => [
+                'type'        => 'string',
+                'description' => __( 'Recipe status. Defaults to draft.', 'cookbook' ),
+                'enum'        => [ 'draft', 'publish' ],
+            ],
+            'parent_id'   => [
+                'type'        => 'integer',
+                'description' => __( 'Optional parent recipe ID to link this recipe as a variation.', 'cookbook' ),
+                'minimum'     => 0,
+            ],
+            'categories'  => self::taxonomy_values_input_schema( __( 'Category names, slugs, or IDs.', 'cookbook' ) ),
+            'cuisines'    => self::taxonomy_values_input_schema( __( 'Cuisine names, slugs, or IDs.', 'cookbook' ) ),
+            'tags'        => self::taxonomy_values_input_schema( __( 'Tag names, slugs, or IDs.', 'cookbook' ) ),
+            'image_url'   => [
+                'type'        => 'string',
+                'description' => __( 'Optional image URL to sideload as the recipe photo.', 'cookbook' ),
+            ],
+        ];
+    }
+
+    private static function week_plan_get_input_schema(): array {
+        return [
+            'type'                 => 'object',
+            'properties'           => [
+                'week_start' => [
+                    'type'        => 'string',
+                    'description' => __( 'Any date in the requested week. The site week start is returned as YYYY-MM-DD.', 'cookbook' ),
+                ],
+            ],
+            'additionalProperties' => false,
+        ];
+    }
+
+    private static function week_plan_save_input_schema(): array {
+        $schema = self::week_plan_get_input_schema();
+        $schema['required'] = [ 'meals' ];
+        $schema['properties']['replace'] = [
+            'type'        => 'boolean',
+            'description' => __( 'Whether omitted meal slots should be cleared. Defaults to false.', 'cookbook' ),
+        ];
+        $schema['properties']['meals'] = [
+            'type'                 => 'object',
+            'description'          => __( 'Object keyed by YYYY-MM-DD, then breakfast, lunch, and dinner recipe IDs. Use 0 to clear a slot.', 'cookbook' ),
+            'additionalProperties' => self::week_plan_meal_ids_schema(),
+        ];
+        return $schema;
+    }
+
+    private static function week_plan_output_schema(): array {
+        return [
+            'type'                 => 'object',
+            'required'             => [ 'id', 'week_start', 'url', 'previous_week', 'next_week', 'days', 'meal_slots', 'meal_ids', 'planned_meals' ],
+            'properties'           => [
+                'id'            => [ 'type' => 'integer' ],
+                'week_start'    => [ 'type' => 'string' ],
+                'url'           => [ 'type' => 'string' ],
+                'previous_week' => [ 'type' => 'string' ],
+                'next_week'     => [ 'type' => 'string' ],
+                'days'          => [
+                    'type'  => 'array',
+                    'items' => [
+                        'type'                 => 'object',
+                        'required'             => [ 'date', 'short', 'label' ],
+                        'properties'           => [
+                            'date'  => [ 'type' => 'string' ],
+                            'short' => [ 'type' => 'string' ],
+                            'label' => [ 'type' => 'string' ],
+                        ],
+                        'additionalProperties' => false,
+                    ],
+                ],
+                'meal_slots'    => [
+                    'type'  => 'array',
+                    'items' => [
+                        'type'                 => 'object',
+                        'required'             => [ 'slot', 'label' ],
+                        'properties'           => [
+                            'slot'  => [
+                                'type' => 'string',
+                                'enum' => self::MEAL_SLOTS,
+                            ],
+                            'label' => [ 'type' => 'string' ],
+                        ],
+                        'additionalProperties' => false,
+                    ],
+                ],
+                'meal_ids'      => [
+                    'type'                 => 'object',
+                    'additionalProperties' => self::week_plan_meal_ids_schema(),
+                ],
+                'planned_meals' => [
+                    'type'  => 'array',
+                    'items' => [
+                        'type'                 => 'object',
+                        'required'             => [ 'date', 'day_short', 'day_label', 'slot', 'slot_label', 'recipe' ],
+                        'properties'           => [
+                            'date'       => [ 'type' => 'string' ],
+                            'day_short'  => [ 'type' => 'string' ],
+                            'day_label'  => [ 'type' => 'string' ],
+                            'slot'       => [
+                                'type' => 'string',
+                                'enum' => self::MEAL_SLOTS,
+                            ],
+                            'slot_label' => [ 'type' => 'string' ],
+                            'recipe'     => self::recipe_summary_schema(),
+                        ],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+            'additionalProperties' => false,
+        ];
+    }
+
+    private static function week_plan_meal_ids_schema(): array {
+        return [
+            'type'                 => 'object',
+            'properties'           => [
+                'breakfast' => [
+                    'type'        => 'integer',
+                    'description' => __( 'Breakfast recipe ID, or 0 to clear.', 'cookbook' ),
+                    'minimum'     => 0,
+                ],
+                'lunch'     => [
+                    'type'        => 'integer',
+                    'description' => __( 'Lunch recipe ID, or 0 to clear.', 'cookbook' ),
+                    'minimum'     => 0,
+                ],
+                'dinner'    => [
+                    'type'        => 'integer',
+                    'description' => __( 'Dinner recipe ID, or 0 to clear.', 'cookbook' ),
+                    'minimum'     => 0,
+                ],
+            ],
+            'additionalProperties' => false,
+        ];
+    }
+
+    private static function ingredient_schema(): array {
+        return [
+            'type'                 => 'object',
+            'properties'           => [
+                'amount'  => [ 'type' => 'string' ],
+                'unit'    => [ 'type' => 'string' ],
+                'name'    => [ 'type' => 'string' ],
+                'notes'   => [ 'type' => 'string' ],
+                'term_id' => [ 'type' => 'integer' ],
+            ],
+            'additionalProperties' => false,
+        ];
+    }
+
+    private static function ingredient_input_schema(): array {
+        return [
+            'type'                 => 'object',
+            'properties'           => [
+                'amount' => [ 'type' => 'string' ],
+                'unit'   => [ 'type' => 'string' ],
+                'name'   => [ 'type' => 'string' ],
+                'notes'  => [ 'type' => 'string' ],
+            ],
+            'required'             => [ 'name' ],
+            'additionalProperties' => false,
+        ];
+    }
+
+    private static function taxonomy_values_input_schema( string $description ): array {
+        return [
+            'type'        => 'array',
+            'description' => $description,
+            'items'       => [ 'type' => 'string' ],
+        ];
+    }
+
+    private static function variation_family_item_schema(): array {
+        return [
+            'type'                 => 'object',
+            'required'             => [ 'id', 'title', 'status', 'url', 'view_url', 'parent_id', 'depth' ],
+            'properties'           => [
+                'id'        => [ 'type' => 'integer' ],
+                'title'     => [ 'type' => 'string' ],
+                'status'    => [ 'type' => 'string' ],
+                'url'       => [ 'type' => 'string' ],
+                'view_url'  => [
+                    'type'        => 'string',
+                    'description' => __( 'User-facing app URL for linking to the variation.', 'cookbook' ),
+                ],
+                'parent_id' => [ 'type' => 'integer' ],
+                'depth'     => [ 'type' => 'integer' ],
+            ],
+            'additionalProperties' => false,
+        ];
+    }
+
+    private static function term_schema(): array {
+        return [
+            'type'                 => 'object',
+            'required'             => [ 'id', 'name', 'slug' ],
+            'properties'           => [
+                'id'   => [ 'type' => 'integer' ],
+                'name' => [ 'type' => 'string' ],
+                'slug' => [ 'type' => 'string' ],
+            ],
+            'additionalProperties' => false,
+        ];
     }
 
     public function add_recipe_admin_bar_edit_link( $wp_admin_bar ): void {
@@ -911,6 +2132,72 @@ class App extends BaseApp {
         exit;
     }
 
+    /**
+     * Shared import flow used by the import form, browser extension, and abilities.
+     *
+     * @return int|\WP_Error Draft recipe ID on success.
+     */
+    private function import_recipe_to_draft( string $url = '', string $paste = '', string $image_url = '', string $html = '' ) {
+        $parsed = $this->parse_recipe_input( $url, $paste, $html );
+        if ( is_wp_error( $parsed ) ) {
+            return $parsed;
+        }
+
+        if ( $image_url !== '' ) {
+            $parsed['image_url'] = $image_url;
+        }
+
+        return $this->create_recipe_draft_from_parsed( $parsed, $url );
+    }
+
+    /**
+     * Parse recipe input from captured HTML, URL, or pasted text in priority order.
+     *
+     * @return array|\WP_Error
+     */
+    private function parse_recipe_input( string $url = '', string $paste = '', string $html = '' ) {
+        if ( $url === '' && trim( $paste ) === '' && trim( $html ) === '' ) {
+            return new \WP_Error( 'cookbook_import_empty', __( 'Provide a source URL or pasted recipe text.', 'cookbook' ) );
+        }
+
+        $parsed = null;
+        if ( $html !== '' ) {
+            $parsed = Importer::from_html( $html );
+        }
+        if ( ! $parsed && $url !== '' ) {
+            $parsed = Importer::from_url( $url );
+        }
+        if ( ! $parsed && trim( $paste ) !== '' ) {
+            $parsed = Importer::from_text( $paste );
+        }
+        if ( ! $parsed ) {
+            return new \WP_Error( 'cookbook_import_parse_failed', __( 'Could not parse a recipe from that input.', 'cookbook' ) );
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * Create a draft recipe from an already parsed payload.
+     *
+     * @return int|\WP_Error
+     */
+    private function create_recipe_draft_from_parsed( array $parsed, string $url = '' ) {
+        $post_id = wp_insert_post( [
+            'post_type'    => self::POST_TYPE,
+            'post_status'  => 'draft',
+            'post_title'   => $parsed['title'] ?: __( 'Imported recipe', 'cookbook' ),
+            'post_content' => $parsed['description'] ?? '',
+            'post_author'  => get_current_user_id(),
+        ], true );
+        if ( is_wp_error( $post_id ) ) {
+            return $post_id;
+        }
+
+        $this->apply_parsed_payload( (int) $post_id, $parsed, $url, false );
+        return (int) $post_id;
+    }
+
     public function handle_import(): void {
         if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
             wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
@@ -921,32 +2208,14 @@ class App extends BaseApp {
         // $paste is HTML-ish recipe text; sanitize via wp_kses_post which preserves line breaks.
         $paste = isset( $_POST['paste'] ) ? wp_kses_post( wp_unslash( $_POST['paste'] ) ) : '';
 
-        $parsed = null;
-        if ( $url !== '' ) {
-            $parsed = Importer::from_url( $url );
-        }
-        if ( ! $parsed && $paste !== '' ) {
-            $parsed = Importer::from_text( $paste );
-        }
-        if ( ! $parsed ) {
+        $image_url = isset( $_POST['image_url'] ) ? esc_url_raw( wp_unslash( $_POST['image_url'] ) ) : '';
+        $post_id = $this->import_recipe_to_draft( $url, $paste, $image_url );
+        if ( is_wp_error( $post_id ) && in_array( $post_id->get_error_code(), [ 'cookbook_import_empty', 'cookbook_import_parse_failed' ], true ) ) {
             $this->redirect_import_parse_error( $url );
         }
-        $image_url = isset( $_POST['image_url'] ) ? esc_url_raw( wp_unslash( $_POST['image_url'] ) ) : '';
-        if ( $image_url !== '' ) {
-            $parsed['image_url'] = $image_url;
-        }
-
-        $post_id = wp_insert_post( [
-            'post_type'    => self::POST_TYPE,
-            'post_status'  => 'draft',
-            'post_title'   => $parsed['title'] ?: __( 'Imported recipe', 'cookbook' ),
-            'post_content' => $parsed['description'] ?? '',
-            'post_author'  => get_current_user_id(),
-        ], true );
         if ( is_wp_error( $post_id ) ) {
             wp_die( esc_html( $post_id->get_error_message() ) );
         }
-        $this->apply_parsed_payload( $post_id, $parsed, $url, false );
 
         wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $post_id . '/edit' ) );
         exit;
@@ -976,8 +2245,8 @@ class App extends BaseApp {
             exit;
         }
 
-        $parsed = Importer::from_url( $url );
-        if ( ! $parsed ) {
+        $parsed = $this->parse_recipe_input( $url );
+        if ( is_wp_error( $parsed ) ) {
             wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $id . '?refetch=parse_error' ) );
             exit;
         }
@@ -1604,28 +2873,13 @@ class App extends BaseApp {
         // Raw page HTML; passed to Importer::from_html which extracts JSON-LD or strips tags.
         $html = isset( $_POST['body'] ) ? (string) wp_unslash( $_POST['body'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
-        $parsed = null;
-        if ( $html !== '' ) {
-            $parsed = Importer::from_html( $html );
-        }
-        if ( ! $parsed && $url ) {
-            $parsed = Importer::from_url( $url );
-        }
-        if ( ! $parsed ) {
+        $post_id = $this->import_recipe_to_draft( $url, '', '', $html );
+        if ( is_wp_error( $post_id ) && in_array( $post_id->get_error_code(), [ 'cookbook_import_empty', 'cookbook_import_parse_failed' ], true ) ) {
             $this->redirect_import_parse_error( $url );
         }
-
-        $post_id = wp_insert_post( [
-            'post_type'    => self::POST_TYPE,
-            'post_status'  => 'draft',
-            'post_title'   => $parsed['title'] ?: __( 'Imported recipe', 'cookbook' ),
-            'post_content' => $parsed['description'] ?? '',
-            'post_author'  => get_current_user_id(),
-        ], true );
         if ( is_wp_error( $post_id ) ) {
             wp_die( esc_html( $post_id->get_error_message() ) );
         }
-        $this->apply_parsed_payload( $post_id, $parsed, $url, false );
 
         wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $post_id . '/edit' ) );
         exit;
@@ -1640,8 +2894,8 @@ class App extends BaseApp {
         if ( $url === '' ) {
             wp_send_json_error( [ 'message' => __( 'Missing URL.', 'cookbook' ) ] );
         }
-        $parsed = Importer::from_url( $url );
-        if ( ! $parsed ) {
+        $parsed = $this->parse_recipe_input( $url );
+        if ( is_wp_error( $parsed ) ) {
             wp_send_json_error( [ 'message' => __( 'Could not parse a recipe from that URL.', 'cookbook' ) ] );
         }
         wp_send_json_success( $parsed );
@@ -1656,8 +2910,8 @@ class App extends BaseApp {
         if ( trim( $paste ) === '' ) {
             wp_send_json_error( [ 'message' => __( 'Paste recipe text to preview it.', 'cookbook' ) ] );
         }
-        $parsed = Importer::from_text( $paste );
-        if ( ! $parsed ) {
+        $parsed = $this->parse_recipe_input( '', $paste );
+        if ( is_wp_error( $parsed ) ) {
             wp_send_json_error( [ 'message' => __( 'No ingredients or instructions detected yet.', 'cookbook' ) ] );
         }
         wp_send_json_success( $parsed );
