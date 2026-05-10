@@ -15,7 +15,7 @@ Built on the [WpApp framework](https://github.com/akirk/wp-app), so the app live
 - **Cooking mode.** Recipe pages can open a focused cooking view with a large active step, step navigation, ingredient and step checkoffs, progress state saved in the browser, and screen wake lock where supported.
 - **Ingredient tools.** Browse recipes by ingredients you have, allow a configurable number of missing ingredients, browse individual ingredient pages, replace an ingredient from the recipe view, and merge/group/rename ingredient terms.
 - **Shopping list.** Add a recipe's scaled ingredients to your personal shopping list, combine compatible duplicate items, edit the list at home, and use a focused shop mode with large tap targets, hide-checked, undo, and quick add.
-- **Week planner.** Plan breakfast, lunch, and dinner for a week, prefill a recipe into the planner from its recipe page, then add the planned recipes' ingredients to your shopping list.
+- **Week planner.** Plan breakfast, lunch, and dinner for a week, place a recipe into the planner from its recipe page, then add the planned recipes' ingredients to your shopping list.
 - **Recipe variations.** Link recipes as parent/child variations, browse the variation family from parent or child recipe pages, and use **Edit as variation** to create a prefilled child recipe from an existing one.
 - **Recipe editing.** Create recipes manually, edit structured ingredients and instructions, categorize by category/cuisine/tags, add notes, replace photos through file upload or image URL, and remove photos.
 - **Abilities API.** When available, Cookbook registers abilities for recipe search/read/create/import, recipe variation creation, and week-plan read/save.
