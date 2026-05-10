@@ -237,7 +237,6 @@ include __DIR__ . '/_header.php';
                         <input
                             id="<?php echo esc_attr( $field_id ); ?>"
                             type="text"
-                            list="planner-recipe-options"
                             name="meal_labels[<?php echo esc_attr( $date ); ?>][<?php echo esc_attr( $slot ); ?>]"
                             value="<?php echo esc_attr( $selected_value ); ?>"
                             placeholder="<?php esc_attr_e( 'Search recipes', 'cookbook' ); ?>"
@@ -273,11 +272,6 @@ include __DIR__ . '/_header.php';
             <div class="planner-stash-items" data-planner-stash-items></div>
         </section>
     </div>
-    <datalist id="planner-recipe-options">
-        <?php foreach ( $recipe_lookup as $recipe_option ) : ?>
-            <option value="<?php echo esc_attr( $recipe_option['value'] ); ?>"></option>
-        <?php endforeach; ?>
-    </datalist>
 
     <div class="toolbar">
         <button class="btn fresh" type="submit"><?php esc_html_e( 'Save week', 'cookbook' ); ?></button>
@@ -406,6 +400,174 @@ include __DIR__ . '/_header.php';
         hidden.value = item ? String(item.id) : '0';
     }
 
+    const autocompleteLimit = 8;
+    let activeAutocompleteInput = null;
+
+    function autocompletePanel(input) {
+        return document.getElementById(input.id + '-autocomplete');
+    }
+
+    function normalizeAutocompleteText(value) {
+        return String(value || '').toLocaleLowerCase();
+    }
+
+    function matchingRecipes(value) {
+        const needle = normalizeAutocompleteText(value.trim());
+        if (!needle) {
+            return recipes.slice(0, autocompleteLimit);
+        }
+
+        const starts = [];
+        const contains = [];
+        recipes.forEach(recipe => {
+            const haystack = normalizeAutocompleteText(recipe.value);
+            if (haystack.startsWith(needle)) {
+                starts.push(recipe);
+            } else if (haystack.includes(needle)) {
+                contains.push(recipe);
+            }
+        });
+        return starts.concat(contains).slice(0, autocompleteLimit);
+    }
+
+    function closeAutocomplete(input) {
+        const panel = autocompletePanel(input);
+        if (panel) {
+            panel.hidden = true;
+            panel.textContent = '';
+        }
+        input.dataset.autocompleteIndex = '-1';
+        input.setAttribute('aria-expanded', 'false');
+        input.removeAttribute('aria-activedescendant');
+        if (activeAutocompleteInput === input) {
+            activeAutocompleteInput = null;
+        }
+    }
+
+    function autocompleteOptions(input) {
+        const panel = autocompletePanel(input);
+        return panel && !panel.hidden ? Array.from(panel.querySelectorAll('[data-autocomplete-option]')) : [];
+    }
+
+    function setAutocompleteActive(input, index) {
+        const options = autocompleteOptions(input);
+        if (!options.length) return;
+        const next = (index + options.length) % options.length;
+        options.forEach((option, optionIndex) => {
+            option.setAttribute('aria-selected', optionIndex === next ? 'true' : 'false');
+        });
+        input.dataset.autocompleteIndex = String(next);
+        input.setAttribute('aria-activedescendant', options[next].id);
+    }
+
+    function selectAutocompleteRecipe(input, recipe) {
+        setSlot(input, {
+            id: recipe.id,
+            value: recipe.value
+        });
+        closeAutocomplete(input);
+        updateSlotActions();
+    }
+
+    function renderAutocomplete(input) {
+        const panel = autocompletePanel(input);
+        if (!panel) return;
+
+        if (activeAutocompleteInput && activeAutocompleteInput !== input) {
+            closeAutocomplete(activeAutocompleteInput);
+        }
+
+        const matches = matchingRecipes(input.value);
+        if (!matches.length) {
+            closeAutocomplete(input);
+            return;
+        }
+
+        panel.textContent = '';
+        matches.forEach((recipe, index) => {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.id = input.id + '-autocomplete-option-' + index;
+            option.className = 'planner-autocomplete-option';
+            option.textContent = recipe.value;
+            option.dataset.autocompleteOption = '1';
+            option.dataset.recipeId = String(recipe.id);
+            option.setAttribute('role', 'option');
+            option.setAttribute('aria-selected', 'false');
+            option.addEventListener('pointerdown', event => {
+                event.preventDefault();
+                selectAutocompleteRecipe(input, recipe);
+                input.focus();
+            });
+            option.addEventListener('click', event => {
+                event.preventDefault();
+                selectAutocompleteRecipe(input, recipe);
+                input.focus();
+            });
+            option.addEventListener('mouseenter', () => setAutocompleteActive(input, index));
+            panel.appendChild(option);
+        });
+
+        panel.hidden = false;
+        activeAutocompleteInput = input;
+        input.dataset.autocompleteIndex = '-1';
+        input.setAttribute('aria-expanded', 'true');
+        input.removeAttribute('aria-activedescendant');
+    }
+
+    function setupAutocomplete(input) {
+        const panel = document.createElement('div');
+        panel.id = input.id + '-autocomplete';
+        panel.className = 'planner-autocomplete';
+        panel.hidden = true;
+        panel.setAttribute('role', 'listbox');
+        input.insertAdjacentElement('afterend', panel);
+        input.dataset.autocompleteIndex = '-1';
+        input.setAttribute('role', 'combobox');
+        input.setAttribute('aria-autocomplete', 'list');
+        input.setAttribute('aria-controls', panel.id);
+        input.setAttribute('aria-expanded', 'false');
+
+        input.addEventListener('focus', () => renderAutocomplete(input));
+        input.addEventListener('blur', () => {
+            window.setTimeout(() => closeAutocomplete(input), 120);
+        });
+        input.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                closeAutocomplete(input);
+                return;
+            }
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Enter') {
+                return;
+            }
+
+            const panel = autocompletePanel(input);
+            if (!panel || panel.hidden) {
+                renderAutocomplete(input);
+            }
+            const options = autocompleteOptions(input);
+            if (!options.length) return;
+
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                const current = parseInt(input.dataset.autocompleteIndex, 10);
+                const fallback = event.key === 'ArrowDown' ? -1 : 0;
+                const base = Number.isNaN(current) ? fallback : current;
+                setAutocompleteActive(input, base + (event.key === 'ArrowDown' ? 1 : -1));
+                return;
+            }
+
+            const activeIndex = parseInt(input.dataset.autocompleteIndex, 10);
+            if (!Number.isNaN(activeIndex) && activeIndex >= 0 && options[activeIndex]) {
+                const recipe = itemFromId(options[activeIndex].dataset.recipeId);
+                if (recipe) {
+                    event.preventDefault();
+                    selectAutocompleteRecipe(input, recipe);
+                }
+            }
+        });
+    }
+
     function plannerStorage() {
         try {
             return window.localStorage;
@@ -529,14 +691,24 @@ include __DIR__ . '/_header.php';
 
     const inputs = Array.from(form.querySelectorAll('[data-meal-input]'));
     inputs.forEach(input => {
+        setupAutocomplete(input);
         input.addEventListener('input', () => {
             syncInput(input);
+            renderAutocomplete(input);
             updateSlotActions();
         });
         input.addEventListener('change', () => {
             syncInput(input);
             updateSlotActions();
         });
+    });
+    document.addEventListener('pointerdown', event => {
+        if (!activeAutocompleteInput) return;
+        const panel = autocompletePanel(activeAutocompleteInput);
+        if (event.target === activeAutocompleteInput || (panel && panel.contains(event.target))) {
+            return;
+        }
+        closeAutocomplete(activeAutocompleteInput);
     });
     form.addEventListener('submit', () => inputs.forEach(syncInput));
 

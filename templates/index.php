@@ -74,12 +74,30 @@ if ( $shopping_list_id ) {
 }
 
 $planned_meals_count = 0;
-$current_week_start = App::normalize_week_start();
+$todays_plan = [];
+$today_date = wp_date( 'Y-m-d' );
+$today_label = wp_date( get_option( 'date_format' ) );
+$current_week_start = App::normalize_week_start( $today_date );
 $current_plan_id = App::get_user_week_plan_id( $current_week_start, false );
 if ( $current_plan_id ) {
-    foreach ( App::get_week_meals( $current_plan_id ) as $day_meals ) {
+    $current_week_meals = App::get_week_meals( $current_plan_id );
+    foreach ( $current_week_meals as $day_meals ) {
         if ( is_array( $day_meals ) ) {
             $planned_meals_count += count( array_filter( $day_meals ) );
+        }
+    }
+
+    $todays_meals = isset( $current_week_meals[ $today_date ] ) && is_array( $current_week_meals[ $today_date ] )
+        ? $current_week_meals[ $today_date ]
+        : [];
+    foreach ( App::meal_slots() as $slot => $slot_label ) {
+        $recipe_id = isset( $todays_meals[ $slot ] ) ? absint( $todays_meals[ $slot ] ) : 0;
+        $recipe = $recipe_id ? get_post( $recipe_id ) : null;
+        if ( $recipe && $recipe->post_type === App::POST_TYPE ) {
+            $todays_plan[] = [
+                'slot_label' => $slot_label,
+                'recipe'     => $recipe,
+            ];
         }
     }
 }
@@ -121,8 +139,12 @@ include __DIR__ . '/_header.php';
     .home-tool:hover { border-color: var(--accent); }
     .home-tool strong { color: var(--fg); }
     .home-tool span { color: var(--muted); font-size: 0.86rem; white-space: nowrap; }
+    .home-today-plan { margin: 1.25rem 0; }
+    .home-today-head { display: flex; gap: 0.75rem; align-items: baseline; justify-content: space-between; }
+    .home-today-head h2 { margin: 0; }
+    .home-today-head a { white-space: nowrap; }
     @media (min-width: 720px) { .home-tools { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } }
+    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } }
 </style>
 <div class="page-head">
     <div>
@@ -178,6 +200,34 @@ include __DIR__ . '/_header.php';
             </span>
         </a>
     </nav>
+    <?php if ( $todays_plan ) : ?>
+        <section class="home-today-plan">
+            <div class="home-today-head">
+                <div>
+                    <h2><?php esc_html_e( "Today's plan", 'cookbook' ); ?></h2>
+                    <p class="subtitle"><?php echo esc_html( $today_label ); ?></p>
+                </div>
+                <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/planner' ) ); ?>"><?php esc_html_e( 'Open week planner', 'cookbook' ); ?></a>
+            </div>
+            <div class="planned-strip">
+                <?php foreach ( $todays_plan as $entry ) :
+                    $recipe = $entry['recipe'];
+                    ?>
+                    <a class="planned-card" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $recipe->ID ) ); ?>">
+                        <?php if ( has_post_thumbnail( $recipe->ID ) ) : ?>
+                            <?php echo get_the_post_thumbnail( $recipe->ID, 'thumbnail', [ 'alt' => '' ] ); ?>
+                        <?php else : ?>
+                            <span class="planned-thumb"><?php echo esc_html( mb_strtoupper( mb_substr( get_the_title( $recipe ), 0, 1 ) ) ); ?></span>
+                        <?php endif; ?>
+                        <span>
+                            <strong><?php echo esc_html( get_the_title( $recipe ) ); ?></strong>
+                            <span><?php echo esc_html( $entry['slot_label'] ); ?></span>
+                        </span>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        </section>
+    <?php endif; ?>
 <?php endif; ?>
 <script>
 (function () {
