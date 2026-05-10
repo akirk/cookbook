@@ -10,15 +10,25 @@ if ( ! defined( 'ABSPATH' ) ) {
 use Cookbook\App;
 use Cookbook\Units;
 
-$title        = $post ? get_the_title( $post ) : '';
+$data_id      = $post ? (int) $post->ID : 0;
+$save_id      = $is_new ? 0 : (int) $id;
+$source_id    = isset( $variation_source_id ) ? (int) $variation_source_id : 0;
+$title        = isset( $title_override ) ? (string) $title_override : ( $post ? get_the_title( $post ) : '' );
 $content      = $post ? $post->post_content : '';
-$servings     = $post ? (int) get_post_meta( $id, App::META_SERVINGS, true ) : 4;
-$prep         = $post ? (int) get_post_meta( $id, App::META_PREP, true ) : 0;
-$cook         = $post ? (int) get_post_meta( $id, App::META_COOK, true ) : 0;
-$ingredients  = $post ? (array) get_post_meta( $id, App::META_INGREDIENTS, true ) : [];
-$instructions = $post ? (array) get_post_meta( $id, App::META_INSTRUCTIONS, true ) : [];
-$source_url   = $post ? (string) get_post_meta( $id, App::META_SOURCE_URL, true ) : '';
-$notes        = $post ? (string) get_post_meta( $id, App::META_NOTES, true ) : '';
+$servings     = $post ? (int) get_post_meta( $data_id, App::META_SERVINGS, true ) : 4;
+$prep         = $post ? (int) get_post_meta( $data_id, App::META_PREP, true ) : 0;
+$cook         = $post ? (int) get_post_meta( $data_id, App::META_COOK, true ) : 0;
+$ingredients  = $post ? (array) get_post_meta( $data_id, App::META_INGREDIENTS, true ) : [];
+$instructions = $post ? (array) get_post_meta( $data_id, App::META_INSTRUCTIONS, true ) : [];
+$source_url   = $post ? (string) get_post_meta( $data_id, App::META_SOURCE_URL, true ) : '';
+$notes        = $post ? (string) get_post_meta( $data_id, App::META_NOTES, true ) : '';
+$parent_id    = isset( $variation_parent_id )
+    ? (int) $variation_parent_id
+    : ( $post && ! $is_new ? (int) $post->post_parent : 0 );
+$cancel_url   = isset( $cancel_url ) ? (string) $cancel_url : ( $save_id ? home_url( '/cookbook/recipe/' . $save_id ) : home_url( '/cookbook/' ) );
+$submit_label = $is_new && $source_id
+    ? __( 'Create variation', 'cookbook' )
+    : ( $is_new ? __( 'Create recipe', 'cookbook' ) : __( 'Save recipe', 'cookbook' ) );
 
 if ( ! $ingredients ) {
     $ingredients = [ [ 'amount' => '', 'unit' => '', 'name' => '', 'notes' => '' ] ];
@@ -29,10 +39,17 @@ if ( ! $instructions ) {
 
 $categories = get_terms( [ 'taxonomy' => App::TAX_CATEGORY, 'hide_empty' => false ] );
 $cuisines   = get_terms( [ 'taxonomy' => App::TAX_CUISINE,  'hide_empty' => false ] );
-$current_categories = $post ? wp_get_object_terms( $id, App::TAX_CATEGORY, [ 'fields' => 'ids' ] ) : [];
-$current_cuisines   = $post ? wp_get_object_terms( $id, App::TAX_CUISINE,  [ 'fields' => 'ids' ] ) : [];
-$current_tags = $post ? wp_get_object_terms( $id, App::TAX_TAG, [ 'fields' => 'names' ] ) : [];
+$current_categories = $post ? wp_get_object_terms( $data_id, App::TAX_CATEGORY, [ 'fields' => 'ids' ] ) : [];
+$current_cuisines   = $post ? wp_get_object_terms( $data_id, App::TAX_CUISINE,  [ 'fields' => 'ids' ] ) : [];
+$current_tags = $post ? wp_get_object_terms( $data_id, App::TAX_TAG, [ 'fields' => 'names' ] ) : [];
 $tags_string = is_wp_error( $current_tags ) ? '' : implode( ', ', $current_tags );
+$variation_parent_options = get_posts( [
+    'post_type'      => App::POST_TYPE,
+    'post_status'    => [ 'publish', 'draft' ],
+    'posts_per_page' => -1,
+    'orderby'        => 'title',
+    'order'          => 'ASC',
+] );
 
 $pref = App::get_user_unit_preference();
 $unit_options = Units::COMMON_UNITS[ $pref ];
@@ -40,23 +57,38 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
 <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" id="recipe-form">
     <?php wp_nonce_field( 'cookbook_save' ); ?>
     <input type="hidden" name="action" value="cookbook_save">
-    <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
+    <input type="hidden" name="id" value="<?php echo (int) $save_id; ?>">
+    <?php if ( $is_new && $source_id && has_post_thumbnail( $source_id ) ) : ?>
+        <input type="hidden" name="copy_thumbnail_from" value="<?php echo (int) $source_id; ?>">
+    <?php endif; ?>
 
     <label for="title"><?php esc_html_e( 'Title', 'cookbook' ); ?></label>
     <input id="title" type="text" name="title" value="<?php echo esc_attr( $title ); ?>" required autofocus>
 
     <label><?php esc_html_e( 'Photo', 'cookbook' ); ?></label>
-    <?php $thumb_url = $post && has_post_thumbnail( $id ) ? get_the_post_thumbnail_url( $id, 'medium' ) : ''; ?>
+    <?php $thumb_url = $post && has_post_thumbnail( $data_id ) ? get_the_post_thumbnail_url( $data_id, 'medium' ) : ''; ?>
     <?php if ( $thumb_url ) : ?>
         <div style="display:flex;gap:1rem;align-items:flex-start;margin-bottom:0.5rem">
             <img src="<?php echo esc_url( $thumb_url ); ?>" alt="" style="max-width:240px;border-radius:6px;border:1px solid var(--line)">
-            <label style="font-weight:normal;display:flex;gap:0.4rem;align-items:center;margin:0">
-                <input type="checkbox" name="remove_image" value="1"> <?php esc_html_e( 'Remove photo', 'cookbook' ); ?>
-            </label>
+            <?php if ( ! $is_new ) : ?>
+                <label style="font-weight:normal;display:flex;gap:0.4rem;align-items:center;margin:0">
+                    <input type="checkbox" name="remove_image" value="1"> <?php esc_html_e( 'Remove photo', 'cookbook' ); ?>
+                </label>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
     <input id="image" type="file" name="image" accept="image/*">
-    <p class="help"><?php echo $thumb_url ? esc_html__( 'Upload a new file to replace the current photo.', 'cookbook' ) : esc_html__( 'Optional. Will be added to the media library.', 'cookbook' ); ?></p>
+    <p class="help">
+        <?php
+        if ( $thumb_url && $is_new ) {
+            esc_html_e( 'The source photo will be reused unless you upload a different one.', 'cookbook' );
+        } elseif ( $thumb_url ) {
+            esc_html_e( 'Upload a new file to replace the current photo.', 'cookbook' );
+        } else {
+            esc_html_e( 'Optional. Will be added to the media library.', 'cookbook' );
+        }
+        ?>
+    </p>
     <label for="image_url"><?php esc_html_e( 'Photo URL', 'cookbook' ); ?></label>
     <input id="image_url" type="url" name="image_url" placeholder="https://example.com/recipe-photo.jpg">
     <p class="help"><?php esc_html_e( 'Paste an image URL to add it to the media library. If you also upload a file, the uploaded file is used.', 'cookbook' ); ?></p>
@@ -66,6 +98,22 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
 
     <label for="description"><?php esc_html_e( 'Short description', 'cookbook' ); ?></label>
     <textarea id="description" name="description" style="min-height:4rem"><?php echo esc_textarea( $content ); ?></textarea>
+
+    <label for="parent_id"><?php esc_html_e( 'Variation of', 'cookbook' ); ?></label>
+    <select id="parent_id" name="parent_id">
+        <option value="0"><?php esc_html_e( 'Standalone recipe', 'cookbook' ); ?></option>
+        <?php foreach ( $variation_parent_options as $candidate ) : ?>
+            <?php
+            if ( $save_id && ( (int) $candidate->ID === $save_id || App::recipe_is_descendant_of( (int) $candidate->ID, $save_id ) ) ) {
+                continue;
+            }
+            ?>
+            <option value="<?php echo (int) $candidate->ID; ?>" <?php selected( $parent_id, (int) $candidate->ID ); ?>>
+                <?php echo esc_html( get_the_title( $candidate ) ); ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
+    <p class="help"><?php esc_html_e( 'Choose a parent recipe to make this recipe a variation.', 'cookbook' ); ?></p>
 
     <div class="grid">
         <div>
@@ -153,8 +201,8 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
     <textarea id="notes" name="notes" style="min-height:5rem"><?php echo esc_textarea( $notes ); ?></textarea>
 
     <div class="toolbar" style="margin-top:1.5rem">
-        <button class="btn" type="submit"><?php echo $is_new ? esc_html__( 'Create recipe', 'cookbook' ) : esc_html__( 'Save recipe', 'cookbook' ); ?></button>
-        <a class="btn secondary" href="<?php echo esc_url( $post ? home_url( '/cookbook/recipe/' . $id ) : home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( 'Cancel', 'cookbook' ); ?></a>
+        <button class="btn" type="submit"><?php echo esc_html( $submit_label ); ?></button>
+        <a class="btn secondary" href="<?php echo esc_url( $cancel_url ); ?>"><?php esc_html_e( 'Cancel', 'cookbook' ); ?></a>
     </div>
 </form>
 
