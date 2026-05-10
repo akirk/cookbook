@@ -78,7 +78,7 @@ $is_current_week = $week_start === $current_week_start;
 $copy_source_slots = [];
 $copy_inserted_slots = [];
 $copy_source_week_start = $copy_source_param !== '' ? App::normalize_week_start( $copy_source_param ) : '';
-if ( $copy_source_week_start && $is_current_week && $copy_source_week_start !== $week_start ) {
+if ( $copy_source_week_start && $copy_source_week_start !== $week_start ) {
     $source_plan_id = App::get_user_week_plan_id( $copy_source_week_start, false );
     $source_meals = App::get_week_meals( $source_plan_id );
     if ( $source_meals ) {
@@ -141,6 +141,12 @@ include __DIR__ . '/_header.php';
                 'week'      => $current_week_start,
                 'copy-form' => $week_start,
             ], home_url( '/cookbook/planner' ) ) ); ?>"><?php esc_html_e( 'Copy to current week', 'cookbook' ); ?></a>
+        <?php endif; ?>
+        <?php if ( $is_current_week && $plan_id ) : ?>
+            <a class="btn secondary" href="<?php echo esc_url( add_query_arg( [
+                'week'      => $next_week,
+                'copy-form' => $week_start,
+            ], home_url( '/cookbook/planner' ) ) ); ?>"><?php esc_html_e( 'Copy to next week', 'cookbook' ); ?></a>
         <?php endif; ?>
         <button class="btn fresh" type="submit" form="planner-form"><?php esc_html_e( 'Save week', 'cookbook' ); ?></button>
     </div>
