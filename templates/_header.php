@@ -183,8 +183,13 @@ if ( ! defined( 'ABSPATH' ) ) {
         .planner-action { background: transparent; border: 0; color: var(--accent); cursor: pointer; font: inherit; font-size: 0.8rem; padding: 0; text-decoration: underline; }
         .planner-stash[hidden] { display: none; }
         .planner-stash-items { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-        .planner-stash-item { border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--muted); cursor: pointer; font: inherit; font-size: 0.85rem; padding: 0.2rem 0.55rem; }
+        .planner-stash-item { display: inline-flex; gap: 0.25rem; align-items: center; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--muted); font: inherit; font-size: 0.85rem; padding: 0.15rem 0.25rem 0.15rem 0.55rem; }
         .planner-stash-item.is-selected { border-color: var(--accent); color: var(--accent); }
+        .planner-stash-select,
+        .planner-stash-remove { background: transparent; border: 0; color: inherit; cursor: pointer; font: inherit; padding: 0; }
+        .planner-stash-remove { display: inline-flex; align-items: center; justify-content: center; width: 1rem; height: 1rem; border-radius: 999px; color: var(--muted); font-size: 0.9rem; line-height: 1; }
+        .planner-stash-remove:hover,
+        .planner-stash-remove:focus { background: var(--error-bg); color: #b32d2e; }
         .planned-strip { display: grid; grid-template-columns: 1fr; gap: 0.75rem; margin: 1rem 0; }
         .planned-card { display: flex; gap: 0.75rem; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.65rem; color: inherit; text-decoration: none; }
         .planned-card img,

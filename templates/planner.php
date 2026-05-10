@@ -13,6 +13,7 @@ if ( ! is_user_logged_in() ) {
 $week_param = isset( $_GET['week'] ) ? sanitize_text_field( wp_unslash( $_GET['week'] ) ) : '';
 $pending_recipe_id = isset( $_GET['recipe_id'] ) ? absint( $_GET['recipe_id'] ) : 0;
 $saved = isset( $_GET['saved'] );
+$copied = isset( $_GET['copied'] );
 $shopping_status = isset( $_GET['shopping'] ) ? sanitize_text_field( wp_unslash( $_GET['shopping'] ) ) : '';
 $shopping_items = isset( $_GET['items'] ) ? absint( $_GET['items'] ) : 0;
 // phpcs:enable WordPress.Security.NonceVerification.Recommended
@@ -71,6 +72,8 @@ try {
 }
 $prev_week = $start->modify( '-7 days' )->format( 'Y-m-d' );
 $next_week = $start->modify( '+7 days' )->format( 'Y-m-d' );
+$current_week_start = App::normalize_week_start();
+$is_current_week = $week_start === $current_week_start;
 
 $planned = [];
 foreach ( $days as $date => $day ) {
@@ -104,12 +107,27 @@ include __DIR__ . '/_header.php';
     </div>
     <div class="page-actions">
         <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/shopping-list' ) ); ?>"><?php esc_html_e( 'Shopping list', 'cookbook' ); ?></a>
+        <?php if ( ! $is_current_week && $plan_id ) : ?>
+            <form
+                method="post"
+                action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+                onsubmit="return confirm('<?php echo esc_js( __( 'Copy this week to the current week? This replaces the current week planner.', 'cookbook' ) ); ?>')"
+            >
+                <?php wp_nonce_field( 'cookbook_copy_planner_to_current_week' ); ?>
+                <input type="hidden" name="action" value="cookbook_copy_planner_to_current_week">
+                <input type="hidden" name="source_week_start" value="<?php echo esc_attr( $week_start ); ?>">
+                <button class="btn secondary" type="submit"><?php esc_html_e( 'Copy to current week', 'cookbook' ); ?></button>
+            </form>
+        <?php endif; ?>
         <button class="btn fresh" type="submit" form="planner-form"><?php esc_html_e( 'Save week', 'cookbook' ); ?></button>
     </div>
 </div>
 
 <?php if ( $saved ) : ?>
     <div class="notice success"><?php esc_html_e( 'Week planner saved.', 'cookbook' ); ?></div>
+<?php endif; ?>
+<?php if ( $copied ) : ?>
+    <div class="notice success"><?php esc_html_e( 'Week copied to the current week.', 'cookbook' ); ?></div>
 <?php endif; ?>
 <?php if ( $shopping_status === 'added' ) : ?>
     <div class="notice success">
@@ -140,7 +158,13 @@ include __DIR__ . '/_header.php';
     <a class="btn secondary" href="<?php echo esc_url( add_query_arg( 'week', $next_week, home_url( '/cookbook/planner' ) ) ); ?>"><?php esc_html_e( 'Next week', 'cookbook' ); ?></a>
 </nav>
 
-<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="planner-form" data-pending-recipe="<?php echo (int) $pending_recipe_id; ?>">
+<form
+    method="post"
+    action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+    id="planner-form"
+    data-pending-recipe="<?php echo (int) $pending_recipe_id; ?>"
+    data-stash-key="cookbook.plannerStash"
+>
     <?php wp_nonce_field( 'cookbook_save_planner' ); ?>
     <input type="hidden" name="action" value="cookbook_save_planner">
     <input type="hidden" name="plan_id" value="<?php echo (int) $plan_id; ?>">
@@ -205,7 +229,7 @@ include __DIR__ . '/_header.php';
         <section class="planner-day planner-stash" data-planner-stash hidden>
             <h3>
                 <?php esc_html_e( 'Stash', 'cookbook' ); ?>
-                <span><?php esc_html_e( 'Temporary', 'cookbook' ); ?></span>
+                <button class="planner-action" type="button" data-planner-clear-stash><?php esc_html_e( 'Clear', 'cookbook' ); ?></button>
             </h3>
             <div class="planner-stash-items" data-planner-stash-items></div>
         </section>
@@ -259,8 +283,10 @@ include __DIR__ . '/_header.php';
     const recipes = <?php echo wp_json_encode( $recipe_lookup ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Encoded as JSON for local planner autocomplete. ?>;
     const valueToId = new Map(recipes.map(recipe => [recipe.value, String(recipe.id)]));
     const idToValue = new Map(recipes.map(recipe => [String(recipe.id), recipe.value]));
+    const stashStorageKey = form.dataset.stashKey || '';
     const stashPanel = form.querySelector('[data-planner-stash]');
     const stashItems = form.querySelector('[data-planner-stash-items]');
+    const clearStash = form.querySelector('[data-planner-clear-stash]');
     const stash = [];
     let selectedStashKey = '';
     let stashCounter = 0;
@@ -283,6 +309,12 @@ include __DIR__ . '/_header.php';
             id: hidden.value,
             value: input.value.trim()
         };
+    }
+
+    function itemFromId(id) {
+        const recipeId = String(id || '0');
+        const value = idToValue.get(recipeId);
+        return value ? { id: recipeId, value } : null;
     }
 
     function selectedStashItem() {
@@ -313,11 +345,77 @@ include __DIR__ . '/_header.php';
         }
     }
 
+    function deleteFromStash(key) {
+        removeFromStash(key);
+        renderStash();
+        updateSlotActions();
+    }
+
+    function clearWholeStash() {
+        stash.splice(0, stash.length);
+        selectedStashKey = '';
+        renderStash();
+        updateSlotActions();
+    }
+
     function setSlot(input, item) {
         const hidden = hiddenFor(input);
         if (!hidden) return;
         input.value = item ? item.value : '';
         hidden.value = item ? String(item.id) : '0';
+    }
+
+    function plannerStorage() {
+        try {
+            return window.localStorage;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function saveStash() {
+        const storage = plannerStorage();
+        if (!stashStorageKey || !storage) return;
+        try {
+            if (!stash.length) {
+                storage.removeItem(stashStorageKey);
+                return;
+            }
+            storage.setItem(stashStorageKey, JSON.stringify({
+                counter: stashCounter,
+                selected: selectedStashKey,
+                items: stash
+            }));
+        } catch (error) {
+            // Browsers can block storage; the planner still works for this page view.
+        }
+    }
+
+    function loadStash() {
+        const storage = plannerStorage();
+        if (!stashStorageKey || !storage) return;
+        try {
+            const raw = storage.getItem(stashStorageKey);
+            if (!raw) return;
+            const saved = JSON.parse(raw);
+            const savedItems = Array.isArray(saved.items) ? saved.items : [];
+            savedItems.forEach(item => {
+                const recipe = itemFromId(item.id);
+                if (!recipe) return;
+                const key = item.key ? String(item.key) : String(++stashCounter);
+                stash.push({
+                    key,
+                    id: recipe.id,
+                    value: recipe.value
+                });
+                stashCounter = Math.max(stashCounter, parseInt(key, 10) || 0);
+            });
+            selectedStashKey = stash.some(item => item.key === String(saved.selected)) ? String(saved.selected) : (stash[0] ? stash[0].key : '');
+            stashCounter = Math.max(stashCounter, parseInt(saved.counter, 10) || 0);
+            renderStash();
+        } catch (error) {
+            storage.removeItem(stashStorageKey);
+        }
     }
 
     function updateSlotActions() {
@@ -344,9 +442,12 @@ include __DIR__ . '/_header.php';
         stashPanel.hidden = stash.length === 0;
         stashItems.textContent = '';
         stash.forEach(item => {
+            const entry = document.createElement('span');
+            entry.className = 'planner-stash-item' + (item.key === selectedStashKey ? ' is-selected' : '');
+
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = 'planner-stash-item' + (item.key === selectedStashKey ? ' is-selected' : '');
+            button.className = 'planner-stash-select';
             button.textContent = item.value;
             button.setAttribute('aria-pressed', item.key === selectedStashKey ? 'true' : 'false');
             button.addEventListener('click', () => {
@@ -354,8 +455,19 @@ include __DIR__ . '/_header.php';
                 renderStash();
                 updateSlotActions();
             });
-            stashItems.appendChild(button);
+            entry.appendChild(button);
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'planner-stash-remove';
+            remove.textContent = '×';
+            remove.setAttribute('aria-label', '<?php echo esc_js( __( 'Remove from stash', 'cookbook' ) ); ?>');
+            remove.addEventListener('click', () => deleteFromStash(item.key));
+            entry.appendChild(remove);
+
+            stashItems.appendChild(entry);
         });
+        saveStash();
     }
 
     const inputs = Array.from(form.querySelectorAll('[data-meal-input]'));
@@ -370,6 +482,10 @@ include __DIR__ . '/_header.php';
         });
     });
     form.addEventListener('submit', () => inputs.forEach(syncInput));
+
+    if (clearStash) {
+        clearStash.addEventListener('click', clearWholeStash);
+    }
 
     form.querySelectorAll('[data-planner-lift]').forEach(button => {
         button.addEventListener('click', () => {
@@ -401,10 +517,12 @@ include __DIR__ . '/_header.php';
         });
     });
 
+    loadStash();
+
     const pending = parseInt(form.dataset.pendingRecipe, 10) || 0;
-    const pendingValue = pending ? idToValue.get(String(pending)) : '';
-    if (pending && pendingValue) {
-        addToStash({ id: String(pending), value: pendingValue }, true);
+    const pendingItem = pending ? itemFromId(pending) : null;
+    if (pendingItem && !stash.some(item => item.id === pendingItem.id)) {
+        addToStash(pendingItem, true);
     }
     updateSlotActions();
 })();
