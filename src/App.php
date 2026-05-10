@@ -503,6 +503,116 @@ class App extends BaseApp {
         return is_array( $raw ) ? $raw : [];
     }
 
+    public static function get_recipe_variation_parent( int $recipe_id ): ?\WP_Post {
+        $post = $recipe_id ? get_post( $recipe_id ) : null;
+        if ( ! $post || $post->post_type !== self::POST_TYPE || ! $post->post_parent ) {
+            return null;
+        }
+
+        $parent = get_post( (int) $post->post_parent );
+        if ( ! $parent || $parent->post_type !== self::POST_TYPE ) {
+            return null;
+        }
+
+        return $parent;
+    }
+
+    public static function get_recipe_variation_root_id( int $recipe_id ): int {
+        $post = $recipe_id ? get_post( $recipe_id ) : null;
+        if ( ! $post || $post->post_type !== self::POST_TYPE ) {
+            return 0;
+        }
+
+        $root_id = (int) $post->ID;
+        $seen    = [];
+        while ( $post && $post->post_type === self::POST_TYPE && $post->post_parent ) {
+            $parent_id = (int) $post->post_parent;
+            if ( isset( $seen[ $parent_id ] ) ) {
+                break;
+            }
+            $seen[ $parent_id ] = true;
+
+            $parent = get_post( $parent_id );
+            if ( ! $parent || $parent->post_type !== self::POST_TYPE ) {
+                break;
+            }
+
+            $root_id = (int) $parent->ID;
+            $post    = $parent;
+        }
+
+        return $root_id;
+    }
+
+    public static function get_recipe_variation_family( int $recipe_id ): array {
+        $root_id = self::get_recipe_variation_root_id( $recipe_id );
+        $root    = $root_id ? get_post( $root_id ) : null;
+        if ( ! $root || $root->post_type !== self::POST_TYPE ) {
+            return [];
+        }
+
+        $family = [
+            [
+                'post'  => $root,
+                'depth' => 0,
+            ],
+        ];
+        $seen = [ $root_id => true ];
+        self::collect_recipe_variation_descendants( $root_id, 1, $family, $seen );
+
+        return $family;
+    }
+
+    public static function recipe_is_descendant_of( int $recipe_id, int $ancestor_id ): bool {
+        if ( ! $recipe_id || ! $ancestor_id || $recipe_id === $ancestor_id ) {
+            return false;
+        }
+
+        $post = get_post( $recipe_id );
+        $seen = [];
+        while ( $post && $post->post_type === self::POST_TYPE && $post->post_parent ) {
+            $parent_id = (int) $post->post_parent;
+            if ( $parent_id === $ancestor_id ) {
+                return true;
+            }
+            if ( isset( $seen[ $parent_id ] ) ) {
+                break;
+            }
+            $seen[ $parent_id ] = true;
+            $post = get_post( $parent_id );
+        }
+
+        return false;
+    }
+
+    private static function collect_recipe_variation_descendants(
+        int $parent_id,
+        int $depth,
+        array &$family,
+        array &$seen
+    ): void {
+        $children = get_posts( [
+            'post_type'      => self::POST_TYPE,
+            'post_status'    => [ 'publish', 'draft' ],
+            'posts_per_page' => -1,
+            'post_parent'    => $parent_id,
+            'orderby'        => 'title',
+            'order'          => 'ASC',
+        ] );
+
+        foreach ( $children as $child ) {
+            if ( isset( $seen[ $child->ID ] ) ) {
+                continue;
+            }
+            $seen[ $child->ID ] = true;
+            $family[] = [
+                'post'  => $child,
+                'depth' => $depth,
+            ];
+            self::collect_recipe_variation_descendants( (int) $child->ID, $depth + 1, $family, $seen );
+        }
+    }
+
     public function handle_save(): void {
         if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
             wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
@@ -518,6 +628,8 @@ class App extends BaseApp {
         $source_url = isset( $_POST['source_url'] ) ? esc_url_raw( wp_unslash( $_POST['source_url'] ) ) : '';
         $image_url = isset( $_POST['image_url'] ) ? esc_url_raw( wp_unslash( $_POST['image_url'] ) ) : '';
         $notes = isset( $_POST['notes'] ) ? wp_kses_post( wp_unslash( $_POST['notes'] ) ) : '';
+        $parent_id = isset( $_POST['parent_id'] ) ? absint( $_POST['parent_id'] ) : 0;
+        $parent_id = $this->sanitize_recipe_parent_id( $parent_id, $id );
 
         $ingredients = [];
         if ( isset( $_POST['ingredients'] ) && is_array( $_POST['ingredients'] ) ) {
@@ -554,6 +666,7 @@ class App extends BaseApp {
             'post_title'   => $title !== '' ? $title : __( 'Untitled recipe', 'cookbook' ),
             'post_content' => $description,
             'post_author'  => get_current_user_id(),
+            'post_parent'  => $parent_id,
         ];
         if ( $id ) {
             $existing = get_post( $id );
@@ -577,13 +690,21 @@ class App extends BaseApp {
         update_post_meta( $post_id, self::META_SOURCE_URL, $source_url );
         update_post_meta( $post_id, self::META_NOTES, $notes );
 
+        $has_uploaded_image = ! empty( $_FILES['image']['name'] ) && empty( $_FILES['image']['error'] );
+        $copy_thumbnail_from = isset( $_POST['copy_thumbnail_from'] ) ? absint( $_POST['copy_thumbnail_from'] ) : 0;
+        if ( ! $id && $copy_thumbnail_from && $image_url === '' && ! $has_uploaded_image && empty( $_POST['remove_image'] ) ) {
+            $copy_source = get_post( $copy_thumbnail_from );
+            if ( $copy_source && $copy_source->post_type === self::POST_TYPE && has_post_thumbnail( $copy_source->ID ) ) {
+                set_post_thumbnail( $post_id, get_post_thumbnail_id( $copy_source->ID ) );
+            }
+        }
         if ( ! empty( $_POST['remove_image'] ) ) {
             delete_post_thumbnail( $post_id );
         }
         if ( $image_url !== '' ) {
             $this->sideload_image_to_post( $post_id, $image_url );
         }
-        if ( ! empty( $_FILES['image']['name'] ) && empty( $_FILES['image']['error'] ) ) {
+        if ( $has_uploaded_image ) {
             $this->attach_uploaded_image_as_thumbnail( $post_id );
         }
 
@@ -606,6 +727,25 @@ class App extends BaseApp {
 
         wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $post_id ) );
         exit;
+    }
+
+    private function sanitize_recipe_parent_id( int $parent_id, int $post_id = 0 ): int {
+        if ( ! $parent_id ) {
+            return 0;
+        }
+
+        $parent = get_post( $parent_id );
+        if ( ! $parent || $parent->post_type !== self::POST_TYPE ) {
+            return 0;
+        }
+        if ( $post_id && $parent_id === $post_id ) {
+            return 0;
+        }
+        if ( $post_id && self::recipe_is_descendant_of( $parent_id, $post_id ) ) {
+            return 0;
+        }
+
+        return $parent_id;
     }
 
     /**

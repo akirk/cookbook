@@ -44,6 +44,9 @@ $preference  = in_array( $units_param, [ 'metric', 'imperial' ], true )
 $cats     = wp_get_object_terms( $id, App::TAX_CATEGORY );
 $cuisines = wp_get_object_terms( $id, App::TAX_CUISINE );
 $tags     = wp_get_object_terms( $id, App::TAX_TAG );
+$variation_parent = App::get_recipe_variation_parent( $id );
+$variation_root_id = App::get_recipe_variation_root_id( $id );
+$variation_family = App::get_recipe_variation_family( $id );
 
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
 $refetch_status = isset( $_GET['refetch'] ) ? sanitize_text_field( wp_unslash( $_GET['refetch'] ) ) : '';
@@ -89,6 +92,12 @@ include __DIR__ . '/_header.php';
             <a href="<?php echo esc_url( $source_url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( wp_parse_url( $source_url, PHP_URL_HOST ) ?: $source_url ); ?></a>
         </span>
     <?php endif; ?>
+    <?php if ( $variation_parent ) : ?>
+        <span>
+            <?php esc_html_e( 'Variation of:', 'cookbook' ); ?>
+            <a href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $variation_parent->ID ) ); ?>"><?php echo esc_html( get_the_title( $variation_parent ) ); ?></a>
+        </span>
+    <?php endif; ?>
 </div>
 
 <?php if ( ( ! is_wp_error( $cats ) && $cats ) || ( ! is_wp_error( $cuisines ) && $cuisines ) || ( ! is_wp_error( $tags ) && $tags ) ) : ?>
@@ -103,6 +112,50 @@ include __DIR__ . '/_header.php';
         <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/tag/' . $t->slug ) ); ?>">#<?php echo esc_html( $t->name ); ?></a>
     <?php endforeach; ?>
 </p>
+<?php endif; ?>
+
+<?php if ( count( $variation_family ) > 1 ) : ?>
+    <section class="variation-panel" aria-labelledby="recipe-variations-title">
+        <div class="variation-panel-title">
+            <strong id="recipe-variations-title"><?php esc_html_e( 'Recipe variations', 'cookbook' ); ?></strong>
+            <?php if ( $variation_parent ) : ?>
+                <span class="help" style="margin:0">
+                    <?php
+                    printf(
+                        /* translators: %s: parent recipe title */
+                        esc_html__( 'Parent: %s', 'cookbook' ),
+                        esc_html( get_the_title( $variation_parent ) )
+                    );
+                    ?>
+                </span>
+            <?php endif; ?>
+        </div>
+        <ul class="variation-list">
+            <?php foreach ( $variation_family as $variation_item ) :
+                $variation_post = $variation_item['post'];
+                $variation_depth = min( 4, max( 0, (int) $variation_item['depth'] ) );
+                $variation_indent = number_format( $variation_depth * 1.1, 1, '.', '' );
+                $is_current_variation = (int) $variation_post->ID === $id;
+                ?>
+                <li style="margin-left:<?php echo esc_attr( $variation_indent ); ?>rem">
+                    <?php if ( $is_current_variation ) : ?>
+                        <strong><?php echo esc_html( get_the_title( $variation_post ) ); ?></strong>
+                    <?php else : ?>
+                        <a href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $variation_post->ID ) ); ?>"><?php echo esc_html( get_the_title( $variation_post ) ); ?></a>
+                    <?php endif; ?>
+                    <?php if ( (int) $variation_post->ID === $variation_root_id ) : ?>
+                        <span class="badge"><?php esc_html_e( 'base', 'cookbook' ); ?></span>
+                    <?php endif; ?>
+                    <?php if ( $is_current_variation ) : ?>
+                        <span class="badge"><?php esc_html_e( 'current', 'cookbook' ); ?></span>
+                    <?php endif; ?>
+                    <?php if ( $variation_post->post_status === 'draft' ) : ?>
+                        <span class="badge"><?php esc_html_e( 'draft', 'cookbook' ); ?></span>
+                    <?php endif; ?>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    </section>
 <?php endif; ?>
 
 <div class="toolbar">
@@ -137,6 +190,9 @@ include __DIR__ . '/_header.php';
         </form>
     <?php endif; ?>
     <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $id . '/edit' ) ); ?>"><?php esc_html_e( 'Edit', 'cookbook' ); ?></a>
+    <?php if ( current_user_can( 'edit_posts' ) ) : ?>
+        <a class="btn secondary" href="<?php echo esc_url( add_query_arg( 'variation_of', $id, home_url( '/cookbook/new' ) ) ); ?>"><?php esc_html_e( 'Edit as variation', 'cookbook' ); ?></a>
+    <?php endif; ?>
 </div>
 
 <?php if ( $refetch_status === 'ok' ) : ?>

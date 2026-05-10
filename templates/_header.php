@@ -57,6 +57,13 @@ if ( ! defined( 'ABSPATH' ) ) {
         .recipe-card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1rem 1.25rem; margin: 0.75rem 0; display: block; text-decoration: none; color: inherit; }
         .recipe-card h3 { margin: 0 0 0.25rem; }
         .recipe-card .meta { font-size: 0.85rem; }
+        .variation-panel { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.8rem 0.95rem; margin: 1rem 0; }
+        .variation-panel-title { display: flex; gap: 0.5rem; align-items: baseline; justify-content: space-between; margin-bottom: 0.45rem; }
+        .variation-panel-title strong { font-size: 1rem; }
+        .variation-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.25rem; }
+        .variation-list li { display: flex; gap: 0.45rem; align-items: baseline; flex-wrap: wrap; }
+        .variation-list a,
+        .variation-list strong { min-width: 0; overflow-wrap: anywhere; }
         .grid { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
         @media (min-width: 600px) { .grid { grid-template-columns: 1fr 1fr; } }
         label { display: block; margin: 0.75rem 0 0.25rem; font-weight: 600; }

@@ -16,6 +16,7 @@ Built on the [WpApp framework](https://github.com/akirk/wp-app), so the app live
 - **Ingredient tools.** Browse recipes by ingredients you have, allow a configurable number of missing ingredients, browse individual ingredient pages, replace an ingredient from the recipe view, and merge/group/rename ingredient terms.
 - **Shopping list.** Add a recipe's scaled ingredients to your personal shopping list, combine compatible duplicate items, edit the list at home, and use a focused shop mode with large tap targets, hide-checked, undo, and quick add.
 - **Week planner.** Plan breakfast, lunch, and dinner for a week, prefill a recipe into the planner from its recipe page, then add the planned recipes' ingredients to your shopping list.
+- **Recipe variations.** Link recipes as parent/child variations, browse the variation family from parent or child recipe pages, and use **Edit as variation** to create a prefilled child recipe from an existing one.
 - **Recipe editing.** Create recipes manually, edit structured ingredients and instructions, categorize by category/cuisine/tags, add notes, replace photos through file upload or image URL, and remove photos.
 - **Dark mode** via CSS `light-dark()`, respects the WpApp masterbar's dark-mode toggle.
 - **Translatable** with the `cookbook` text domain.
@@ -37,6 +38,7 @@ Then activate **Cookbook** in WordPress and visit `/cookbook/`.
 | -------------------------------- | ------------------------------------------ |
 | `/cookbook/`                     | All recipes                                |
 | `/cookbook/new`                  | Create a recipe                            |
+| `/cookbook/new?variation_of={id}` | Create a prefilled recipe variation        |
 | `/cookbook/import`               | Paste a URL or recipe text to import       |
 | `/cookbook/shopping-list`        | Personal shopping list                     |
 | `/cookbook/planner`              | Weekly meal planner                        |
