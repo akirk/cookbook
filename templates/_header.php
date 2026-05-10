@@ -176,12 +176,18 @@ if ( ! defined( 'ABSPATH' ) ) {
         .planner-day { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.85rem; }
         .planner-day h3 { margin: 0 0 0.75rem; font-size: 1rem; display: flex; justify-content: space-between; gap: 0.75rem; }
         .planner-day h3 span { color: var(--muted); font-weight: 400; }
-        .planner-slot { display: grid; gap: 0.25rem; margin-bottom: 0.65rem; }
+        .planner-slot { display: grid; gap: 0.25rem; margin-bottom: 0.65rem; position: relative; }
         .planner-slot:last-child { margin-bottom: 0; }
         .planner-slot label { margin: 0; font-size: 0.85rem; color: var(--muted); }
         .planner-slot-label { display: flex; gap: 0.4rem; align-items: baseline; }
         .planner-action { background: transparent; border: 0; color: var(--accent); cursor: pointer; font: inherit; font-size: 0.8rem; padding: 0; text-decoration: underline; }
         .planner-slot input[data-copy-highlight] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+        .planner-autocomplete { border: 1px solid var(--line); border-radius: 6px; background: var(--card); box-shadow: 0 6px 18px rgba(0,0,0,0.12); max-height: 14rem; overflow-y: auto; padding: 0.25rem; z-index: 20; }
+        .planner-autocomplete[hidden] { display: none; }
+        .planner-autocomplete-option { display: block; width: 100%; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; font: inherit; padding: 0.5rem 0.6rem; text-align: left; }
+        .planner-autocomplete-option:hover,
+        .planner-autocomplete-option:focus,
+        .planner-autocomplete-option[aria-selected="true"] { background: var(--secondary-bg); color: var(--fg); outline: none; }
         .planner-previous { display: flex; gap: 0.4rem; align-items: baseline; color: var(--muted); font-size: 0.8rem; line-height: 1.35; }
         .planner-stash[hidden] { display: none; }
         .planner-stash-items { display: flex; flex-wrap: wrap; gap: 0.4rem; }
