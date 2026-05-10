@@ -55,6 +55,8 @@ $shopping_status = isset( $_GET['shopping'] ) ? sanitize_text_field( wp_unslash(
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
 $shopping_items = isset( $_GET['items'] ) ? absint( $_GET['items'] ) : 0;
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
+$shopping_household = isset( $_GET['household'] ) ? absint( $_GET['household'] ) : 0;
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
 $replaced = isset( $_GET['replaced'] );
 
 include __DIR__ . '/_header.php';
@@ -205,11 +207,19 @@ include __DIR__ . '/_header.php';
 <?php if ( $shopping_status === 'added' ) : ?>
     <div class="notice success">
         <?php
-        echo esc_html( sprintf(
+        $shopping_message = sprintf(
             /* translators: %d: shopping-list items */
             _n( '%d ingredient added to your shopping list.', '%d ingredients added to your shopping list.', $shopping_items, 'cookbook' ),
             $shopping_items
-        ) );
+        );
+        if ( $shopping_household ) {
+            $shopping_message .= ' ' . sprintf(
+                /* translators: %d: household ingredients */
+                _n( '%d household ingredient listed as at home.', '%d household ingredients listed as at home.', $shopping_household, 'cookbook' ),
+                $shopping_household
+            );
+        }
+        echo esc_html( $shopping_message );
         ?>
     </div>
 <?php endif; ?>
