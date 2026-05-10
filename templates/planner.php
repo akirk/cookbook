@@ -76,6 +76,7 @@ $current_week_start = App::normalize_week_start();
 $is_current_week = $week_start === $current_week_start;
 
 $copy_source_slots = [];
+$copy_inserted_slots = [];
 $copy_source_week_start = $copy_source_param !== '' ? App::normalize_week_start( $copy_source_param ) : '';
 if ( $copy_source_week_start && $is_current_week && $copy_source_week_start !== $week_start ) {
     $source_plan_id = App::get_user_week_plan_id( $copy_source_week_start, false );
@@ -91,7 +92,12 @@ if ( $copy_source_week_start && $is_current_week && $copy_source_week_start !== 
             foreach ( array_keys( $meal_slots ) as $slot ) {
                 $recipe_id = isset( $source_meals[ $source_date ][ $slot ] ) ? absint( $source_meals[ $source_date ][ $slot ] ) : 0;
                 if ( $recipe_id && isset( $recipe_option_values[ $recipe_id ] ) ) {
-                    $copy_source_slots[ 'meal-' . $target_date . '-' . $slot ] = $recipe_id;
+                    $field_id = 'meal-' . $target_date . '-' . $slot;
+                    $copy_source_slots[ $field_id ] = $recipe_id;
+                    $target_recipe_id = isset( $meals[ $target_date ][ $slot ] ) ? absint( $meals[ $target_date ][ $slot ] ) : 0;
+                    if ( ! $target_recipe_id ) {
+                        $copy_inserted_slots[ $field_id ] = true;
+                    }
                 }
             }
         }
@@ -143,6 +149,9 @@ include __DIR__ . '/_header.php';
 <?php if ( $saved ) : ?>
     <div class="notice success"><?php esc_html_e( 'Week planner saved.', 'cookbook' ); ?></div>
 <?php endif; ?>
+<?php if ( $copy_source_slots ) : ?>
+    <div class="notice"><?php esc_html_e( 'Review the copied week, then save the week to keep it.', 'cookbook' ); ?></div>
+<?php endif; ?>
 <?php if ( $shopping_status === 'added' ) : ?>
     <div class="notice success">
         <?php
@@ -177,7 +186,6 @@ include __DIR__ . '/_header.php';
     action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
     id="planner-form"
     data-pending-recipe="<?php echo (int) $pending_recipe_id; ?>"
-    data-stash-key="cookbook.plannerStash"
 >
     <?php wp_nonce_field( 'cookbook_save_planner' ); ?>
     <input type="hidden" name="action" value="cookbook_save_planner">
@@ -197,7 +205,8 @@ include __DIR__ . '/_header.php';
                     $field_id = 'meal-' . $date . '-' . $slot;
                     $hidden_id = 'meal-id-' . $date . '-' . $slot;
                     $copied_recipe_id = isset( $copy_source_slots[ $field_id ] ) ? absint( $copy_source_slots[ $field_id ] ) : 0;
-                    $is_copied_change = $copied_recipe_id && $copied_recipe_id !== $selected;
+                    $has_copied_change = $copied_recipe_id && $copied_recipe_id !== $selected;
+                    $is_copy_inserted = isset( $copy_inserted_slots[ $field_id ] );
                     ?>
                     <div class="planner-slot">
                         <div class="planner-slot-label">
@@ -235,13 +244,13 @@ include __DIR__ . '/_header.php';
                             data-meal-input
                             data-hidden-id="<?php echo esc_attr( $hidden_id ); ?>"
                             data-slot="<?php echo esc_attr( $slot ); ?>"
-                            <?php if ( $is_copied_change ) : ?>
+                            <?php if ( $is_copy_inserted ) : ?>
                                 data-copy-highlight
                             <?php endif; ?>
                             autocomplete="off"
                         >
                         <input id="<?php echo esc_attr( $hidden_id ); ?>" type="hidden" name="meals[<?php echo esc_attr( $date ); ?>][<?php echo esc_attr( $slot ); ?>]" value="<?php echo (int) $selected; ?>">
-                        <?php if ( $is_copied_change && $selected && $selected_value ) : ?>
+                        <?php if ( $has_copied_change && $selected && $selected_value ) : ?>
                             <div
                                 class="planner-previous"
                                 data-copy-previous
@@ -312,9 +321,10 @@ include __DIR__ . '/_header.php';
     if (!form) return;
     const recipes = <?php echo wp_json_encode( $recipe_lookup ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Encoded as JSON for local planner autocomplete. ?>;
     const copySourceSlots = <?php echo wp_json_encode( $copy_source_slots ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Encoded as JSON for local planner copy preview. ?>;
+    const copyInsertedSlots = <?php echo wp_json_encode( $copy_inserted_slots ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Encoded as JSON for local planner copy preview. ?>;
     const valueToId = new Map(recipes.map(recipe => [recipe.value, String(recipe.id)]));
     const idToValue = new Map(recipes.map(recipe => [String(recipe.id), recipe.value]));
-    const stashStorageKey = form.dataset.stashKey || '';
+    const stashStorageKey = 'cookbook.plannerStash';
     const stashPanel = form.querySelector('[data-planner-stash]');
     const stashItems = form.querySelector('[data-planner-stash-items]');
     const clearStash = form.querySelector('[data-planner-clear-stash]');
@@ -507,6 +517,11 @@ include __DIR__ . '/_header.php';
             if (!Object.prototype.hasOwnProperty.call(copySourceSlots, input.id)) return;
             const incoming = itemFromId(copySourceSlots[input.id]);
             setSlot(input, incoming);
+            if (Object.prototype.hasOwnProperty.call(copyInsertedSlots, input.id)) {
+                input.dataset.copyHighlight = '1';
+            } else {
+                delete input.dataset.copyHighlight;
+            }
         });
         renderStash();
         updateSlotActions();
