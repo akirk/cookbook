@@ -32,8 +32,8 @@ if ( ! defined( 'ABSPATH' ) ) {
             --input-border: light-dark(var(--wp-app-color-border, #dcdcde), #444);
             --secondary-bg: light-dark(var(--wp-app-color-secondary, #f0f0f1), #2a2a2a);
             --secondary-fg: light-dark(var(--wp-app-color-secondary-text, #1d2327), #ddd);
-            --notice-bg:    light-dark(#fff5e0, #3a2f15);
-            --notice-bd:    light-dark(#f0d8a0, #6b552a);
+            --notice-bg:    light-dark(var(--wp-app-color-secondary, #f0f0f1), #2a2a2a);
+            --notice-bd:    light-dark(var(--wp-app-color-border, #dcdcde), #444);
             --error-bg:     light-dark(#fdecea, #3d2424);
             --error-bd:     light-dark(#f5c2bd, #7a3a3a);
             --success-bg:   light-dark(#e8f5e9, #1f3621);
