@@ -263,8 +263,8 @@ class App extends BaseApp {
         wp_register_ability(
             'cookbook/create-recipe',
             [
-                'label'               => __( 'Create Cookbook Recipe', 'cookbook' ),
-                'description'         => __( 'Creates a structured Cookbook recipe from provided fields.', 'cookbook' ),
+                'label'               => __( 'Create or Update Cookbook Recipe', 'cookbook' ),
+                'description'         => __( 'Creates a structured Cookbook recipe, or updates an existing recipe when an ID is provided.', 'cookbook' ),
                 'category'            => 'cookbook',
                 'input_schema'        => self::recipe_create_input_schema(),
                 'output_schema'       => self::recipe_output_schema(),
@@ -272,7 +272,7 @@ class App extends BaseApp {
                 'permission_callback' => [ $this, 'can_edit_abilities' ],
                 'meta'                => [
                     'annotations'  => [
-                        'instructions' => __( 'Use this when the user asks to create a brand-new structured recipe. Prefer create-recipe-variation when adapting an existing recipe. After creation, link the result using view_url.', 'cookbook' ),
+                        'instructions' => __( 'Use this when the user asks to create a brand-new structured recipe or update fields on a known Cookbook recipe. To add or replace a recipe photo, pass the existing recipe id with image_url. Prefer create-recipe-variation when adapting an existing recipe into a new variation. Link the result using view_url.', 'cookbook' ),
                         'readonly'    => false,
                         'destructive' => false,
                         'idempotent'  => false,
@@ -466,6 +466,11 @@ class App extends BaseApp {
      */
     public function ability_create_recipe( $input = [] ) {
         $input     = is_array( $input ) ? $input : [];
+        $id        = isset( $input['id'] ) ? absint( $input['id'] ) : 0;
+        if ( $id ) {
+            return $this->update_recipe_from_ability_input( $id, $input );
+        }
+
         $parent_id = isset( $input['parent_id'] ) ? absint( $input['parent_id'] ) : 0;
         $parent_id = $this->sanitize_recipe_parent_id( $parent_id );
 
@@ -686,6 +691,76 @@ class App extends BaseApp {
         }
 
         return $this->get_recipe_payload( $post_id, true );
+    }
+
+    private function update_recipe_from_ability_input( int $id, array $input ) {
+        $post = get_post( $id );
+        if ( ! $post || $post->post_type !== self::POST_TYPE ) {
+            return new \WP_Error( 'cookbook_recipe_not_found', __( 'Recipe not found.', 'cookbook' ) );
+        }
+        if ( ! current_user_can( 'edit_post', $id ) ) {
+            return new \WP_Error( 'cookbook_recipe_not_allowed', __( 'Not allowed to edit this recipe.', 'cookbook' ) );
+        }
+
+        $postarr = [ 'ID' => $id ];
+        if ( array_key_exists( 'title', $input ) ) {
+            $title = $this->ability_text_input( $input, 'title', get_the_title( $post ) );
+            $postarr['post_title'] = $title !== '' ? $title : __( 'Untitled recipe', 'cookbook' );
+        }
+        if ( array_key_exists( 'description', $input ) ) {
+            $postarr['post_content'] = $this->ability_html_input( $input, 'description', $post->post_content );
+        }
+        if ( array_key_exists( 'parent_id', $input ) ) {
+            $postarr['post_parent'] = $this->sanitize_recipe_parent_id( absint( $input['parent_id'] ), $id );
+        }
+        if ( array_key_exists( 'status', $input ) ) {
+            $status = sanitize_key( (string) $input['status'] );
+            if ( in_array( $status, [ 'draft', 'publish' ], true ) ) {
+                $postarr['post_status'] = $status === 'publish' && ! current_user_can( 'publish_posts' ) ? 'draft' : $status;
+            }
+        }
+
+        if ( count( $postarr ) > 1 ) {
+            $updated = wp_update_post( $postarr, true );
+            if ( is_wp_error( $updated ) ) {
+                return $updated;
+            }
+        }
+
+        if ( array_key_exists( 'servings', $input ) ) {
+            update_post_meta( $id, self::META_SERVINGS, $this->ability_positive_int_input( $input, 'servings', 4, 1 ) );
+        }
+        if ( array_key_exists( 'prep_time', $input ) ) {
+            update_post_meta( $id, self::META_PREP, $this->ability_positive_int_input( $input, 'prep_time', 0, 0 ) );
+        }
+        if ( array_key_exists( 'cook_time', $input ) ) {
+            update_post_meta( $id, self::META_COOK, $this->ability_positive_int_input( $input, 'cook_time', 0, 0 ) );
+        }
+        if ( array_key_exists( 'ingredients', $input ) && is_array( $input['ingredients'] ) ) {
+            $this->persist_ingredients( $id, $this->sanitize_recipe_ingredient_rows( $input['ingredients'] ) );
+        }
+        if ( array_key_exists( 'instructions', $input ) && is_array( $input['instructions'] ) ) {
+            update_post_meta( $id, self::META_INSTRUCTIONS, $this->sanitize_recipe_instruction_rows( $input['instructions'] ) );
+        }
+        if ( array_key_exists( 'source_url', $input ) ) {
+            update_post_meta( $id, self::META_SOURCE_URL, esc_url_raw( (string) $input['source_url'] ) );
+        }
+        if ( array_key_exists( 'notes', $input ) ) {
+            update_post_meta( $id, self::META_NOTES, $this->ability_html_input( $input, 'notes', '' ) );
+        }
+
+        $this->set_or_copy_ability_terms( $id, $input, 'categories', self::TAX_CATEGORY );
+        $this->set_or_copy_ability_terms( $id, $input, 'cuisines', self::TAX_CUISINE );
+        $this->set_or_copy_ability_terms( $id, $input, 'tags', self::TAX_TAG );
+
+        $image_url = isset( $input['image_url'] ) ? esc_url_raw( (string) $input['image_url'] ) : '';
+        if ( $image_url !== '' ) {
+            $this->sideload_image_to_post( $id, $image_url );
+        }
+
+        $this->save_recipe_revision_snapshot( $id );
+
+        return $this->get_recipe_payload( $id, true );
     }
 
     private function week_plan_payload( string $week_start, int $plan_id = 0 ): array {
@@ -1060,10 +1135,16 @@ class App extends BaseApp {
     }
 
     private static function recipe_create_input_schema(): array {
+        $properties = self::recipe_create_input_properties();
+        $properties['id'] = [
+            'type'        => 'integer',
+            'description' => __( 'Existing recipe post ID to update. Omit to create a new recipe.', 'cookbook' ),
+            'minimum'     => 1,
+        ];
+
         return [
             'type'                 => 'object',
-            'required'             => [ 'title' ],
-            'properties'           => self::recipe_create_input_properties(),
+            'properties'           => $properties,
             'additionalProperties' => false,
         ];
     }
