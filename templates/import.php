@@ -33,7 +33,7 @@ include __DIR__ . '/_header.php';
     .preview-section-head { width: 100%; display: grid; grid-template-columns: 1rem 1fr auto 1rem; gap: 0.5rem; align-items: center; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; font: inherit; cursor: pointer; }
     .preview-checkbox { width: 0.85rem; height: 0.85rem; border: 1px solid var(--input-border); border-radius: 3px; background: var(--input-bg); position: relative; box-sizing: border-box; }
     .preview-section[data-state="ok"] .preview-checkbox { background: var(--accent); border-color: var(--accent); }
-    .preview-section[data-state="ok"] .preview-checkbox::after { content: ""; position: absolute; left: 0.24rem; top: 0.08rem; width: 0.25rem; height: 0.5rem; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+    .preview-section[data-state="ok"] .preview-checkbox::after { content: ""; position: absolute; left: 0.24rem; top: 0.08rem; width: 0.25rem; height: 0.5rem; border: solid var(--accent-fg); border-width: 0 2px 2px 0; transform: rotate(45deg); }
     .preview-section-label { font-weight: 700; }
     .preview-section-status { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
     .preview-section[data-state="ok"] .preview-section-status { color: var(--fg); }
