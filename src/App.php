@@ -41,6 +41,7 @@ class App extends BaseApp {
 
     const USER_PREF_UNITS = 'cookbook_unit_preference';
     const USER_HOUSEHOLD_INGREDIENTS = 'cookbook_household_ingredient_ids';
+    const HOME_INGREDIENT_STATS_TRANSIENT = 'cookbook_home_ingredient_stats_v1';
 
     const MEAL_SLOTS = [ 'breakfast', 'lunch', 'dinner' ];
 
@@ -81,6 +82,7 @@ class App extends BaseApp {
         add_action( 'admin_post_cookbook_rename_ingredient', [ $this, 'handle_rename_ingredient' ] );
         add_action( 'wp_ajax_cookbook_parse_url', [ $this, 'ajax_parse_url' ] );
         add_action( 'wp_ajax_cookbook_parse_text', [ $this, 'ajax_parse_text' ] );
+        add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
 
         add_action( 'wp_loaded', [ $this, 'handle_extension_save' ], 100 );
         add_filter( 'friends_browser_extension_actions', [ $this, 'register_browser_extension_action' ] );
@@ -89,6 +91,11 @@ class App extends BaseApp {
         add_action( 'wp_abilities_api_init', [ $this, 'register_abilities' ] );
         add_filter( 'ai_assistant_ability_domains', [ $this, 'register_ability_domains' ] );
         add_filter( 'ai_assistant_ability_instructions', [ $this, 'ability_result_instructions' ], 10, 4 );
+        add_action( 'set_object_terms', [ self::class, 'maybe_flush_home_ingredient_stats_cache_for_terms' ], 10, 6 );
+        add_action( 'created_' . self::TAX_INGREDIENT, [ self::class, 'flush_home_ingredient_stats_cache' ] );
+        add_action( 'edited_' . self::TAX_INGREDIENT, [ self::class, 'flush_home_ingredient_stats_cache' ] );
+        add_action( 'delete_' . self::TAX_INGREDIENT, [ self::class, 'flush_home_ingredient_stats_cache' ] );
+        add_action( 'transition_post_status', [ self::class, 'maybe_flush_home_ingredient_stats_cache_for_status' ], 10, 3 );
 
         parent::init();
     }
@@ -1684,6 +1691,110 @@ class App extends BaseApp {
             'show_admin_column' => false,
             'rewrite'           => false,
         ] );
+    }
+
+    public function register_rest_routes(): void {
+        register_rest_route( 'cookbook/v1', '/home-ingredients', [
+            'methods'             => \WP_REST_Server::READABLE,
+            'callback'            => [ $this, 'rest_home_ingredients' ],
+            'permission_callback' => function() {
+                return is_user_logged_in();
+            },
+        ] );
+    }
+
+    public function rest_home_ingredients(): array {
+        $stats = self::get_home_ingredient_stats();
+
+        return [
+            'count'       => (int) $stats['count'],
+            'count_label' => sprintf(
+                /* translators: %d: number of ingredients */
+                _n( '%d ingredient', '%d ingredients', (int) $stats['count'], 'cookbook' ),
+                (int) $stats['count']
+            ),
+            'terms'       => $stats['top_terms'],
+            'all_url'     => home_url( '/cookbook/by-ingredients' ),
+            'all_label'   => __( 'all ingredients →', 'cookbook' ),
+        ];
+    }
+
+    public static function get_home_ingredient_stats(): array {
+        $cached = get_transient( self::HOME_INGREDIENT_STATS_TRANSIENT );
+        if (
+            is_array( $cached )
+            && isset( $cached['version'], $cached['top_terms'], $cached['count'] )
+            && 1 === (int) $cached['version']
+            && is_array( $cached['top_terms'] )
+        ) {
+            return [
+                'top_terms' => $cached['top_terms'],
+                'count'     => (int) $cached['count'],
+            ];
+        }
+
+        $top_terms = get_terms( [
+            'taxonomy'     => self::TAX_INGREDIENT,
+            'hide_empty'   => true,
+            'hierarchical' => false,
+            'orderby'      => 'count',
+            'order'        => 'DESC',
+            'number'       => 24,
+        ] );
+        if ( is_wp_error( $top_terms ) ) {
+            $top_terms = [];
+        }
+
+        $top_count = 0;
+        foreach ( $top_terms as $term ) {
+            $top_count = max( $top_count, (int) $term->count );
+        }
+        $top_terms = array_map( function( $term ) use ( $top_count ) {
+            $weight = $top_count > 0 ? sqrt( (int) $term->count / $top_count ) : 0;
+
+            return [
+                'id'        => (int) $term->term_id,
+                'name'      => (string) $term->name,
+                'slug'      => (string) $term->slug,
+                'count'     => (int) $term->count,
+                'font_size' => number_format( 0.85 + $weight * 0.6, 2, '.', '' ),
+                'url'       => add_query_arg( [ 'have' => [ (int) $term->term_id ] ], home_url( '/cookbook/by-ingredients' ) ),
+            ];
+        }, $top_terms );
+
+        $count = wp_count_terms( [
+            'taxonomy'     => self::TAX_INGREDIENT,
+            'hide_empty'   => true,
+            'hierarchical' => false,
+        ] );
+        if ( is_wp_error( $count ) ) {
+            $count = count( $top_terms );
+        }
+
+        $stats = [
+            'version'   => 1,
+            'top_terms' => $top_terms,
+            'count'     => (int) $count,
+        ];
+        set_transient( self::HOME_INGREDIENT_STATS_TRANSIENT, $stats, 12 * HOUR_IN_SECONDS );
+
+        return $stats;
+    }
+
+    public static function flush_home_ingredient_stats_cache( ...$args ): void {
+        delete_transient( self::HOME_INGREDIENT_STATS_TRANSIENT );
+    }
+
+    public static function maybe_flush_home_ingredient_stats_cache_for_terms( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ): void {
+        if ( $taxonomy === self::TAX_INGREDIENT ) {
+            self::flush_home_ingredient_stats_cache();
+        }
+    }
+
+    public static function maybe_flush_home_ingredient_stats_cache_for_status( string $new_status, string $old_status, \WP_Post $post ): void {
+        if ( $new_status !== $old_status && $post->post_type === self::POST_TYPE ) {
+            self::flush_home_ingredient_stats_cache();
+        }
     }
 
     public static function get_user_unit_preference( int $user_id = 0 ): string {

@@ -45,28 +45,6 @@ $categories = get_terms( [
     'hide_empty' => true,
 ] );
 
-$top_ingredients = $is_searching ? [] : get_terms( [
-    'taxonomy'   => App::TAX_INGREDIENT,
-    'hide_empty' => true,
-    'orderby'    => 'count',
-    'order'      => 'DESC',
-    'number'     => 24,
-] );
-if ( is_wp_error( $top_ingredients ) ) {
-    $top_ingredients = [];
-}
-$top_ingredient_max = 0;
-foreach ( $top_ingredients as $t ) { $top_ingredient_max = max( $top_ingredient_max, (int) $t->count ); }
-$ingredient_count = 0;
-if ( ! $is_searching ) {
-    $ingredient_ids = get_terms( [
-        'taxonomy'   => App::TAX_INGREDIENT,
-        'hide_empty' => true,
-        'fields'     => 'ids',
-    ] );
-    $ingredient_count = is_wp_error( $ingredient_ids ) ? 0 : count( $ingredient_ids );
-}
-
 $shopping_items_count = 0;
 $shopping_list_id = App::get_current_user_shopping_list_id( false );
 if ( $shopping_list_id ) {
@@ -143,6 +121,7 @@ include __DIR__ . '/_header.php';
     .home-today-head { display: flex; gap: 0.75rem; align-items: baseline; justify-content: space-between; }
     .home-today-head h2 { margin: 0; }
     .home-today-head a { white-space: nowrap; }
+    .home-ingredients[hidden] { display: none; }
     @media (min-width: 720px) { .home-tools { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } }
 </style>
@@ -189,13 +168,9 @@ include __DIR__ . '/_header.php';
         </a>
         <a class="home-tool" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>">
             <strong><?php esc_html_e( 'By ingredients', 'cookbook' ); ?></strong>
-            <span>
+            <span id="home-ingredient-count">
                 <?php
-                echo esc_html( sprintf(
-                    /* translators: %d: number of ingredients */
-                    _n( '%d ingredient', '%d ingredients', $ingredient_count, 'cookbook' ),
-                    $ingredient_count
-                ) );
+                esc_html_e( 'Open', 'cookbook' );
                 ?>
             </span>
         </a>
@@ -295,7 +270,7 @@ include __DIR__ . '/_header.php';
                     $servings  = (int) get_post_meta( $r->ID, App::META_SERVINGS, true );
                     $prep      = (int) get_post_meta( $r->ID, App::META_PREP, true );
                     $cook      = (int) get_post_meta( $r->ID, App::META_COOK, true );
-                    $cui_terms = wp_get_object_terms( $r->ID, App::TAX_CUISINE );
+                    $cui_terms = get_the_terms( $r, App::TAX_CUISINE );
                     $is_draft  = $r->post_status === 'draft';
                     ?>
                     <li>
@@ -341,21 +316,72 @@ include __DIR__ . '/_header.php';
     <?php endforeach; ?>
 <?php endif; ?>
 
-<?php if ( $top_ingredients ) : ?>
-    <h2 style="margin-top:1.75rem"><?php esc_html_e( 'Browse by ingredient', 'cookbook' ); ?></h2>
-    <div class="ingredient-cloud">
-        <?php foreach ( $top_ingredients as $t ) :
-            $weight = $top_ingredient_max > 0 ? sqrt( (int) $t->count / $top_ingredient_max ) : 0;
-            $size   = 0.85 + $weight * 0.6;
-            $href   = add_query_arg( [ 'have' => [ (int) $t->term_id ] ], home_url( '/cookbook/by-ingredients' ) );
-            ?>
-            <a class="ing-chip" href="<?php echo esc_url( $href ); ?>" style="font-size:<?php echo esc_attr( number_format( $size, 2, '.', '' ) ); ?>rem">
-                <span><?php echo esc_html( $t->name ); ?></span>
-                <span class="ing-chip-count"><?php echo (int) $t->count; ?></span>
-            </a>
-        <?php endforeach; ?>
-        <a class="ing-chip" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>" style="font-size:0.85rem"><?php esc_html_e( 'all ingredients →', 'cookbook' ); ?></a>
-    </div>
+<?php if ( ! $is_searching ) : ?>
+    <section class="home-ingredients" id="home-ingredients" hidden>
+        <h2 style="margin-top:1.75rem"><?php esc_html_e( 'Browse by ingredient', 'cookbook' ); ?></h2>
+        <div class="ingredient-cloud" data-home-ingredient-cloud></div>
+    </section>
+    <script>
+    (function () {
+        var config = <?php echo wp_json_encode( [
+            'endpoint'      => rest_url( 'cookbook/v1/home-ingredients' ),
+            'nonce'         => wp_create_nonce( 'wp_rest' ),
+            'fallbackLabel' => __( 'Open', 'cookbook' ),
+        ] ); ?>;
+        var countEl = document.getElementById('home-ingredient-count');
+        var section = document.getElementById('home-ingredients');
+        var cloud = section ? section.querySelector('[data-home-ingredient-cloud]') : null;
+
+        if ( ! window.fetch ) return;
+
+        fetch(config.endpoint, {
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'X-WP-Nonce': config.nonce
+            }
+        }).then(function (response) {
+            if ( ! response.ok ) throw new Error('Ingredient request failed');
+            return response.json();
+        }).then(function (data) {
+            if (countEl) {
+                countEl.textContent = data.count_label || config.fallbackLabel;
+            }
+            if ( ! section || ! cloud || ! Array.isArray(data.terms) || ! data.terms.length ) {
+                return;
+            }
+
+            data.terms.forEach(function (term) {
+                var link = document.createElement('a');
+                link.className = 'ing-chip';
+                link.href = term.url;
+                link.style.fontSize = term.font_size + 'rem';
+
+                var name = document.createElement('span');
+                name.textContent = term.name;
+                link.appendChild(name);
+
+                var count = document.createElement('span');
+                count.className = 'ing-chip-count';
+                count.textContent = term.count;
+                link.appendChild(count);
+
+                cloud.appendChild(link);
+            });
+
+            var all = document.createElement('a');
+            all.className = 'ing-chip';
+            all.href = data.all_url;
+            all.style.fontSize = '0.85rem';
+            all.textContent = data.all_label;
+            cloud.appendChild(all);
+
+            section.hidden = false;
+        }).catch(function () {
+            if (countEl) countEl.textContent = config.fallbackLabel;
+        });
+    })();
+    </script>
 <?php endif; ?>
 
 <?php include __DIR__ . '/_footer.php'; ?>
