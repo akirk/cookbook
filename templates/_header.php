@@ -19,24 +19,29 @@ if ( ! defined( 'ABSPATH' ) ) {
     <style>
         :root {
             color-scheme: light dark;
-            --bg:    light-dark(#fff,    #1a1a1a);
-            --fg:    light-dark(#1e1e1e, #ececec);
-            --muted: light-dark(#666,    #a8a8a8);
-            --line:  light-dark(#e5e5e5, #333);
-            --accent: light-dark(#b8541b, #e0763a);
-            --card:  light-dark(#faf7f2, #232323);
-            --input-bg:     light-dark(#fff, #1a1a1a);
-            --input-border: light-dark(#bbb, #444);
-            --secondary-bg: light-dark(#eee, #2a2a2a);
-            --secondary-fg: light-dark(#333, #ddd);
+            --bg:    light-dark(var(--wp-app-color-background, #f6f7f7), #1a1a1a);
+            --fg:    light-dark(var(--wp-app-color-text, #1d2327), #ececec);
+            --muted: light-dark(var(--wp-app-color-muted, #646970), #a8a8a8);
+            --line:  light-dark(var(--wp-app-color-border, #dcdcde), #333);
+            --accent: var(--wp-app-color-primary, #3858e9);
+            --accent-hover: var(--wp-app-color-primary-hover, var(--wp-app-color-accent, var(--accent)));
+            --accent-highlight: var(--wp-app-admin-color-accent, var(--accent-hover));
+            --accent-fg: #fff;
+            --card:  light-dark(var(--wp-app-color-surface, #fff), #232323);
+            --input-bg:     light-dark(var(--wp-app-color-surface, #fff), #1a1a1a);
+            --input-border: light-dark(var(--wp-app-color-border, #dcdcde), #444);
+            --secondary-bg: light-dark(var(--wp-app-color-secondary, #f0f0f1), #2a2a2a);
+            --secondary-fg: light-dark(var(--wp-app-color-secondary-text, #1d2327), #ddd);
             --notice-bg:    light-dark(#fff5e0, #3a2f15);
             --notice-bd:    light-dark(#f0d8a0, #6b552a);
             --error-bg:     light-dark(#fdecea, #3d2424);
             --error-bd:     light-dark(#f5c2bd, #7a3a3a);
             --success-bg:   light-dark(#e8f5e9, #1f3621);
             --success-bd:   light-dark(#b6dab8, #3f6b42);
-            --fresh:        light-dark(#18a558, #37c978);
-            --household:    light-dark(#2f6f73, #49a9ae);
+            --fresh:        var(--accent);
+            --fresh-fg:     var(--accent-fg);
+            --household:    var(--accent-highlight);
+            --household-fg: var(--accent-fg);
             --cookbook-masterbar-height: var(--wp-admin--admin-bar--height, 32px);
             --cookbook-sticky-gap: 0.5rem;
         }
@@ -45,19 +50,21 @@ if ( ! defined( 'ABSPATH' ) ) {
         :root[data-theme="light"] { color-scheme: light; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; line-height: 1.55; color: var(--fg); background: var(--bg); margin: 0; }
         a { color: var(--accent); }
+        a:hover, a:focus { color: var(--accent-hover); }
         main { max-width: 820px; margin: 1.5rem auto; padding: 0 1rem 4rem; }
         h1 { margin: 0 0 0.25rem; font-size: 2rem; }
         h2 { margin: 1.5rem 0 0.5rem; font-size: 1.3rem; border-bottom: 1px solid var(--line); padding-bottom: 0.25rem; }
         .subtitle { color: var(--muted); margin: 0 0 1rem; }
         .toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin: 1rem 0; }
         .toolbar .spacer { flex: 1; }
-        .btn, button.btn, input[type="submit"].btn { display: inline-block; background: var(--accent); color: #fff; border: 0; padding: 0.5rem 0.9rem; border-radius: 4px; text-decoration: none; font: inherit; cursor: pointer; }
+        .btn, button.btn, input[type="submit"].btn { display: inline-block; background: var(--accent); color: var(--accent-fg); border: 0; padding: 0.5rem 0.9rem; border-radius: 4px; text-decoration: none; font: inherit; cursor: pointer; }
+        .btn:hover, .btn:focus, button.btn:hover, button.btn:focus, input[type="submit"].btn:hover, input[type="submit"].btn:focus { background: var(--accent-hover); color: var(--accent-fg); }
         .btn.secondary { background: var(--secondary-bg); color: var(--secondary-fg); }
         .btn.danger { background: #b32d2e; color: #fff; }
-        .btn.fresh { background: var(--fresh); color: #fff; }
-        .btn.household { background: var(--household); color: #fff; }
+        .btn.fresh { background: var(--fresh); color: var(--fresh-fg); }
+        .btn.household { background: var(--household); color: var(--household-fg); }
         .meta { display: flex; gap: 1rem; color: var(--muted); font-size: 0.9rem; flex-wrap: wrap; }
-        .badge { display: inline-block; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.85rem; color: #555; margin-right: 0.25rem; text-decoration: none; }
+        .badge { display: inline-block; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.85rem; color: var(--muted); margin-right: 0.25rem; text-decoration: none; }
         .recipe-card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1rem 1.25rem; margin: 0.75rem 0; display: block; text-decoration: none; color: inherit; }
         .recipe-card h3 { margin: 0 0 0.25rem; }
         .recipe-card .meta { font-size: 0.85rem; }
@@ -140,14 +147,14 @@ if ( ! defined( 'ABSPATH' ) ) {
         .portion-control input { width: 4.5rem; }
         .unit-toggle { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 0.25rem; }
         .unit-toggle button { background: transparent; border: 0; padding: 0.3rem 0.6rem; cursor: pointer; border-radius: 3px; }
-        .unit-toggle button.active { background: var(--accent); color: #fff; }
+        .unit-toggle button.active { background: var(--accent); color: var(--accent-fg); }
         .ingredient-cloud { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 1rem 0; line-height: 1.4; }
         .ing-chip { display: inline-flex; align-items: baseline; gap: 0.35rem; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 0.2rem 0.7rem; cursor: pointer; user-select: none; text-decoration: none; color: inherit; transition: background 0.1s, border-color 0.1s; }
         .ing-chip:hover { border-color: var(--accent); }
-        .ing-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .ing-chip.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
         .ing-chip input { position: absolute; opacity: 0; pointer-events: none; }
         .ing-chip-count { color: var(--muted); font-size: 0.8em; }
-        .ing-chip.on .ing-chip-count { color: rgba(255,255,255,0.8); }
+        .ing-chip.on .ing-chip-count { color: color-mix(in srgb, var(--accent-fg) 78%, transparent); }
         .page-head { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; }
         .page-head h1 { margin-top: 0; }
         .page-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
@@ -206,7 +213,7 @@ if ( ! defined( 'ABSPATH' ) ) {
         .planner-previous { display: flex; gap: 0.4rem; align-items: baseline; color: var(--muted); font-size: 0.8rem; line-height: 1.35; }
         .planner-stash[hidden] { display: none; }
         .planner-stash-items { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-        .planner-stash-item { display: inline-flex; gap: 0.25rem; align-items: center; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--muted); font: inherit; font-size: 0.85rem; padding: 0.15rem 0.25rem 0.15rem 0.55rem; }
+        .planner-stash-item { display: inline-flex; gap: 0.25rem; align-items: center; border: 1px solid var(--line); border-radius: 4px; background: var(--input-bg); color: var(--muted); font: inherit; font-size: 0.85rem; padding: 0.15rem 0.25rem 0.15rem 0.55rem; }
         .planner-stash-item.is-selected { border-color: var(--accent); color: var(--accent); }
         .planner-stash-select,
         .planner-stash-remove { background: transparent; border: 0; color: inherit; cursor: pointer; font: inherit; padding: 0; }
@@ -254,6 +261,6 @@ if ( ! defined( 'ABSPATH' ) ) {
         }
     </style>
 </head>
-<body>
+<body class="wp-app-body">
     <?php wp_app_body_open(); ?>
     <main>
