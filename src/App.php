@@ -379,7 +379,7 @@ class App extends BaseApp {
                     'annotations'  => [
                         'instructions' => __( 'Use this when the user asks to add, move, clear, or replace recipes in their week planner. This can clear slots with recipe ID 0 or replace the whole week when replace is true, so confirm ambiguous planner edits before executing.', 'cookbook' ),
                         'readonly'    => false,
-                        'destructive' => true,
+                        'destructive' => false,
                         'idempotent'  => true,
                     ],
                     'show_in_rest' => true,
