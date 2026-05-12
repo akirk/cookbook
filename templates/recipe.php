@@ -151,9 +151,6 @@ include __DIR__ . '/_header.php';
                     <?php if ( $is_current_variation ) : ?>
                         <span class="badge"><?php esc_html_e( 'current', 'cookbook' ); ?></span>
                     <?php endif; ?>
-                    <?php if ( $variation_post->post_status === 'draft' ) : ?>
-                        <span class="badge"><?php esc_html_e( 'draft', 'cookbook' ); ?></span>
-                    <?php endif; ?>
                 </li>
             <?php endforeach; ?>
         </ul>

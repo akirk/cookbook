@@ -29,7 +29,7 @@ $has_query = $have_ids !== [];
 if ( $has_query ) {
     $candidates = get_posts( [
         'post_type'      => App::POST_TYPE,
-        'post_status'    => [ 'publish', 'draft' ],
+        'post_status'    => 'publish',
         'posts_per_page' => -1,
         'orderby'        => 'title',
         'order'          => 'ASC',
@@ -147,7 +147,6 @@ include __DIR__ . '/_header.php';
             $total    = $row['total'];
             $missing  = $row['missing'];
             $is_full  = ! $missing;
-            $is_draft = $r->post_status === 'draft';
             ?>
             <a class="recipe-card" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>" style="<?php echo has_post_thumbnail( $r->ID ) ? 'display:flex;gap:0.9rem;align-items:flex-start' : ''; ?>">
                 <?php if ( has_post_thumbnail( $r->ID ) ) : ?>
@@ -158,7 +157,6 @@ include __DIR__ . '/_header.php';
                     <div style="flex:1;min-width:0">
                 <?php endif; ?>
                 <h3><?php echo esc_html( get_the_title( $r ) ); ?>
-                    <?php if ( $is_draft ) : ?><span class="badge"><?php esc_html_e( 'draft', 'cookbook' ); ?></span><?php endif; ?>
                     <?php if ( $is_full ) : ?><span class="badge" style="background:var(--success-bg);border-color:var(--success-bd)"><?php esc_html_e( 'have everything', 'cookbook' ); ?></span><?php endif; ?>
                 </h3>
                 <div class="meta">
