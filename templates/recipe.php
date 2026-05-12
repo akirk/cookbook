@@ -362,6 +362,7 @@ include __DIR__ . '/_header.php';
                         <span id="cook-step-done-count"></span>
                     </div>
                     <progress id="cook-step-progress" value="1" max="<?php echo (int) count( $clean_instructions ); ?>"></progress>
+                    <p class="help" style="margin:0"><?php esc_html_e( 'Shortcuts: Space or Right arrow for next, Left arrow for previous, Escape to exit.', 'cookbook' ); ?></p>
                 </div>
 
                 <div class="cook-active-step" id="cook-active-step" tabindex="-1"></div>
@@ -372,8 +373,8 @@ include __DIR__ . '/_header.php';
                         <?php esc_html_e( 'Step done', 'cookbook' ); ?>
                     </label>
                     <div class="cook-mode-nav-group">
-                        <button class="btn secondary" type="button" id="cook-prev-step"><?php esc_html_e( 'Previous', 'cookbook' ); ?></button>
-                        <button class="btn" type="button" id="cook-next-step"><?php esc_html_e( 'Next', 'cookbook' ); ?></button>
+                        <button class="btn secondary" type="button" id="cook-prev-step" aria-keyshortcuts="ArrowLeft" title="<?php esc_attr_e( 'Previous step (Left arrow)', 'cookbook' ); ?>"><?php esc_html_e( 'Previous', 'cookbook' ); ?></button>
+                        <button class="btn" type="button" id="cook-next-step" aria-keyshortcuts="ArrowRight Space" title="<?php esc_attr_e( 'Next step (Space or Right arrow)', 'cookbook' ); ?>"><?php esc_html_e( 'Next', 'cookbook' ); ?></button>
                         <button class="btn secondary" type="button" id="cook-reset"><?php esc_html_e( 'Reset', 'cookbook' ); ?></button>
                     </div>
                 </div>
@@ -466,9 +467,9 @@ include __DIR__ . '/_header.php';
                 setCookStep(activeCookStep - 1, true);
                 return;
             }
-            if (e.key === 'ArrowRight') {
+            if (e.key === 'ArrowRight' || e.key === ' ' || e.code === 'Space') {
                 e.preventDefault();
-                setCookStep(activeCookStep + 1, true);
+                advanceCookStep(true);
                 return;
             }
         }
@@ -676,6 +677,14 @@ include __DIR__ . '/_header.php';
         updateCookState();
     }
 
+    function advanceCookStep(focusStep) {
+        if (!cookMode || !cookStepRows.length) return;
+        if (cookStepChecks[activeCookStep]) {
+            cookStepChecks[activeCookStep].checked = true;
+        }
+        setCookStep(activeCookStep + 1, focusStep);
+    }
+
     async function requestWakeLock() {
         if (!('wakeLock' in navigator) || wakeLock) return;
         try {
@@ -720,7 +729,7 @@ include __DIR__ . '/_header.php';
     if (cookOpen) cookOpen.addEventListener('click', openCookMode);
     if (cookClose) cookClose.addEventListener('click', closeCookMode);
     if (cookPrev) cookPrev.addEventListener('click', () => setCookStep(activeCookStep - 1, true));
-    if (cookNext) cookNext.addEventListener('click', () => setCookStep(activeCookStep + 1, true));
+    if (cookNext) cookNext.addEventListener('click', () => advanceCookStep(true));
     if (cookReset) {
         cookReset.addEventListener('click', () => {
             cookStepChecks.forEach(check => { check.checked = false; });
