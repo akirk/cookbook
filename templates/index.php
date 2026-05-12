@@ -10,6 +10,12 @@ $search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) 
 
 // If the user pasted a URL into the search box, redirect to the import flow.
 if ( $search !== '' && preg_match( '~^https?://~i', $search ) && filter_var( $search, FILTER_VALIDATE_URL ) ) {
+    $existing_recipe = App::find_recipe_by_source_url( $search );
+    if ( $existing_recipe ) {
+        wp_safe_redirect( home_url( '/cookbook/recipe/' . $existing_recipe->ID ) );
+        exit;
+    }
+
     wp_safe_redirect( add_query_arg( [
         'source_url' => $search,
         'autoimport' => 1,

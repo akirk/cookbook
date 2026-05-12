@@ -80,6 +80,7 @@ class App extends BaseApp {
         add_action( 'admin_post_cookbook_merge_ingredients', [ $this, 'handle_merge_ingredients' ] );
         add_action( 'admin_post_cookbook_group_ingredients', [ $this, 'handle_group_ingredients' ] );
         add_action( 'admin_post_cookbook_rename_ingredient', [ $this, 'handle_rename_ingredient' ] );
+        add_action( 'wp_ajax_cookbook_lookup_source_url', [ $this, 'ajax_lookup_source_url' ] );
         add_action( 'wp_ajax_cookbook_parse_url', [ $this, 'ajax_parse_url' ] );
         add_action( 'wp_ajax_cookbook_parse_text', [ $this, 'ajax_parse_text' ] );
         add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
@@ -456,6 +457,10 @@ class App extends BaseApp {
         $paste = isset( $input['paste'] ) ? wp_kses_post( (string) $input['paste'] ) : '';
 
         $image_url = isset( $input['image_url'] ) ? esc_url_raw( (string) $input['image_url'] ) : '';
+        $existing = $url !== '' ? self::find_recipe_by_source_url( $url ) : null;
+        if ( $existing ) {
+            return $this->get_recipe_payload( (int) $existing->ID, true );
+        }
 
         $post_id = $this->import_recipe_to_draft( $url, $paste, $image_url );
         if ( is_wp_error( $post_id ) ) {
@@ -594,6 +599,83 @@ class App extends BaseApp {
         }
 
         return get_posts( $args );
+    }
+
+    /**
+     * Find a recipe whose stored source URL matches the provided URL.
+     */
+    public static function find_recipe_by_source_url( string $url ) {
+        $lookup_url = esc_url_raw( trim( $url ) );
+        if ( $lookup_url === '' ) {
+            return null;
+        }
+
+        $lookup_key = self::source_url_lookup_key( $lookup_url );
+        if ( $lookup_key === '' ) {
+            return null;
+        }
+
+        $recipes = get_posts( [
+            'post_type'      => self::POST_TYPE,
+            'post_status'    => [ 'publish', 'draft' ],
+            'posts_per_page' => -1,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ] );
+
+        foreach ( $recipes as $recipe ) {
+            $source_url = (string) get_post_meta( $recipe->ID, self::META_SOURCE_URL, true );
+            if ( $source_url === $lookup_url || self::source_url_lookup_key( $source_url ) === $lookup_key ) {
+                return $recipe;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Normalize URLs enough to catch duplicate source links without caring about
+     * scheme, fragments, trailing slashes, or common tracking parameters.
+     */
+    private static function source_url_lookup_key( string $url ): string {
+        $url = trim( html_entity_decode( $url, ENT_QUOTES ) );
+        if ( $url === '' ) {
+            return '';
+        }
+
+        $parts = wp_parse_url( $url );
+        if ( ! is_array( $parts ) || empty( $parts['host'] ) ) {
+            return '';
+        }
+
+        $host = strtolower( (string) $parts['host'] );
+        $host = preg_replace( '/^www\./', '', $host );
+        $port = isset( $parts['port'] ) ? ':' . (int) $parts['port'] : '';
+
+        $path = isset( $parts['path'] ) ? rawurldecode( (string) $parts['path'] ) : '';
+        $path = preg_replace( '~/+~', '/', '/' . ltrim( $path, '/' ) );
+        $path = untrailingslashit( $path );
+        if ( $path === '/' ) {
+            $path = '';
+        }
+
+        $query_string = '';
+        if ( ! empty( $parts['query'] ) ) {
+            parse_str( (string) $parts['query'], $query );
+            foreach ( array_keys( $query ) as $key ) {
+                $normalized_key = strtolower( (string) $key );
+                if (
+                    strpos( $normalized_key, 'utm_' ) === 0
+                    || in_array( $normalized_key, [ 'fbclid', 'gclid', 'mc_cid', 'mc_eid', 'igshid' ], true )
+                ) {
+                    unset( $query[ $key ] );
+                }
+            }
+            ksort( $query );
+            $query_string = http_build_query( $query, '', '&', PHP_QUERY_RFC3986 );
+        }
+
+        return $host . $port . $path . ( $query_string !== '' ? '?' . $query_string : '' );
     }
 
     /**
@@ -2618,6 +2700,12 @@ class App extends BaseApp {
         $paste = isset( $_POST['paste'] ) ? wp_kses_post( wp_unslash( $_POST['paste'] ) ) : '';
 
         $image_url = isset( $_POST['image_url'] ) ? esc_url_raw( wp_unslash( $_POST['image_url'] ) ) : '';
+        $existing = $url !== '' ? self::find_recipe_by_source_url( $url ) : null;
+        if ( $existing ) {
+            wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $existing->ID ) );
+            exit;
+        }
+
         $post_id = $this->import_recipe_to_draft( $url, $paste, $image_url );
         if ( is_wp_error( $post_id ) && in_array( $post_id->get_error_code(), [ 'cookbook_import_empty', 'cookbook_import_parse_failed' ], true ) ) {
             $this->redirect_import_parse_error( $url );
@@ -3652,6 +3740,11 @@ class App extends BaseApp {
         $url = esc_url_raw( wp_unslash( $_REQUEST['cookbook-collect'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         // Raw page HTML; passed to Importer::from_html which extracts JSON-LD or strips tags.
         $html = isset( $_POST['body'] ) ? (string) wp_unslash( $_POST['body'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+        $existing = $url !== '' ? self::find_recipe_by_source_url( $url ) : null;
+        if ( $existing ) {
+            wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $existing->ID ) );
+            exit;
+        }
 
         $post_id = $this->import_recipe_to_draft( $url, '', '', $html );
         if ( is_wp_error( $post_id ) && in_array( $post_id->get_error_code(), [ 'cookbook_import_empty', 'cookbook_import_parse_failed' ], true ) ) {
@@ -3663,6 +3756,31 @@ class App extends BaseApp {
 
         wp_safe_redirect( home_url( '/' . $this->get_url_path() . '/recipe/' . $post_id . '/edit' ) );
         exit;
+    }
+
+    public function ajax_lookup_source_url(): void {
+        if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
+            wp_send_json_error( [ 'message' => __( 'Not allowed.', 'cookbook' ) ], 403 );
+        }
+        check_ajax_referer( 'cookbook_import' );
+        $url = isset( $_POST['source_url'] ) ? esc_url_raw( wp_unslash( $_POST['source_url'] ) ) : '';
+        if ( $url === '' ) {
+            wp_send_json_success( [ 'exists' => false ] );
+        }
+
+        $recipe = self::find_recipe_by_source_url( $url );
+        if ( ! $recipe ) {
+            wp_send_json_success( [ 'exists' => false ] );
+        }
+
+        wp_send_json_success( [
+            'exists' => true,
+            'recipe' => [
+                'id'       => (int) $recipe->ID,
+                'title'    => get_the_title( $recipe ),
+                'view_url' => home_url( '/' . $this->get_url_path() . '/recipe/' . $recipe->ID ),
+            ],
+        ] );
     }
 
     public function ajax_parse_url(): void {
