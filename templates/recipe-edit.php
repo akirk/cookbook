@@ -35,9 +35,6 @@ include __DIR__ . '/_header.php';
 </div>
 <h1>
     <?php esc_html_e( 'Edit recipe', 'cookbook' ); ?>
-    <?php if ( $post->post_status === 'draft' ) : ?>
-        <span class="badge"><?php esc_html_e( 'draft', 'cookbook' ); ?></span>
-    <?php endif; ?>
 </h1>
 <?php include __DIR__ . '/_form.php'; ?>
 <?php include __DIR__ . '/_footer.php'; ?>

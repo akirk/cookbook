@@ -178,7 +178,7 @@ class App extends BaseApp {
         }
 
         if ( in_array( $ability_id, [ 'cookbook/get-recipe', 'cookbook/create-recipe', 'cookbook/import-recipe', 'cookbook/create-recipe-variation' ], true ) ) {
-            return __( 'When presenting Cookbook recipes, include the recipe title and link it with view_url when present. For created recipes or variations, mention that the recipe was saved as a draft unless the returned status is publish.', 'cookbook' );
+            return __( 'When presenting Cookbook recipes, include the recipe title and link it with view_url when present.', 'cookbook' );
         }
 
         if ( $ability_id === 'cookbook/search-recipes' ) {
@@ -551,7 +551,7 @@ class App extends BaseApp {
             'cookbook/import-recipe',
             [
                 'label'               => __( 'Import Cookbook Recipe', 'cookbook' ),
-                'description'         => __( 'Imports a recipe from a URL or pasted recipe text and creates a draft recipe.', 'cookbook' ),
+                'description'         => __( 'Imports a recipe from a URL or pasted recipe text and publishes it.', 'cookbook' ),
                 'category'            => 'cookbook',
                 'input_schema'        => [
                     'type'                 => 'object',
@@ -576,7 +576,7 @@ class App extends BaseApp {
                 'permission_callback' => [ $this, 'can_edit_abilities' ],
                 'meta'                => [
                     'annotations'  => [
-                        'instructions' => __( 'Use this when the user provides a recipe URL, pasted recipe text, or an image URL to import into Cookbook. This creates a draft recipe; link the result using view_url.', 'cookbook' ),
+                        'instructions' => __( 'Use this when the user provides a recipe URL, pasted recipe text, or an image URL to import into Cookbook. This publishes the recipe; link the result using view_url.', 'cookbook' ),
                         'readonly'    => false,
                         'destructive' => false,
                         'idempotent'  => false,
@@ -703,7 +703,7 @@ class App extends BaseApp {
     }
 
     /**
-     * Ability: import one recipe into a draft.
+     * Ability: import one recipe.
      *
      * @param array $input Ability input.
      * @return array|\WP_Error
@@ -719,7 +719,7 @@ class App extends BaseApp {
             return $this->get_recipe_payload( (int) $existing->ID, true );
         }
 
-        $post_id = $this->import_recipe_to_draft( $url, $paste, $image_url );
+        $post_id = $this->import_recipe( $url, $paste, $image_url );
         if ( is_wp_error( $post_id ) ) {
             return $post_id;
         }
@@ -818,14 +818,9 @@ class App extends BaseApp {
         $limit = isset( $filters['limit'] ) ? absint( $filters['limit'] ) : 20;
         $limit = max( 1, min( 100, $limit ) );
 
-        $status = isset( $filters['status'] ) ? sanitize_key( (string) $filters['status'] ) : 'any';
-        if ( ! in_array( $status, [ 'publish', 'draft', 'any' ], true ) ) {
-            $status = 'any';
-        }
-
         $args = [
             'post_type'      => self::POST_TYPE,
-            'post_status'    => $status === 'any' ? [ 'publish', 'draft' ] : $status,
+            'post_status'    => 'publish',
             'posts_per_page' => $limit,
             'orderby'        => 'title',
             'order'          => 'ASC',
@@ -874,7 +869,7 @@ class App extends BaseApp {
 
         $recipes = get_posts( [
             'post_type'      => self::POST_TYPE,
-            'post_status'    => [ 'publish', 'draft' ],
+            'post_status'    => 'any',
             'posts_per_page' => -1,
             'orderby'        => 'date',
             'order'          => 'DESC',
@@ -992,17 +987,9 @@ class App extends BaseApp {
             ? $this->sanitize_recipe_instruction_rows( $input['instructions'] )
             : ( $source_id ? (array) get_post_meta( $source_id, self::META_INSTRUCTIONS, true ) : [] );
 
-        $status = isset( $input['status'] ) ? sanitize_key( (string) $input['status'] ) : 'draft';
-        if ( ! in_array( $status, [ 'draft', 'publish' ], true ) ) {
-            $status = 'draft';
-        }
-        if ( $status === 'publish' && ! current_user_can( 'publish_posts' ) ) {
-            $status = 'draft';
-        }
-
         $post_id = wp_insert_post( [
             'post_type'    => self::POST_TYPE,
-            'post_status'  => $status,
+            'post_status'  => 'publish',
             'post_title'   => $title !== '' ? $title : __( 'Untitled recipe', 'cookbook' ),
             'post_content' => $description,
             'post_author'  => get_current_user_id(),
@@ -1048,7 +1035,10 @@ class App extends BaseApp {
             return new \WP_Error( 'cookbook_recipe_not_allowed', __( 'Not allowed to edit this recipe.', 'cookbook' ) );
         }
 
-        $postarr = [ 'ID' => $id ];
+        $postarr = [
+            'ID'          => $id,
+            'post_status' => 'publish',
+        ];
         if ( array_key_exists( 'title', $input ) ) {
             $title = $this->ability_text_input( $input, 'title', get_the_title( $post ) );
             $postarr['post_title'] = $title !== '' ? $title : __( 'Untitled recipe', 'cookbook' );
@@ -1059,13 +1049,6 @@ class App extends BaseApp {
         if ( array_key_exists( 'parent_id', $input ) ) {
             $postarr['post_parent'] = $this->sanitize_recipe_parent_id( absint( $input['parent_id'] ), $id );
         }
-        if ( array_key_exists( 'status', $input ) ) {
-            $status = sanitize_key( (string) $input['status'] );
-            if ( in_array( $status, [ 'draft', 'publish' ], true ) ) {
-                $postarr['post_status'] = $status === 'publish' && ! current_user_can( 'publish_posts' ) ? 'draft' : $status;
-            }
-        }
-
         if ( count( $postarr ) > 1 ) {
             $updated = wp_update_post( $postarr, true );
             if ( is_wp_error( $updated ) ) {
@@ -1309,7 +1292,6 @@ class App extends BaseApp {
         $payload = [
             'id'            => $id,
             'title'         => get_the_title( $post ),
-            'status'        => $post->post_status,
             'url'           => home_url( '/' . $this->get_url_path() . '/recipe/' . $id ),
             'view_url'      => home_url( '/' . $this->get_url_path() . '/recipe/' . $id ),
             'edit_url'      => home_url( '/' . $this->get_url_path() . '/recipe/' . $id . '/edit' ),
@@ -1340,7 +1322,6 @@ class App extends BaseApp {
                 return [
                     'id'        => (int) $variation->ID,
                     'title'     => get_the_title( $variation ),
-                    'status'    => $variation->post_status,
                     'url'       => home_url( '/' . $this->get_url_path() . '/recipe/' . $variation->ID ),
                     'view_url'  => home_url( '/' . $this->get_url_path() . '/recipe/' . $variation->ID ),
                     'parent_id' => (int) $variation->post_parent,
@@ -1387,11 +1368,6 @@ class App extends BaseApp {
                     'type'        => 'string',
                     'description' => __( 'Optional ingredient slug or term ID.', 'cookbook' ),
                 ],
-                'status'     => [
-                    'type'        => 'string',
-                    'description' => __( 'Recipe status to include.', 'cookbook' ),
-                    'enum'        => [ 'publish', 'draft', 'any' ],
-                ],
                 'limit'      => [
                     'type'        => 'integer',
                     'description' => __( 'Maximum number of recipes to return, from 1 to 100.', 'cookbook' ),
@@ -1424,11 +1400,10 @@ class App extends BaseApp {
     private static function recipe_summary_schema(): array {
         return [
             'type'                 => 'object',
-            'required'             => [ 'id', 'title', 'status', 'url', 'view_url', 'ingredients' ],
+            'required'             => [ 'id', 'title', 'url', 'view_url', 'ingredients' ],
             'properties'           => [
                 'id'            => [ 'type' => 'integer' ],
                 'title'         => [ 'type' => 'string' ],
-                'status'        => [ 'type' => 'string' ],
                 'url'           => [ 'type' => 'string' ],
                 'view_url'      => [
                     'type'        => 'string',
@@ -1560,11 +1535,6 @@ class App extends BaseApp {
             'notes'       => [
                 'type'        => 'string',
                 'description' => __( 'Private recipe notes.', 'cookbook' ),
-            ],
-            'status'      => [
-                'type'        => 'string',
-                'description' => __( 'Recipe status. Defaults to draft.', 'cookbook' ),
-                'enum'        => [ 'draft', 'publish' ],
             ],
             'parent_id'   => [
                 'type'        => 'integer',
@@ -1738,11 +1708,10 @@ class App extends BaseApp {
     private static function variation_family_item_schema(): array {
         return [
             'type'                 => 'object',
-            'required'             => [ 'id', 'title', 'status', 'url', 'view_url', 'parent_id', 'depth' ],
+            'required'             => [ 'id', 'title', 'url', 'view_url', 'parent_id', 'depth' ],
             'properties'           => [
                 'id'        => [ 'type' => 'integer' ],
                 'title'     => [ 'type' => 'string' ],
-                'status'    => [ 'type' => 'string' ],
                 'url'       => [ 'type' => 'string' ],
                 'view_url'  => [
                     'type'        => 'string',
@@ -2562,7 +2531,7 @@ class App extends BaseApp {
     ): void {
         $children = get_posts( [
             'post_type'      => self::POST_TYPE,
-            'post_status'    => [ 'publish', 'draft' ],
+            'post_status'    => 'publish',
             'posts_per_page' => -1,
             'post_parent'    => $parent_id,
             'orderby'        => 'title',
@@ -2883,9 +2852,9 @@ class App extends BaseApp {
     /**
      * Shared import flow used by the import form, browser extension, and abilities.
      *
-     * @return int|\WP_Error Draft recipe ID on success.
+     * @return int|\WP_Error Recipe ID on success.
      */
-    private function import_recipe_to_draft( string $url = '', string $paste = '', string $image_url = '', string $html = '' ) {
+    private function import_recipe( string $url = '', string $paste = '', string $image_url = '', string $html = '' ) {
         $parsed = $this->parse_recipe_input( $url, $paste, $html );
         if ( is_wp_error( $parsed ) ) {
             return $parsed;
@@ -2895,7 +2864,7 @@ class App extends BaseApp {
             $parsed['image_url'] = $image_url;
         }
 
-        return $this->create_recipe_draft_from_parsed( $parsed, $url );
+        return $this->create_recipe_from_parsed( $parsed, $url );
     }
 
     /**
@@ -2926,14 +2895,14 @@ class App extends BaseApp {
     }
 
     /**
-     * Create a draft recipe from an already parsed payload.
+     * Create a recipe from an already parsed payload.
      *
      * @return int|\WP_Error
      */
-    private function create_recipe_draft_from_parsed( array $parsed, string $url = '' ) {
+    private function create_recipe_from_parsed( array $parsed, string $url = '' ) {
         $post_id = wp_insert_post( [
             'post_type'    => self::POST_TYPE,
-            'post_status'  => 'draft',
+            'post_status'  => 'publish',
             'post_title'   => $parsed['title'] ?: __( 'Imported recipe', 'cookbook' ),
             'post_content' => $parsed['description'] ?? '',
             'post_author'  => get_current_user_id(),
@@ -2963,7 +2932,7 @@ class App extends BaseApp {
             exit;
         }
 
-        $post_id = $this->import_recipe_to_draft( $url, $paste, $image_url );
+        $post_id = $this->import_recipe( $url, $paste, $image_url );
         if ( is_wp_error( $post_id ) && in_array( $post_id->get_error_code(), [ 'cookbook_import_empty', 'cookbook_import_parse_failed' ], true ) ) {
             $this->redirect_import_parse_error( $url );
         }
@@ -2980,7 +2949,7 @@ class App extends BaseApp {
      *
      * Only fields the parser actually returned are touched, so that a partial
      * parse (e.g. missing prep_time) doesn't clobber the recipe's existing data.
-     * Notes, taxonomy assignments and post status are always left alone.
+     * Notes and taxonomy assignments are always left alone.
      */
     public function handle_refetch(): void {
         if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
@@ -3765,7 +3734,7 @@ class App extends BaseApp {
 
         $candidates = get_posts( [
             'post_type'      => self::POST_TYPE,
-            'post_status'    => [ 'publish', 'draft' ],
+            'post_status'    => 'publish',
             'posts_per_page' => 10,
             's'              => $label,
         ] );
@@ -4003,7 +3972,7 @@ class App extends BaseApp {
             exit;
         }
 
-        $post_id = $this->import_recipe_to_draft( $url, '', '', $html );
+        $post_id = $this->import_recipe( $url, '', '', $html );
         if ( is_wp_error( $post_id ) && in_array( $post_id->get_error_code(), [ 'cookbook_import_empty', 'cookbook_import_parse_failed' ], true ) ) {
             $this->redirect_import_parse_error( $url );
         }

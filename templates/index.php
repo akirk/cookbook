@@ -27,7 +27,7 @@ $is_searching = $search !== '';
 
 $recipes = get_posts( [
     'post_type'      => App::POST_TYPE,
-    'post_status'    => [ 'publish', 'draft' ],
+    'post_status'    => 'publish',
     'posts_per_page' => -1,
     'orderby'        => 'title',
     'order'          => 'ASC',
@@ -277,13 +277,11 @@ include __DIR__ . '/_header.php';
                     $prep      = (int) get_post_meta( $r->ID, App::META_PREP, true );
                     $cook      = (int) get_post_meta( $r->ID, App::META_COOK, true );
                     $cui_terms = get_the_terms( $r, App::TAX_CUISINE );
-                    $is_draft  = $r->post_status === 'draft';
                     ?>
                     <li>
                         <a href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>">
                             <span class="recipe-title">
                                 <?php echo esc_html( get_the_title( $r ) ); ?>
-                                <?php if ( $is_draft ) : ?><span class="badge"><?php esc_html_e( 'draft', 'cookbook' ); ?></span><?php endif; ?>
                             </span>
                             <span class="meta">
                                 <?php if ( $servings ) : ?>

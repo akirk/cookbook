@@ -86,7 +86,7 @@ include __DIR__ . '/_header.php';
 
     <label for="image_url"><?php esc_html_e( 'Photo URL', 'cookbook' ); ?></label>
     <input id="image_url" type="url" name="image_url" placeholder="https://example.com/recipe-photo.jpg">
-    <p class="help"><?php esc_html_e( 'Optional. Paste an image URL from the source page to add it to the media library with the imported draft.', 'cookbook' ); ?></p>
+    <p class="help"><?php esc_html_e( 'Optional. Paste an image URL from the source page to add it to the media library with the imported recipe.', 'cookbook' ); ?></p>
     <div id="image-url-preview" hidden style="margin:0.5rem 0 1rem">
         <img src="" alt="" style="max-width:240px;border-radius:6px;border:1px solid var(--line)">
     </div>
@@ -95,7 +95,7 @@ include __DIR__ . '/_header.php';
         <div>
             <label for="paste"><?php esc_html_e( '…or paste the recipe text', 'cookbook' ); ?></label>
             <textarea id="paste" name="paste" style="min-height:24rem;overflow:hidden" aria-describedby="paste-help import-preview" placeholder="<?php esc_attr_e( "Title\n\nIngredients\n2 cups flour\n1 tsp salt\n\nInstructions\nMix everything\nBake until done", 'cookbook' ); ?>"></textarea>
-            <p class="help" id="paste-help"><?php esc_html_e( 'The result will land in your drafts so you can review and tidy it up.', 'cookbook' ); ?></p>
+            <p class="help" id="paste-help"><?php esc_html_e( 'The imported recipe will be available immediately.', 'cookbook' ); ?></p>
             <div class="toolbar">
                 <button class="btn" type="submit"><?php esc_html_e( 'Import', 'cookbook' ); ?></button>
                 <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( 'Cancel', 'cookbook' ); ?></a>

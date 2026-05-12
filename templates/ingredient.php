@@ -18,7 +18,7 @@ if ( ! $term ) {
 
 $recipes = get_posts( [
     'post_type'      => App::POST_TYPE,
-    'post_status'    => [ 'publish', 'draft' ],
+    'post_status'    => 'publish',
     'posts_per_page' => 100,
     'orderby'        => 'title',
     'order'          => 'ASC',

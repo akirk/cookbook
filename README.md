@@ -8,8 +8,8 @@ Built on the [WpApp framework](https://github.com/akirk/wp-app), so the app live
 
 - **Native WordPress storage.** Every recipe is a `cb-recipes` custom post type with `recipe_category` (hierarchical), `recipe_cuisine` (hierarchical), `recipe_tag` (flat), and `recipe_ingredient` taxonomies, plus structured post meta for ingredients, instructions, servings, prep/cook times, source URL, and notes. Shopping lists and week plans are separate user-authored CPTs.
 - **Import from the web.** Paste a URL, the plugin extracts schema.org `Recipe` JSON-LD (handling `@graph`, `HowToSection`, and `ImageObject`) or HTML microdata. Plain-text paste import includes a live checklist preview for detected title, ingredients, and instructions. Photos are sideloaded into the WordPress media library and set as the recipe's featured image.
-- **Browser-extension import.** The [Friends browser extension](https://github.com/akirk/browser-extension) can POST the current page HTML to the site through a "Save as Recipe" action, where the importer turns it into a draft recipe.
-- **Recipe refetch.** Imported recipes keep their source URL and can be re-parsed later without replacing notes, tags, or publication status.
+- **Browser-extension import.** The [Friends browser extension](https://github.com/akirk/browser-extension) can POST the current page HTML to the site through a "Save as Recipe" action, where the importer turns it into a recipe.
+- **Recipe refetch.** Imported recipes keep their source URL and can be re-parsed later without replacing notes or tags.
 - **Metric ⇄ Imperial.** Recipes are stored in their original units; conversion happens on display. Set your preference in `/cookbook/settings`, or flip the live toggle on any recipe page. Unit aliases cover English and German (`EL`, `TL`, `Stk`, `Prise`, `Bund`, ...).
 - **Live portion scaling.** Type the number of servings you want and every parsed amount rescales and reconverts immediately, client-side. The same scaled quantities flow into shopping-list adds and cooking mode.
 - **Cooking mode.** Recipe pages can open a focused cooking view with a large active step, step navigation, ingredient and step checkoffs, progress state saved in the browser, and screen wake lock where supported.
@@ -54,7 +54,7 @@ Then activate **Cookbook** in WordPress and visit `/cookbook/`.
 
 ### Browser-extension import
 
-Install the [Friends browser extension](https://github.com/akirk/browser-extension), authorise it for your site, and a **Save as Recipe** action will appear in the popup. Open any recipe page in your browser, click the action, and the importer will create a draft you can review.
+Install the [Friends browser extension](https://github.com/akirk/browser-extension), authorise it for your site, and a **Save as Recipe** action will appear in the popup. Open any recipe page in your browser, click the action, and the importer will create the recipe in Cookbook.
 
 The integration uses the `friends_browser_extension_actions` filter — same pattern as the [Post Collection](https://wordpress.org/plugins/post-collection/) plugin.
 
@@ -62,10 +62,10 @@ The integration uses the `friends_browser_extension_actions` filter — same pat
 
 When the WordPress Abilities API is available, Cookbook registers a `cookbook` category with these abilities:
 
-- `cookbook/search-recipes` searches recipes by text, category, tag, ingredient, status, and limit.
+- `cookbook/search-recipes` searches recipes by text, category, tag, ingredient, and limit.
 - `cookbook/get-recipe` returns one structured recipe by post ID, including ingredients, instructions, taxonomy terms, source URL, and `view_url` for linking to the user-facing recipe page.
 - `cookbook/create-recipe` creates a structured recipe from provided fields, or updates an existing recipe when `id` is supplied. Passing `image_url` sideloads it through the same media path used by recipe edit forms.
-- `cookbook/import-recipe` imports from `source_url` or pasted recipe text, optionally sideloads `image_url`, and creates a draft recipe.
+- `cookbook/import-recipe` imports from `source_url` or pasted recipe text and optionally sideloads `image_url`.
 - `cookbook/create-recipe-variation` copies an existing recipe into a child variation, allowing supplied fields to replace ingredients, instructions, notes, or other recipe details.
 - `cookbook/get-week-plan` returns the signed-in user's week planner for a normalized week.
 - `cookbook/save-week-plan` saves recipe IDs into the signed-in user's breakfast, lunch, and dinner slots for a normalized week.

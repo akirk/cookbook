@@ -27,7 +27,7 @@ $meals      = App::get_week_meals( $plan_id );
 
 $recipes = get_posts( [
     'post_type'      => App::POST_TYPE,
-    'post_status'    => [ 'publish', 'draft' ],
+    'post_status'    => 'publish',
     'posts_per_page' => -1,
     'orderby'        => 'title',
     'order'          => 'ASC',

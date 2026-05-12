@@ -18,7 +18,7 @@ if ( ! $term ) {
 
 $recipes = get_posts( [
     'post_type'      => App::POST_TYPE,
-    'post_status'    => [ 'publish', 'draft' ],
+    'post_status'    => 'publish',
     'posts_per_page' => 100,
     // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- a tag page intrinsically requires a taxonomy filter.
     'tax_query'      => [
