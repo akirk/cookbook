@@ -13,7 +13,9 @@ if ( ! current_user_can( 'edit_posts' ) ) {
 $error      = isset( $_GET['error'] ) ? sanitize_text_field( wp_unslash( $_GET['error'] ) ) : '';
 $source_url = isset( $_GET['source_url'] ) ? esc_url_raw( wp_unslash( $_GET['source_url'] ) ) : '';
 $source_host = $source_url !== '' ? ( wp_parse_url( $source_url, PHP_URL_HOST ) ?: $source_url ) : '';
-$autoimport = ! empty( $_GET['autoimport'] ) && $source_url !== '' && $error === '';
+$existing_source_recipe = $source_url !== '' ? App::find_recipe_by_source_url( $source_url ) : null;
+$existing_source_recipe_url = $existing_source_recipe ? home_url( '/cookbook/recipe/' . $existing_source_recipe->ID ) : '';
+$autoimport = ! empty( $_GET['autoimport'] ) && $source_url !== '' && $error === '' && ! $existing_source_recipe;
 // phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 $page_title = __( 'Import a recipe', 'cookbook' );
@@ -26,7 +28,7 @@ include __DIR__ . '/_header.php';
 <style>
     main { max-width: 1120px; }
     .import-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(21rem, 28rem); gap: 1rem; align-items: start; }
-    .import-preview { position: sticky; top: 1rem; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.85rem 1rem; }
+    .import-preview { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.85rem 1rem; }
     .import-preview-title { margin: 0 0 0.35rem; font-size: 1rem; font-weight: 700; }
     .import-preview .help { margin: 0.35rem 0 0.75rem; }
     .preview-section { border-top: 1px solid var(--line); padding-top: 0.65rem; margin-top: 0.65rem; }
@@ -50,7 +52,7 @@ include __DIR__ . '/_header.php';
     .preview-muted { color: var(--muted); }
     @media (max-width: 850px) {
         .import-layout { grid-template-columns: 1fr; }
-        .import-preview { position: static; }
+        .import-preview { position: static; max-height: none; }
     }
 </style>
 
@@ -77,6 +79,10 @@ include __DIR__ . '/_header.php';
     <label for="source_url"><?php esc_html_e( 'Recipe URL', 'cookbook' ); ?></label>
     <input id="source_url" type="url" name="source_url" placeholder="https://example.com/some-recipe" value="<?php echo esc_attr( $source_url ); ?>" autofocus>
     <p class="help"><?php esc_html_e( 'We look for schema.org Recipe metadata first. If that fails, keep the URL here and paste the recipe text below.', 'cookbook' ); ?></p>
+    <div class="notice" data-source-url-existing <?php echo $existing_source_recipe ? '' : 'hidden'; ?>>
+        <?php esc_html_e( 'This source is already in your cookbook:', 'cookbook' ); ?>
+        <a data-source-url-existing-link href="<?php echo esc_url( $existing_source_recipe_url ); ?>"><?php echo $existing_source_recipe ? esc_html( get_the_title( $existing_source_recipe ) ) : ''; ?></a>
+    </div>
 
     <label for="image_url"><?php esc_html_e( 'Photo URL', 'cookbook' ); ?></label>
     <input id="image_url" type="url" name="image_url" placeholder="https://example.com/recipe-photo.jpg">
@@ -90,6 +96,10 @@ include __DIR__ . '/_header.php';
             <label for="paste"><?php esc_html_e( '…or paste the recipe text', 'cookbook' ); ?></label>
             <textarea id="paste" name="paste" style="min-height:24rem;overflow:hidden" aria-describedby="paste-help import-preview" placeholder="<?php esc_attr_e( "Title\n\nIngredients\n2 cups flour\n1 tsp salt\n\nInstructions\nMix everything\nBake until done", 'cookbook' ); ?>"></textarea>
             <p class="help" id="paste-help"><?php esc_html_e( 'The result will land in your drafts so you can review and tidy it up.', 'cookbook' ); ?></p>
+            <div class="toolbar">
+                <button class="btn" type="submit"><?php esc_html_e( 'Import', 'cookbook' ); ?></button>
+                <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( 'Cancel', 'cookbook' ); ?></a>
+            </div>
         </div>
         <aside class="import-preview" id="import-preview" aria-live="polite">
             <div class="import-preview-title"><?php esc_html_e( 'Paste checklist', 'cookbook' ); ?></div>
@@ -145,11 +155,6 @@ include __DIR__ . '/_header.php';
             </section>
         </aside>
     </div>
-
-    <div class="toolbar">
-        <button class="btn" type="submit"><?php esc_html_e( 'Import', 'cookbook' ); ?></button>
-        <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( 'Cancel', 'cookbook' ); ?></a>
-    </div>
 </form>
 
 <script>
@@ -163,6 +168,13 @@ include __DIR__ . '/_header.php';
     var nonce = nonceField ? nonceField.value : '';
     var timer = null;
     var sequence = 0;
+    var sourceUrl = document.getElementById('source_url');
+    var sourceLookupTimer = null;
+    var sourceLookupSequence = 0;
+    var existingSource = {
+        notice: document.querySelector('[data-source-url-existing]'),
+        link: document.querySelector('[data-source-url-existing-link]')
+    };
     var message = document.querySelector('[data-preview-message]');
     var error = document.querySelector('[data-preview-error]');
     var title = {
@@ -203,15 +215,34 @@ include __DIR__ . '/_header.php';
         };
     }
 
-    function setSection(section, present, statusText) {
+    function setSectionExpanded(section, expanded) {
         var parts = sectionParts(section);
-        section.section.dataset.state = present ? 'ok' : 'missing';
-        section.status.textContent = statusText;
-        parts.body.hidden = !present;
-        parts.button.setAttribute('aria-expanded', present ? 'true' : 'false');
+        parts.body.hidden = !expanded;
+        parts.button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     }
 
-    function resetSections() {
+    function setSection(section, present, statusText) {
+        var wasPresent = !!section.present;
+        section.section.dataset.state = present ? 'ok' : 'missing';
+        section.status.textContent = statusText;
+        section.present = !!present;
+        if (!present) {
+            setSectionExpanded(section, false);
+        } else if (section.userToggled) {
+            setSectionExpanded(section, !!section.userExpanded);
+        } else if (!wasPresent) {
+            setSectionExpanded(section, true);
+        }
+    }
+
+    function resetSections(resetUserToggles) {
+        if (resetUserToggles) {
+            [title, ingredients, instructions].forEach(function (section) {
+                section.userToggled = false;
+                section.userExpanded = false;
+                section.present = false;
+            });
+        }
         title.value.textContent = '';
         clearChildren(ingredients.rows);
         clearChildren(instructions.rows);
@@ -227,10 +258,58 @@ include __DIR__ . '/_header.php';
     }
 
     function setError(text) {
-        resetSections();
+        resetSections(true);
         error.textContent = text;
         error.hidden = false;
         message.hidden = true;
+    }
+
+    function clearExistingSourceRecipe() {
+        if (!existingSource.notice || !existingSource.link) return;
+        existingSource.notice.hidden = true;
+        existingSource.link.removeAttribute('href');
+        existingSource.link.textContent = '';
+    }
+
+    function setExistingSourceRecipe(recipe) {
+        if (!existingSource.notice || !existingSource.link || !recipe || !recipe.view_url) return;
+        existingSource.link.href = recipe.view_url;
+        existingSource.link.textContent = recipe.title || recipe.view_url;
+        existingSource.notice.hidden = false;
+    }
+
+    function requestSourceLookup() {
+        if (!sourceUrl || !existingSource.notice || !existingSource.link) return;
+        var url = sourceUrl.value.trim();
+        sourceLookupSequence++;
+        if (!url || !/^https?:\/\/\S+$/i.test(url)) {
+            clearExistingSourceRecipe();
+            return;
+        }
+
+        var requestId = sourceLookupSequence;
+        var body = new URLSearchParams();
+        body.set('action', 'cookbook_lookup_source_url');
+        body.set('_ajax_nonce', nonce);
+        body.set('source_url', url);
+
+        fetch(endpoint, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: body.toString()
+        }).then(function (response) {
+            return response.json();
+        }).then(function (json) {
+            if (requestId !== sourceLookupSequence) return;
+            if (json && json.success && json.data && json.data.exists && json.data.recipe) {
+                setExistingSourceRecipe(json.data.recipe);
+            } else {
+                clearExistingSourceRecipe();
+            }
+        }).catch(function () {
+            if (requestId === sourceLookupSequence) clearExistingSourceRecipe();
+        });
     }
 
     function clearChildren(node) {
@@ -302,18 +381,20 @@ include __DIR__ . '/_header.php';
     [title, ingredients, instructions].forEach(function (section) {
         var parts = sectionParts(section);
         parts.button.addEventListener('click', function () {
-            parts.body.hidden = !parts.body.hidden;
-            parts.button.setAttribute('aria-expanded', parts.body.hidden ? 'false' : 'true');
+            var shouldExpand = parts.body.hidden;
+            section.userToggled = true;
+            section.userExpanded = shouldExpand;
+            setSectionExpanded(section, shouldExpand);
         });
     });
 
-    resetSections();
+    resetSections(true);
 
     function requestPreview() {
         var text = paste.value.trim();
         sequence++;
         if (!text) {
-            resetSections();
+            resetSections(true);
             setMessage(strings.empty);
             return;
         }
@@ -346,14 +427,37 @@ include __DIR__ . '/_header.php';
     }
 
     paste.addEventListener('input', function () {
-        resizePaste();
+        resizePaste(true);
         window.clearTimeout(timer);
         timer = window.setTimeout(requestPreview, 300);
     });
 
-    function resizePaste() {
+    if (sourceUrl) {
+        sourceUrl.addEventListener('input', function () {
+            window.clearTimeout(sourceLookupTimer);
+            sourceLookupTimer = window.setTimeout(requestSourceLookup, 300);
+        });
+    }
+
+    function keepWindowScroll(x, y) {
+        window.scrollTo(x, y);
+        if (window.requestAnimationFrame) {
+            window.requestAnimationFrame(function () {
+                window.scrollTo(x, y);
+            });
+        }
+    }
+
+    function resizePaste(preserveScroll) {
+        var x = window.pageXOffset || document.documentElement.scrollLeft || 0;
+        var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+
         paste.style.height = 'auto';
         paste.style.height = paste.scrollHeight + 'px';
+
+        if (preserveScroll && document.activeElement === paste) {
+            keepWindowScroll(x, y);
+        }
     }
 
     var imageUrl = document.getElementById('image_url');
@@ -375,7 +479,7 @@ include __DIR__ . '/_header.php';
         });
     }
 
-    resizePaste();
+    resizePaste(false);
     requestPreview();
 })();
 </script>
