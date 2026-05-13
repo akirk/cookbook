@@ -143,21 +143,12 @@ class App extends BaseApp {
      */
     public function register_ability_domains( array $domains ): array {
         $domains['cookbook'] = implode( ', ', [
-            'recipes',
-            'recipe',
-            'cooking',
-            'cookbook',
-            'ingredients',
-            'ingredient',
-            'meal planning',
-            'meal plan',
-            'week planner',
-            'shopping list',
-            'groceries',
-            'cuisine',
-            'servings',
-            'recipe variations',
-            'variation of a recipe',
+            'saved recipe collection',
+            'URL/text recipe import',
+            'ingredient-based recipe search',
+            'weekly meal planner',
+            'shopping-list builder',
+            'serving scaling and variations',
         ] );
 
         return $domains;
