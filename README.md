@@ -62,7 +62,7 @@ The integration uses the `friends_browser_extension_actions` filter — same pat
 
 When the WordPress Abilities API is available, Cookbook registers a `cookbook` category with these abilities:
 
-- `cookbook/search-recipes` searches recipes by text, category, tag, ingredient, and limit.
+- `cookbook/search-recipes` searches recipes by text, category, tag, ingredient, and limit. When called without parameters, it returns the 10 latest recipes.
 - `cookbook/get-recipe` returns one structured recipe by post ID, including ingredients, instructions, taxonomy terms, source URL, and `view_url` for linking to the user-facing recipe page.
 - `cookbook/create-recipe` creates a structured recipe from provided fields, or updates an existing recipe when `id` is supplied. Passing `image_url` sideloads it through the same media path used by recipe edit forms.
 - `cookbook/import-recipe` imports from `source_url` or pasted recipe text and optionally sideloads `image_url`.
