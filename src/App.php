@@ -474,7 +474,7 @@ class App extends BaseApp {
                 'permission_callback' => [ $this, 'can_read_abilities' ],
                 'meta'                => [
                     'annotations'  => [
-                        'instructions' => __( 'Use this when the user asks to find, list, filter, or choose Cookbook recipes. Return recipe IDs for follow-up get-recipe calls, and use view_url when linking results to the user.', 'cookbook' ),
+                        'instructions' => __( 'Use this when the user asks to find, list, filter, or choose Cookbook recipes. Call without input to list the latest 10 recipes. Return recipe IDs for follow-up get-recipe calls, and use view_url when linking results to the user.', 'cookbook' ),
                         'readonly'    => true,
                         'destructive' => false,
                         'idempotent'  => true,
@@ -806,21 +806,7 @@ class App extends BaseApp {
      * Internal recipe search used by ability adapters and other app code.
      */
     private function search_recipes( array $filters = [] ): array {
-        $limit = isset( $filters['limit'] ) ? absint( $filters['limit'] ) : 20;
-        $limit = max( 1, min( 100, $limit ) );
-
-        $args = [
-            'post_type'      => self::POST_TYPE,
-            'post_status'    => 'publish',
-            'posts_per_page' => $limit,
-            'orderby'        => 'title',
-            'order'          => 'ASC',
-        ];
-
         $search = isset( $filters['search'] ) ? sanitize_text_field( (string) $filters['search'] ) : '';
-        if ( $search !== '' ) {
-            $args['s'] = $search;
-        }
 
         $tax_query = [];
         foreach ( [
@@ -833,6 +819,23 @@ class App extends BaseApp {
                 $tax_query[] = $clause;
             }
         }
+
+        $has_filters = $search !== '' || ! empty( $tax_query );
+        $limit       = isset( $filters['limit'] ) ? absint( $filters['limit'] ) : ( $has_filters ? 20 : 10 );
+        $limit       = max( 1, min( 100, $limit ) );
+
+        $args = [
+            'post_type'      => self::POST_TYPE,
+            'post_status'    => 'publish',
+            'posts_per_page' => $limit,
+            'orderby'        => $has_filters ? 'title' : 'date',
+            'order'          => $has_filters ? 'ASC' : 'DESC',
+        ];
+
+        if ( $search !== '' ) {
+            $args['s'] = $search;
+        }
+
         if ( $tax_query ) {
             if ( count( $tax_query ) > 1 ) {
                 $tax_query['relation'] = 'AND';
@@ -1361,7 +1364,7 @@ class App extends BaseApp {
                 ],
                 'limit'      => [
                     'type'        => 'integer',
-                    'description' => __( 'Maximum number of recipes to return, from 1 to 100.', 'cookbook' ),
+                    'description' => __( 'Maximum number of recipes to return, from 1 to 100. Defaults to 10 when no search filters are supplied, otherwise 20.', 'cookbook' ),
                     'minimum'     => 1,
                     'maximum'     => 100,
                 ],
