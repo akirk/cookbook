@@ -20,6 +20,7 @@ $prep         = $post ? (int) get_post_meta( $data_id, App::META_PREP, true ) : 
 $cook         = $post ? (int) get_post_meta( $data_id, App::META_COOK, true ) : 0;
 $ingredients  = $post ? (array) get_post_meta( $data_id, App::META_INGREDIENTS, true ) : [];
 $instructions = $post ? (array) get_post_meta( $data_id, App::META_INSTRUCTIONS, true ) : [];
+$recipe_parts = $post ? App::get_recipe_parts( $data_id ) : [];
 $source_url   = $post ? (string) get_post_meta( $data_id, App::META_SOURCE_URL, true ) : '';
 $notes        = $post ? (string) get_post_meta( $data_id, App::META_NOTES, true ) : '';
 $parent_id    = isset( $variation_parent_id )
@@ -36,6 +37,48 @@ if ( ! $ingredients ) {
 if ( ! $instructions ) {
     $instructions = [ '' ];
 }
+
+$blank_ingredient = [ 'amount' => '', 'unit' => '', 'name' => '', 'notes' => '' ];
+$ingredient_sections = [];
+$instruction_sections = [];
+foreach ( $recipe_parts as $part ) {
+    if ( ! empty( $part['ingredients'] ) ) {
+        $ingredient_sections[] = [
+            'title'       => (string) ( $part['title'] ?? '' ),
+            'ingredients' => (array) $part['ingredients'],
+        ];
+    }
+    if ( ! empty( $part['instructions'] ) ) {
+        $instruction_sections[] = [
+            'title'        => (string) ( $part['title'] ?? '' ),
+            'instructions' => (array) $part['instructions'],
+        ];
+    }
+}
+if ( ! $ingredient_sections ) {
+    $ingredient_sections[] = [
+        'title'       => '',
+        'ingredients' => $ingredients ?: [ $blank_ingredient ],
+    ];
+}
+if ( ! $instruction_sections ) {
+    $instruction_sections[] = [
+        'title'        => '',
+        'instructions' => $instructions ?: [ '' ],
+    ];
+}
+foreach ( $ingredient_sections as &$section ) {
+    if ( empty( $section['ingredients'] ) ) {
+        $section['ingredients'] = [ $blank_ingredient ];
+    }
+}
+unset( $section );
+foreach ( $instruction_sections as &$section ) {
+    if ( empty( $section['instructions'] ) ) {
+        $section['instructions'] = [ '' ];
+    }
+}
+unset( $section );
 
 $categories = get_terms( [ 'taxonomy' => App::TAX_CATEGORY, 'hide_empty' => false ] );
 $cuisines   = get_terms( [ 'taxonomy' => App::TAX_CUISINE,  'hide_empty' => false ] );
@@ -136,15 +179,26 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
 
     <h2><?php esc_html_e( 'Ingredients', 'cookbook' ); ?></h2>
     <p class="help"><?php esc_html_e( 'Amount + unit are optional. Enter "1/2", "1.5", or use fractions like ½. Recognised units convert automatically; "piece", "clove", "pinch" etc. are kept as-is.', 'cookbook' ); ?></p>
-    <div id="ingredient-rows">
-        <?php foreach ( $ingredients as $i => $row ) : ?>
-            <div class="row">
-                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][amount]" value="<?php echo esc_attr( $row['amount'] ?? '' ); ?>" placeholder="<?php esc_attr_e( '2', 'cookbook' ); ?>">
-                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][unit]"   value="<?php echo esc_attr( $row['unit'] ?? '' ); ?>"   placeholder="<?php esc_attr_e( 'g', 'cookbook' ); ?>" list="recipe-units">
-                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][name]"   value="<?php echo esc_attr( $row['name'] ?? '' ); ?>"   placeholder="<?php esc_attr_e( 'ingredient', 'cookbook' ); ?>" required>
-                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][notes]"  value="<?php echo esc_attr( $row['notes'] ?? '' ); ?>"  placeholder="<?php esc_attr_e( 'chopped', 'cookbook' ); ?>">
-                <button type="button" class="remove" aria-label="<?php esc_attr_e( 'Remove', 'cookbook' ); ?>">×</button>
-            </div>
+    <div id="ingredient-sections" class="recipe-form-sections" data-section-root="ingredient">
+        <?php foreach ( $ingredient_sections as $section_index => $section ) : ?>
+            <section class="recipe-form-section" data-ingredient-section data-section-index="<?php echo (int) $section_index; ?>">
+                <div class="recipe-form-section-header">
+                    <input type="text" name="ingredient_parts[<?php echo (int) $section_index; ?>][title]" value="<?php echo esc_attr( $section['title'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'Section title (optional)', 'cookbook' ); ?>">
+                    <button type="button" class="btn secondary remove-section"><?php esc_html_e( 'Remove section', 'cookbook' ); ?></button>
+                </div>
+                <div class="recipe-form-section-rows" data-ingredient-rows>
+                    <?php foreach ( (array) $section['ingredients'] as $i => $row ) : ?>
+                        <div class="row">
+                            <input type="text" name="ingredient_parts[<?php echo (int) $section_index; ?>][ingredients][<?php echo (int) $i; ?>][amount]" value="<?php echo esc_attr( $row['amount'] ?? '' ); ?>" placeholder="<?php esc_attr_e( '2', 'cookbook' ); ?>">
+                            <input type="text" name="ingredient_parts[<?php echo (int) $section_index; ?>][ingredients][<?php echo (int) $i; ?>][unit]" value="<?php echo esc_attr( $row['unit'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'g', 'cookbook' ); ?>" list="recipe-units">
+                            <input type="text" name="ingredient_parts[<?php echo (int) $section_index; ?>][ingredients][<?php echo (int) $i; ?>][name]" value="<?php echo esc_attr( $row['name'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'ingredient', 'cookbook' ); ?>" required>
+                            <input type="text" name="ingredient_parts[<?php echo (int) $section_index; ?>][ingredients][<?php echo (int) $i; ?>][notes]" value="<?php echo esc_attr( $row['notes'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'chopped', 'cookbook' ); ?>">
+                            <button type="button" class="remove" aria-label="<?php esc_attr_e( 'Remove', 'cookbook' ); ?>">×</button>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <button type="button" class="btn secondary add-ingredient-row"><?php esc_html_e( '+ Add ingredient', 'cookbook' ); ?></button>
+            </section>
         <?php endforeach; ?>
     </div>
     <datalist id="recipe-units">
@@ -152,21 +206,32 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
             <option value="<?php echo esc_attr( $u ); ?>"></option>
         <?php endforeach; ?>
     </datalist>
-    <button type="button" class="btn secondary" id="add-ingredient"><?php esc_html_e( '+ Add ingredient', 'cookbook' ); ?></button>
+    <button type="button" class="btn secondary" id="add-ingredient-section"><?php esc_html_e( '+ Add ingredient section', 'cookbook' ); ?></button>
 
     <h2><?php esc_html_e( 'Instructions', 'cookbook' ); ?></h2>
-    <div id="instruction-rows">
-        <?php foreach ( $instructions as $i => $step ) : ?>
-            <div class="row" style="grid-template-columns: 1fr auto; align-items: flex-start">
-                <textarea name="instructions[]" placeholder="<?php
-                    /* translators: %d: step number */
-                    echo esc_attr( sprintf( __( 'Step %d', 'cookbook' ), (int) $i + 1 ) );
-                ?>"><?php echo esc_textarea( $step ); ?></textarea>
-                <button type="button" class="remove" aria-label="<?php esc_attr_e( 'Remove', 'cookbook' ); ?>">×</button>
-            </div>
+    <div id="instruction-sections" class="recipe-form-sections" data-section-root="instruction">
+        <?php foreach ( $instruction_sections as $section_index => $section ) : ?>
+            <section class="recipe-form-section" data-instruction-section data-section-index="<?php echo (int) $section_index; ?>">
+                <div class="recipe-form-section-header">
+                    <input type="text" name="instruction_parts[<?php echo (int) $section_index; ?>][title]" value="<?php echo esc_attr( $section['title'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'Section title (optional)', 'cookbook' ); ?>">
+                    <button type="button" class="btn secondary remove-section"><?php esc_html_e( 'Remove section', 'cookbook' ); ?></button>
+                </div>
+                <div class="recipe-form-section-rows" data-instruction-rows>
+                    <?php foreach ( (array) $section['instructions'] as $i => $step ) : ?>
+                        <div class="row" style="grid-template-columns: 1fr auto; align-items: flex-start">
+                            <textarea name="instruction_parts[<?php echo (int) $section_index; ?>][instructions][]" placeholder="<?php
+                                /* translators: %d: step number */
+                                echo esc_attr( sprintf( __( 'Step %d', 'cookbook' ), (int) $i + 1 ) );
+                            ?>"><?php echo esc_textarea( $step ); ?></textarea>
+                            <button type="button" class="remove" aria-label="<?php esc_attr_e( 'Remove', 'cookbook' ); ?>">×</button>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <button type="button" class="btn secondary add-instruction-row"><?php esc_html_e( '+ Add step', 'cookbook' ); ?></button>
+            </section>
         <?php endforeach; ?>
     </div>
-    <button type="button" class="btn secondary" id="add-instruction"><?php esc_html_e( '+ Add step', 'cookbook' ); ?></button>
+    <button type="button" class="btn secondary" id="add-instruction-section"><?php esc_html_e( '+ Add instruction section', 'cookbook' ); ?></button>
 
     <h2><?php esc_html_e( 'Categorisation', 'cookbook' ); ?></h2>
     <div class="grid">
@@ -208,43 +273,177 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
 
 <script>
 (function () {
-    const ingRoot = document.getElementById('ingredient-rows');
-    const insRoot = document.getElementById('instruction-rows');
+    const ingredientRoot = document.getElementById('ingredient-sections');
+    const instructionRoot = document.getElementById('instruction-sections');
+    const strings = {
+        sectionTitle: <?php echo wp_json_encode( __( 'Section title (optional)', 'cookbook' ) ); ?>,
+        removeSection: <?php echo wp_json_encode( __( 'Remove section', 'cookbook' ) ); ?>,
+        addIngredient: <?php echo wp_json_encode( __( '+ Add ingredient', 'cookbook' ) ); ?>,
+        addStep: <?php echo wp_json_encode( __( '+ Add step', 'cookbook' ) ); ?>,
+        two: <?php echo wp_json_encode( __( '2', 'cookbook' ) ); ?>,
+        gram: <?php echo wp_json_encode( __( 'g', 'cookbook' ) ); ?>,
+        ingredient: <?php echo wp_json_encode( __( 'ingredient', 'cookbook' ) ); ?>,
+        chopped: <?php echo wp_json_encode( __( 'chopped', 'cookbook' ) ); ?>,
+        remove: <?php echo wp_json_encode( __( 'Remove', 'cookbook' ) ); ?>,
+        step: <?php echo wp_json_encode( __( 'Step', 'cookbook' ) ); ?>
+    };
 
-    function nextIndex(root) {
-        return root.querySelectorAll('.row').length;
+    function initSectionCounters(root, sectionSelector) {
+        if (!root) return;
+        let next = 0;
+        root.querySelectorAll(sectionSelector).forEach(section => {
+            const index = parseInt(section.dataset.sectionIndex, 10);
+            if (!isNaN(index)) next = Math.max(next, index + 1);
+            const ingredientRows = section.querySelector('[data-ingredient-rows]');
+            if (ingredientRows) {
+                section.dataset.nextRowIndex = String(ingredientRows.querySelectorAll('.row').length);
+            }
+        });
+        root.dataset.nextSectionIndex = String(next);
     }
 
-    document.getElementById('add-ingredient').addEventListener('click', () => {
-        const i = nextIndex(ingRoot);
+    function nextSectionIndex(root) {
+        const next = parseInt(root.dataset.nextSectionIndex || '0', 10) || 0;
+        root.dataset.nextSectionIndex = String(next + 1);
+        return next;
+    }
+
+    function nextIngredientRowIndex(section) {
+        const next = parseInt(section.dataset.nextRowIndex || '0', 10) || 0;
+        section.dataset.nextRowIndex = String(next + 1);
+        return next;
+    }
+
+    function addIngredientRow(section, focus) {
+        const rows = section.querySelector('[data-ingredient-rows]');
+        if (!rows) return;
+        const sectionIndex = section.dataset.sectionIndex;
+        const rowIndex = nextIngredientRowIndex(section);
         const row = document.createElement('div');
         row.className = 'row';
         row.innerHTML = `
-            <input type="text" name="ingredients[${i}][amount]" placeholder="2">
-            <input type="text" name="ingredients[${i}][unit]"   placeholder="g" list="recipe-units">
-            <input type="text" name="ingredients[${i}][name]"   placeholder="ingredient" required>
-            <input type="text" name="ingredients[${i}][notes]"  placeholder="chopped">
-            <button type="button" class="remove" aria-label="Remove">×</button>
+            <input type="text" name="ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][amount]" placeholder="${strings.two}">
+            <input type="text" name="ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][unit]" placeholder="${strings.gram}" list="recipe-units">
+            <input type="text" name="ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][name]" placeholder="${strings.ingredient}" required>
+            <input type="text" name="ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][notes]" placeholder="${strings.chopped}">
+            <button type="button" class="remove" aria-label="${strings.remove}">×</button>
         `;
-        ingRoot.appendChild(row);
-        row.querySelector('input').focus();
-    });
+        rows.appendChild(row);
+        if (focus) row.querySelector('input').focus();
+    }
 
-    document.getElementById('add-instruction').addEventListener('click', () => {
+    function addInstructionRow(section, focus) {
+        const rows = section.querySelector('[data-instruction-rows]');
+        if (!rows) return;
+        const sectionIndex = section.dataset.sectionIndex;
         const row = document.createElement('div');
         row.className = 'row';
         row.style.gridTemplateColumns = '1fr auto';
         row.style.alignItems = 'flex-start';
-        const num = insRoot.querySelectorAll('.row').length + 1;
+        const num = rows.querySelectorAll('.row').length + 1;
         row.innerHTML = `
-            <textarea name="instructions[]" placeholder="Step ${num}"></textarea>
-            <button type="button" class="remove" aria-label="Remove">×</button>
+            <textarea name="instruction_parts[${sectionIndex}][instructions][]" placeholder="${strings.step} ${num}"></textarea>
+            <button type="button" class="remove" aria-label="${strings.remove}">×</button>
         `;
-        insRoot.appendChild(row);
-        row.querySelector('textarea').focus();
-    });
+        rows.appendChild(row);
+        if (focus) row.querySelector('textarea').focus();
+    }
+
+    function addIngredientSection(focus) {
+        const index = nextSectionIndex(ingredientRoot);
+        const section = document.createElement('section');
+        section.className = 'recipe-form-section';
+        section.dataset.sectionIndex = String(index);
+        section.dataset.nextRowIndex = '0';
+        section.setAttribute('data-ingredient-section', '');
+        section.innerHTML = `
+            <div class="recipe-form-section-header">
+                <input type="text" name="ingredient_parts[${index}][title]" placeholder="${strings.sectionTitle}">
+                <button type="button" class="btn secondary remove-section">${strings.removeSection}</button>
+            </div>
+            <div class="recipe-form-section-rows" data-ingredient-rows></div>
+            <button type="button" class="btn secondary add-ingredient-row">${strings.addIngredient}</button>
+        `;
+        ingredientRoot.appendChild(section);
+        addIngredientRow(section, false);
+        if (focus) section.querySelector('input').focus();
+    }
+
+    function addInstructionSection(focus) {
+        const index = nextSectionIndex(instructionRoot);
+        const section = document.createElement('section');
+        section.className = 'recipe-form-section';
+        section.dataset.sectionIndex = String(index);
+        section.setAttribute('data-instruction-section', '');
+        section.innerHTML = `
+            <div class="recipe-form-section-header">
+                <input type="text" name="instruction_parts[${index}][title]" placeholder="${strings.sectionTitle}">
+                <button type="button" class="btn secondary remove-section">${strings.removeSection}</button>
+            </div>
+            <div class="recipe-form-section-rows" data-instruction-rows></div>
+            <button type="button" class="btn secondary add-instruction-row">${strings.addStep}</button>
+        `;
+        instructionRoot.appendChild(section);
+        addInstructionRow(section, false);
+        if (focus) section.querySelector('input').focus();
+    }
+
+    function clearSection(section) {
+        const root = section.parentElement;
+        const rows = section.querySelector('.recipe-form-section-rows');
+        const title = section.querySelector('.recipe-form-section-header input');
+        if (title) title.value = '';
+        if (!rows) return;
+        Array.from(rows.querySelectorAll('.row')).slice(1).forEach(row => row.remove());
+        let first = rows.querySelector('.row');
+        if (!first && section.matches('[data-ingredient-section]')) {
+            addIngredientRow(section, false);
+            first = rows.querySelector('.row');
+        } else if (!first && section.matches('[data-instruction-section]')) {
+            addInstructionRow(section, false);
+            first = rows.querySelector('.row');
+        }
+        if (first) first.querySelectorAll('input, textarea').forEach(el => { el.value = ''; });
+        if (root) {
+            const input = section.querySelector('input, textarea');
+            if (input) input.focus();
+        }
+    }
+
+    initSectionCounters(ingredientRoot, '[data-ingredient-section]');
+    initSectionCounters(instructionRoot, '[data-instruction-section]');
+
+    const addIngredientSectionButton = document.getElementById('add-ingredient-section');
+    if (addIngredientSectionButton) {
+        addIngredientSectionButton.addEventListener('click', () => addIngredientSection(true));
+    }
+    const addInstructionSectionButton = document.getElementById('add-instruction-section');
+    if (addInstructionSectionButton) {
+        addInstructionSectionButton.addEventListener('click', () => addInstructionSection(true));
+    }
 
     document.addEventListener('click', (e) => {
+        if (e.target.classList && e.target.classList.contains('add-ingredient-row')) {
+            const section = e.target.closest('[data-ingredient-section]');
+            if (section) addIngredientRow(section, true);
+            return;
+        }
+        if (e.target.classList && e.target.classList.contains('add-instruction-row')) {
+            const section = e.target.closest('[data-instruction-section]');
+            if (section) addInstructionRow(section, true);
+            return;
+        }
+        if (e.target.classList && e.target.classList.contains('remove-section')) {
+            const section = e.target.closest('.recipe-form-section');
+            const root = section ? section.parentElement : null;
+            if (!section || !root) return;
+            if (root.querySelectorAll('.recipe-form-section').length > 1) {
+                section.remove();
+            } else {
+                clearSection(section);
+            }
+            return;
+        }
         if (e.target.classList && e.target.classList.contains('remove')) {
             const row = e.target.closest('.row');
             const root = row.parentElement;

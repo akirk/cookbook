@@ -1253,6 +1253,136 @@ class App extends BaseApp {
         return $instructions;
     }
 
+    private function sanitize_submitted_ingredient_parts( array $parts ): array {
+        $clean = [];
+        foreach ( $parts as $part ) {
+            if ( ! is_array( $part ) ) {
+                continue;
+            }
+
+            $title = isset( $part['title'] ) && is_scalar( $part['title'] )
+                ? sanitize_text_field( (string) $part['title'] )
+                : '';
+            $ingredients = isset( $part['ingredients'] ) && is_array( $part['ingredients'] )
+                ? $this->sanitize_recipe_ingredient_rows( $part['ingredients'] )
+                : [];
+
+            if ( $title !== '' || $ingredients ) {
+                $clean[] = [
+                    'title'        => $title,
+                    'ingredients'  => $ingredients,
+                    'instructions' => [],
+                ];
+            }
+        }
+
+        return $clean;
+    }
+
+    private function sanitize_submitted_instruction_parts( array $parts ): array {
+        $clean = [];
+        foreach ( $parts as $part ) {
+            if ( ! is_array( $part ) ) {
+                continue;
+            }
+
+            $title = isset( $part['title'] ) && is_scalar( $part['title'] )
+                ? sanitize_text_field( (string) $part['title'] )
+                : '';
+            $instructions = isset( $part['instructions'] ) && is_array( $part['instructions'] )
+                ? $this->sanitize_recipe_instruction_rows( $part['instructions'] )
+                : [];
+
+            if ( $title !== '' || $instructions ) {
+                $clean[] = [
+                    'title'        => $title,
+                    'ingredients'  => [],
+                    'instructions' => $instructions,
+                ];
+            }
+        }
+
+        return $clean;
+    }
+
+    private function flatten_recipe_part_ingredients( array $parts ): array {
+        $ingredients = [];
+        foreach ( $parts as $part ) {
+            if ( is_array( $part ) && ! empty( $part['ingredients'] ) && is_array( $part['ingredients'] ) ) {
+                $ingredients = array_merge( $ingredients, $part['ingredients'] );
+            }
+        }
+        return $ingredients;
+    }
+
+    private function flatten_recipe_part_instructions( array $parts ): array {
+        $instructions = [];
+        foreach ( $parts as $part ) {
+            if ( is_array( $part ) && ! empty( $part['instructions'] ) && is_array( $part['instructions'] ) ) {
+                $instructions = array_merge( $instructions, $part['instructions'] );
+            }
+        }
+        return $instructions;
+    }
+
+    private function merge_submitted_recipe_parts( array $ingredient_parts, array $instruction_parts ): array {
+        $parts = [];
+        $index_by_title = [];
+        $include_ingredients = $this->submitted_recipe_parts_are_structured( $ingredient_parts );
+        $include_instructions = $this->submitted_recipe_parts_are_structured( $instruction_parts );
+
+        $add_part = function( array $part ) use ( &$parts, &$index_by_title ) {
+            $title = isset( $part['title'] ) ? (string) $part['title'] : '';
+            $key   = $title !== '' ? sanitize_title( $title ) : '';
+            if ( $key !== '' && isset( $index_by_title[ $key ] ) ) {
+                $index = $index_by_title[ $key ];
+                if ( ! empty( $part['ingredients'] ) ) {
+                    $parts[ $index ]['ingredients'] = array_merge( $parts[ $index ]['ingredients'], $part['ingredients'] );
+                }
+                if ( ! empty( $part['instructions'] ) ) {
+                    $parts[ $index ]['instructions'] = array_merge( $parts[ $index ]['instructions'], $part['instructions'] );
+                }
+                return;
+            }
+
+            $parts[] = [
+                'title'        => $title,
+                'ingredients'  => isset( $part['ingredients'] ) && is_array( $part['ingredients'] ) ? $part['ingredients'] : [],
+                'instructions' => isset( $part['instructions'] ) && is_array( $part['instructions'] ) ? $part['instructions'] : [],
+            ];
+            if ( $key !== '' ) {
+                $index_by_title[ $key ] = count( $parts ) - 1;
+            }
+        };
+
+        if ( $include_ingredients ) {
+            foreach ( $ingredient_parts as $part ) {
+                $add_part( $part );
+            }
+        }
+        if ( $include_instructions ) {
+            foreach ( $instruction_parts as $part ) {
+                $add_part( $part );
+            }
+        }
+
+        return $parts;
+    }
+
+    private function submitted_recipe_parts_are_structured( array $parts ): bool {
+        if ( count( $parts ) > 1 ) {
+            return true;
+        }
+
+        foreach ( $parts as $part ) {
+            if ( is_array( $part ) && ! empty( $part['title'] ) ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function set_or_copy_ability_terms( int $post_id, array $input, string $field, string $taxonomy, int $source_id = 0 ): void {
         if ( array_key_exists( $field, $input ) ) {
             $values = is_array( $input[ $field ] ) ? $input[ $field ] : [];
@@ -2611,34 +2741,36 @@ class App extends BaseApp {
         $parent_id = isset( $_POST['parent_id'] ) ? absint( $_POST['parent_id'] ) : 0;
         $parent_id = $this->sanitize_recipe_parent_id( $parent_id, $id );
 
-        $ingredients = [];
-        if ( isset( $_POST['ingredients'] ) && is_array( $_POST['ingredients'] ) ) {
-            // Each field is sanitized inside the loop.
-            $ingredient_rows = wp_unslash( $_POST['ingredients'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-            foreach ( $ingredient_rows as $row ) {
-                if ( ! is_array( $row ) ) continue;
-                $name = isset( $row['name'] ) ? sanitize_text_field( $row['name'] ) : '';
-                if ( $name === '' ) continue;
-                $ingredients[] = [
-                    'amount' => isset( $row['amount'] ) ? sanitize_text_field( $row['amount'] ) : '',
-                    'unit'   => isset( $row['unit'] ) ? sanitize_text_field( $row['unit'] ) : '',
-                    'name'   => $name,
-                    'notes'  => isset( $row['notes'] ) ? sanitize_text_field( $row['notes'] ) : '',
-                ];
+        $ingredient_parts = [];
+        if ( isset( $_POST['ingredient_parts'] ) && is_array( $_POST['ingredient_parts'] ) ) {
+            $ingredient_parts = $this->sanitize_submitted_ingredient_parts(
+                wp_unslash( $_POST['ingredient_parts'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+            );
+            $ingredients = $this->flatten_recipe_part_ingredients( $ingredient_parts );
+        } else {
+            $ingredients = [];
+            if ( isset( $_POST['ingredients'] ) && is_array( $_POST['ingredients'] ) ) {
+                $ingredients = $this->sanitize_recipe_ingredient_rows(
+                    wp_unslash( $_POST['ingredients'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+                );
             }
         }
 
-        $instructions = [];
-        if ( isset( $_POST['instructions'] ) && is_array( $_POST['instructions'] ) ) {
-            // Each step is run through wp_kses_post + Importer::clean_step below.
-            $instruction_rows = wp_unslash( $_POST['instructions'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-            foreach ( $instruction_rows as $step ) {
-                $step = Importer::clean_step( wp_kses_post( $step ) );
-                if ( $step !== '' ) {
-                    $instructions[] = $step;
-                }
+        $instruction_parts = [];
+        if ( isset( $_POST['instruction_parts'] ) && is_array( $_POST['instruction_parts'] ) ) {
+            $instruction_parts = $this->sanitize_submitted_instruction_parts(
+                wp_unslash( $_POST['instruction_parts'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+            );
+            $instructions = $this->flatten_recipe_part_instructions( $instruction_parts );
+        } else {
+            $instructions = [];
+            if ( isset( $_POST['instructions'] ) && is_array( $_POST['instructions'] ) ) {
+                $instructions = $this->sanitize_recipe_instruction_rows(
+                    wp_unslash( $_POST['instructions'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+                );
             }
         }
+        $parts = $this->merge_submitted_recipe_parts( $ingredient_parts, $instruction_parts );
 
         $postarr = [
             'post_type'    => self::POST_TYPE,
@@ -2667,7 +2799,7 @@ class App extends BaseApp {
         update_post_meta( $post_id, self::META_COOK, $cook );
         $this->persist_ingredients( $post_id, $ingredients );
         update_post_meta( $post_id, self::META_INSTRUCTIONS, $instructions );
-        delete_post_meta( $post_id, self::META_PARTS );
+        $this->persist_recipe_parts( $post_id, $parts );
         update_post_meta( $post_id, self::META_SOURCE_URL, $source_url );
         update_post_meta( $post_id, self::META_NOTES, $notes );
 
