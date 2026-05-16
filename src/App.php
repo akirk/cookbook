@@ -507,7 +507,7 @@ class App extends BaseApp {
                 'permission_callback' => [ $this, 'can_read_abilities' ],
                 'meta'                => [
                     'annotations'  => [
-                        'instructions' => __( 'Use this when the user asks about one known Cookbook recipe. The response includes view_url for linking, ingredients, instructions, notes, taxonomy terms, and variation family data.', 'cookbook' ),
+                        'instructions' => __( 'Use this when the user asks about one known Cookbook recipe. The response includes view_url for linking, flat compatibility ingredients/instructions, named parts for ingredient or instruction sections, notes, taxonomy terms, and variation family data.', 'cookbook' ),
                         'readonly'    => true,
                         'destructive' => false,
                         'idempotent'  => true,
@@ -529,7 +529,7 @@ class App extends BaseApp {
                 'permission_callback' => [ $this, 'can_edit_abilities' ],
                 'meta'                => [
                     'annotations'  => [
-                        'instructions' => __( 'Use this when the user asks to create a brand-new structured recipe or update fields on a known Cookbook recipe. To add or replace a recipe photo, pass the existing recipe id with image_url. Prefer create-recipe-variation when adapting an existing recipe into a new variation. Link the result using view_url.', 'cookbook' ),
+                        'instructions' => __( 'Use this when the user asks to create a brand-new structured recipe or update fields on a known Cookbook recipe. Pass parts to preserve named ingredient or instruction sections; flat ingredients and instructions remain supported for unsectioned recipes. To add or replace a recipe photo, pass the existing recipe id with image_url. Prefer create-recipe-variation when adapting an existing recipe into a new variation. Link the result using view_url.', 'cookbook' ),
                         'readonly'    => false,
                         'destructive' => false,
                         'idempotent'  => false,
@@ -590,7 +590,7 @@ class App extends BaseApp {
                 'permission_callback' => [ $this, 'can_edit_abilities' ],
                 'meta'                => [
                     'annotations'  => [
-                        'instructions' => __( 'Use this when the user asks for an adapted version of an existing recipe, such as substituting an ingredient they do not have. First call get-recipe for the source, then pass the complete revised recipe fields here so omitted fields intentionally copy from the source. Link the created variation using view_url.', 'cookbook' ),
+                        'instructions' => __( 'Use this when the user asks for an adapted version of an existing recipe, such as substituting an ingredient they do not have. First call get-recipe for the source, then pass the complete revised recipe fields here so omitted fields intentionally copy from the source. If the source has named parts, pass revised parts to preserve ingredient subsection headers. Link the created variation using view_url.', 'cookbook' ),
                         'readonly'    => false,
                         'destructive' => false,
                         'idempotent'  => false,
@@ -975,19 +975,32 @@ class App extends BaseApp {
             }
         }
 
-        $ingredients = isset( $input['ingredients'] ) && is_array( $input['ingredients'] )
-            ? $this->sanitize_recipe_ingredient_rows( $input['ingredients'] )
-            : ( $source_id ? (array) get_post_meta( $source_id, self::META_INGREDIENTS, true ) : [] );
-        $instructions = isset( $input['instructions'] ) && is_array( $input['instructions'] )
-            ? $this->sanitize_recipe_instruction_rows( $input['instructions'] )
-            : ( $source_id ? (array) get_post_meta( $source_id, self::META_INSTRUCTIONS, true ) : [] );
-        $parts = (
-            $source_id
-            && ! array_key_exists( 'ingredients', $input )
-            && ! array_key_exists( 'instructions', $input )
-        )
-            ? (array) get_post_meta( $source_id, self::META_PARTS, true )
+        $has_parts_input = array_key_exists( 'parts', $input ) && is_array( $input['parts'] );
+        $parts           = $has_parts_input
+            ? self::normalize_recipe_parts_array( $input['parts'], false )
             : [];
+        $part_ingredients = $has_parts_input ? $this->flatten_recipe_part_ingredients( $parts ) : [];
+        $part_instructions = $has_parts_input ? $this->flatten_recipe_part_instructions( $parts ) : [];
+
+        if ( $part_ingredients ) {
+            $ingredients = $part_ingredients;
+        } elseif ( isset( $input['ingredients'] ) && is_array( $input['ingredients'] ) ) {
+            $ingredients = $this->sanitize_recipe_ingredient_rows( $input['ingredients'] );
+        } else {
+            $ingredients = $source_id ? (array) get_post_meta( $source_id, self::META_INGREDIENTS, true ) : [];
+        }
+
+        if ( $part_instructions ) {
+            $instructions = $part_instructions;
+        } elseif ( isset( $input['instructions'] ) && is_array( $input['instructions'] ) ) {
+            $instructions = $this->sanitize_recipe_instruction_rows( $input['instructions'] );
+        } else {
+            $instructions = $source_id ? (array) get_post_meta( $source_id, self::META_INSTRUCTIONS, true ) : [];
+        }
+
+        if ( ! $has_parts_input && $source_id && ! array_key_exists( 'ingredients', $input ) && ! array_key_exists( 'instructions', $input ) ) {
+            $parts = (array) get_post_meta( $source_id, self::META_PARTS, true );
+        }
 
         $post_id = wp_insert_post( [
             'post_type'    => self::POST_TYPE,
@@ -1068,13 +1081,33 @@ class App extends BaseApp {
         if ( array_key_exists( 'cook_time', $input ) ) {
             update_post_meta( $id, self::META_COOK, $this->ability_positive_int_input( $input, 'cook_time', 0, 0 ) );
         }
-        if ( array_key_exists( 'ingredients', $input ) && is_array( $input['ingredients'] ) ) {
-            $this->persist_ingredients( $id, $this->sanitize_recipe_ingredient_rows( $input['ingredients'] ) );
-            delete_post_meta( $id, self::META_PARTS );
-        }
-        if ( array_key_exists( 'instructions', $input ) && is_array( $input['instructions'] ) ) {
-            update_post_meta( $id, self::META_INSTRUCTIONS, $this->sanitize_recipe_instruction_rows( $input['instructions'] ) );
-            delete_post_meta( $id, self::META_PARTS );
+        if ( array_key_exists( 'parts', $input ) && is_array( $input['parts'] ) ) {
+            $parts = self::normalize_recipe_parts_array( $input['parts'], false );
+            $part_ingredients = $this->flatten_recipe_part_ingredients( $parts );
+            $part_instructions = $this->flatten_recipe_part_instructions( $parts );
+
+            if ( $part_ingredients ) {
+                $this->persist_ingredients( $id, $part_ingredients );
+            } elseif ( array_key_exists( 'ingredients', $input ) && is_array( $input['ingredients'] ) ) {
+                $this->persist_ingredients( $id, $this->sanitize_recipe_ingredient_rows( $input['ingredients'] ) );
+            }
+
+            if ( $part_instructions ) {
+                update_post_meta( $id, self::META_INSTRUCTIONS, $part_instructions );
+            } elseif ( array_key_exists( 'instructions', $input ) && is_array( $input['instructions'] ) ) {
+                update_post_meta( $id, self::META_INSTRUCTIONS, $this->sanitize_recipe_instruction_rows( $input['instructions'] ) );
+            }
+
+            $this->persist_recipe_parts( $id, $parts );
+        } else {
+            if ( array_key_exists( 'ingredients', $input ) && is_array( $input['ingredients'] ) ) {
+                $this->persist_ingredients( $id, $this->sanitize_recipe_ingredient_rows( $input['ingredients'] ) );
+                delete_post_meta( $id, self::META_PARTS );
+            }
+            if ( array_key_exists( 'instructions', $input ) && is_array( $input['instructions'] ) ) {
+                update_post_meta( $id, self::META_INSTRUCTIONS, $this->sanitize_recipe_instruction_rows( $input['instructions'] ) );
+                delete_post_meta( $id, self::META_PARTS );
+            }
         }
         if ( array_key_exists( 'source_url', $input ) ) {
             update_post_meta( $id, self::META_SOURCE_URL, esc_url_raw( (string) $input['source_url'] ) );
@@ -1654,6 +1687,11 @@ class App extends BaseApp {
                 'description' => __( 'Recipe instruction steps.', 'cookbook' ),
                 'items'       => [ 'type' => 'string' ],
             ],
+            'parts'       => [
+                'type'        => 'array',
+                'description' => __( 'Optional named recipe sections. When supplied, ingredient and instruction rows inside parts are also flattened into the compatibility ingredients and instructions fields.', 'cookbook' ),
+                'items'       => self::recipe_part_input_schema(),
+            ],
             'servings'    => [
                 'type'        => 'integer',
                 'description' => __( 'Default serving count.', 'cookbook' ),
@@ -1837,6 +1875,29 @@ class App extends BaseApp {
                 'instructions' => [
                     'type'  => 'array',
                     'items' => [ 'type' => 'string' ],
+                ],
+            ],
+            'additionalProperties' => false,
+        ];
+    }
+
+    private static function recipe_part_input_schema(): array {
+        return [
+            'type'                 => 'object',
+            'properties'           => [
+                'title'        => [
+                    'type'        => 'string',
+                    'description' => __( 'Optional section title, such as sauce, dough, or topping.', 'cookbook' ),
+                ],
+                'ingredients'  => [
+                    'type'        => 'array',
+                    'description' => __( 'Ingredient rows in this section.', 'cookbook' ),
+                    'items'       => self::ingredient_input_schema(),
+                ],
+                'instructions' => [
+                    'type'        => 'array',
+                    'description' => __( 'Instruction steps in this section.', 'cookbook' ),
+                    'items'       => [ 'type' => 'string' ],
                 ],
             ],
             'additionalProperties' => false,
