@@ -285,6 +285,8 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
         ingredient: <?php echo wp_json_encode( __( 'ingredient', 'cookbook' ) ); ?>,
         chopped: <?php echo wp_json_encode( __( 'chopped', 'cookbook' ) ); ?>,
         remove: <?php echo wp_json_encode( __( 'Remove', 'cookbook' ) ); ?>,
+        ingredientShort: <?php echo wp_json_encode( __( 'Ingredient', 'cookbook' ) ); ?>,
+        sectionShort: <?php echo wp_json_encode( __( 'Section', 'cookbook' ) ); ?>,
         step: <?php echo wp_json_encode( __( 'Step', 'cookbook' ) ); ?>
     };
 
@@ -298,6 +300,7 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
             if (ingredientRows) {
                 section.dataset.nextRowIndex = String(ingredientRows.querySelectorAll('.row').length);
             }
+            updateSectionNames(section);
         });
         root.dataset.nextSectionIndex = String(next);
     }
@@ -329,6 +332,7 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
             <button type="button" class="remove" aria-label="${strings.remove}">×</button>
         `;
         rows.appendChild(row);
+        updateSectionNames(section);
         if (focus) row.querySelector('input').focus();
     }
 
@@ -346,7 +350,57 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
             <button type="button" class="remove" aria-label="${strings.remove}">×</button>
         `;
         rows.appendChild(row);
+        updateSectionNames(section);
         if (focus) row.querySelector('textarea').focus();
+    }
+
+    function rowElements(container) {
+        return Array.from(container.children).filter(child => child.classList && child.classList.contains('row'));
+    }
+
+    function updateSectionNames(section) {
+        const sectionIndex = section.dataset.sectionIndex;
+        const title = section.querySelector('.recipe-form-section-header input');
+        const rows = section.querySelector('.recipe-form-section-rows');
+        if (!rows) return;
+
+        if (section.matches('[data-ingredient-section]')) {
+            if (title) title.name = `ingredient_parts[${sectionIndex}][title]`;
+            rowElements(rows).forEach((row, rowIndex) => {
+                const inputs = row.querySelectorAll('input');
+                if (inputs[0]) inputs[0].name = `ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][amount]`;
+                if (inputs[1]) inputs[1].name = `ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][unit]`;
+                if (inputs[2]) inputs[2].name = `ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][name]`;
+                if (inputs[3]) inputs[3].name = `ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][notes]`;
+            });
+            section.dataset.nextRowIndex = String(rowElements(rows).length);
+            refreshIngredientInserters(section);
+            return;
+        }
+
+        if (title) title.name = `instruction_parts[${sectionIndex}][title]`;
+        rowElements(rows).forEach(row => {
+            const textarea = row.querySelector('textarea');
+            if (textarea) textarea.name = `instruction_parts[${sectionIndex}][instructions][]`;
+        });
+    }
+
+    function refreshIngredientInserters(section) {
+        const rows = section.querySelector('[data-ingredient-rows]');
+        if (!rows) return;
+        rows.querySelectorAll('.recipe-row-inserter').forEach(inserter => inserter.remove());
+        rowElements(rows).forEach(row => {
+            const inserter = document.createElement('div');
+            inserter.className = 'recipe-row-inserter';
+            inserter.innerHTML = `
+                <span class="recipe-row-inserter-line"></span>
+                <span class="recipe-row-inserter-actions">
+                    <button type="button" class="insert-ingredient-here">+ ${strings.ingredientShort}</button>
+                    <button type="button" class="insert-section-here">+ ${strings.sectionShort}</button>
+                </span>
+            `;
+            rows.insertBefore(inserter, row.nextSibling);
+        });
     }
 
     function addIngredientSection(focus) {
@@ -408,6 +462,69 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
             const input = section.querySelector('input, textarea');
             if (input) input.focus();
         }
+        updateSectionNames(section);
+    }
+
+    function insertIngredientAtBoundary(inserter) {
+        const section = inserter.closest('[data-ingredient-section]');
+        const rows = section ? section.querySelector('[data-ingredient-rows]') : null;
+        if (!section || !rows) return;
+
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `
+            <input type="text" placeholder="${strings.two}">
+            <input type="text" placeholder="${strings.gram}" list="recipe-units">
+            <input type="text" placeholder="${strings.ingredient}" required>
+            <input type="text" placeholder="${strings.chopped}">
+            <button type="button" class="remove" aria-label="${strings.remove}">×</button>
+        `;
+        rows.insertBefore(row, inserter.nextSibling);
+        updateSectionNames(section);
+        row.querySelector('input').focus();
+    }
+
+    function insertIngredientSectionAtBoundary(inserter) {
+        const section = inserter.closest('[data-ingredient-section]');
+        const root = section ? section.parentElement : null;
+        const rows = section ? section.querySelector('[data-ingredient-rows]') : null;
+        if (!section || !root || !rows) return;
+
+        const index = nextSectionIndex(root);
+        const newSection = document.createElement('section');
+        newSection.className = 'recipe-form-section';
+        newSection.dataset.sectionIndex = String(index);
+        newSection.dataset.nextRowIndex = '0';
+        newSection.setAttribute('data-ingredient-section', '');
+        newSection.innerHTML = `
+            <div class="recipe-form-section-header">
+                <input type="text" name="ingredient_parts[${index}][title]" placeholder="${strings.sectionTitle}">
+                <button type="button" class="btn secondary remove-section">${strings.removeSection}</button>
+            </div>
+            <div class="recipe-form-section-rows" data-ingredient-rows></div>
+            <button type="button" class="btn secondary add-ingredient-row">${strings.addIngredient}</button>
+        `;
+        if (section.nextSibling) {
+            root.insertBefore(newSection, section.nextSibling);
+        } else {
+            root.appendChild(newSection);
+        }
+
+        const targetRows = newSection.querySelector('[data-ingredient-rows]');
+        let node = inserter.nextElementSibling;
+        while (node) {
+            const next = node.nextElementSibling;
+            if (node.classList.contains('row')) {
+                targetRows.appendChild(node);
+            }
+            node = next;
+        }
+        if (!rowElements(targetRows).length) {
+            addIngredientRow(newSection, false);
+        }
+        updateSectionNames(section);
+        updateSectionNames(newSection);
+        newSection.querySelector('.recipe-form-section-header input').focus();
     }
 
     initSectionCounters(ingredientRoot, '[data-ingredient-section]');
@@ -444,11 +561,23 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
             }
             return;
         }
+        if (e.target.classList && e.target.classList.contains('insert-ingredient-here')) {
+            const inserter = e.target.closest('.recipe-row-inserter');
+            if (inserter) insertIngredientAtBoundary(inserter);
+            return;
+        }
+        if (e.target.classList && e.target.classList.contains('insert-section-here')) {
+            const inserter = e.target.closest('.recipe-row-inserter');
+            if (inserter) insertIngredientSectionAtBoundary(inserter);
+            return;
+        }
         if (e.target.classList && e.target.classList.contains('remove')) {
             const row = e.target.closest('.row');
             const root = row.parentElement;
             if (root.querySelectorAll('.row').length > 1) {
                 row.remove();
+                const section = root.closest('.recipe-form-section');
+                if (section) updateSectionNames(section);
             } else {
                 row.querySelectorAll('input, textarea').forEach(el => el.value = '');
             }

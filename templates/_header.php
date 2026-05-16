@@ -91,6 +91,14 @@ if ( ! defined( 'ABSPATH' ) ) {
         .recipe-form-section-rows { display: grid; gap: 0.4rem; }
         .recipe-form-section .add-ingredient-row,
         .recipe-form-section .add-instruction-row { margin-top: 0.15rem; }
+        .recipe-row-inserter { position: relative; display: flex; align-items: center; justify-content: center; min-height: 0.9rem; margin: -0.25rem 0; opacity: 0; transition: opacity 0.12s ease; }
+        .recipe-row-inserter:hover,
+        .recipe-row-inserter:focus-within { opacity: 1; }
+        .recipe-row-inserter-line { position: absolute; left: 0; right: 0; height: 1px; background: var(--line); }
+        .recipe-row-inserter-actions { position: relative; display: inline-flex; gap: 0.25rem; background: var(--bg); padding: 0 0.35rem; }
+        .recipe-row-inserter button { border: 1px solid var(--line); border-radius: 999px; background: var(--input-bg); color: var(--muted); cursor: pointer; font: inherit; font-size: 0.78rem; line-height: 1; padding: 0.18rem 0.45rem; }
+        .recipe-row-inserter button:hover,
+        .recipe-row-inserter button:focus { border-color: var(--accent); color: var(--accent); outline: none; }
         .ingredient-list { list-style: none; padding: 0; }
         .ingredient-list li { padding: 0.35rem 0; border-bottom: 1px dashed var(--line); display: flex; gap: 0.5rem; }
         .ingredient-list .amt { min-width: 5rem; font-weight: 600; }
