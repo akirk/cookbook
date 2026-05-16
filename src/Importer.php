@@ -21,6 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *     'cook_time'    => int (minutes),
  *     'ingredients'  => [ [ 'amount','unit','name','notes' ], … ],
  *     'instructions' => [ string, … ],
+ *     'parts'        => [ [ 'title', 'ingredients', 'instructions' ], … ],
  *   ]
  * Or null if nothing useful could be extracted.
  */
@@ -58,11 +59,15 @@ class Importer {
         $recipe = self::extract_jsonld_recipe( $html );
         if ( $recipe ) {
             $parsed = self::normalize_jsonld( $recipe );
-            if ( $parsed ) return $parsed;
+            if ( $parsed ) {
+                return self::merge_html_parts_into_parsed( $parsed, $html );
+            }
         }
 
         $parsed = self::extract_microdata_recipe( $html );
-        if ( $parsed ) return $parsed;
+        if ( $parsed ) {
+            return self::merge_html_parts_into_parsed( $parsed, $html );
+        }
 
         $text = wp_strip_all_tags( $html );
         if ( ! self::has_recipe_section_markers( $text ) ) {
@@ -144,6 +149,7 @@ class Importer {
             'cook_time'    => 0,
             'ingredients'  => $ingredients,
             'instructions' => $instructions,
+            'parts'        => [],
             'image_url'    => '',
         ];
     }
@@ -178,7 +184,11 @@ class Importer {
 
     private static function ingredient_row( string $amount, string $unit, string $rest ): array {
         $notes = '';
-        if ( preg_match( '/^(.*?)[,(](.*)$/u', $rest, $m ) ) {
+        // Recipe plugins often include an alternate unit after the primary unit,
+        // e.g. "700 g (1½ lb) baby potatoes". That parenthetical is not the
+        // ingredient note and should not erase the actual ingredient name.
+        $rest = preg_replace( '/^\([^)]*\)\s*/u', '', trim( $rest ) );
+        if ( preg_match( '/^(.+?)[,(](.*)$/u', $rest, $m ) ) {
             $rest = trim( $m[1] );
             $notes = trim( rtrim( $m[2], ')' ) );
         }
@@ -256,6 +266,7 @@ class Importer {
             'cook_time'    => $cook,
             'ingredients'  => $ingredients,
             'instructions' => $instructions,
+            'parts'        => [],
             'image_url'    => $image_url,
         ];
     }
@@ -387,20 +398,21 @@ class Importer {
         }
         if ( ! $servings ) $servings = 4;
 
-        $ingredients = [];
         $raw_ingredients = $r['recipeIngredient'] ?? ( $r['ingredients'] ?? [] );
-        if ( is_array( $raw_ingredients ) ) {
-            foreach ( $raw_ingredients as $line ) {
-                if ( is_string( $line ) && trim( $line ) !== '' ) {
-                    $ingredients[] = self::parse_ingredient_line( $line );
-                }
-            }
-        }
+        $ingredient_parts = self::extract_jsonld_ingredient_parts( $raw_ingredients );
+        $ingredients = $ingredient_parts
+            ? self::flatten_part_ingredients( $ingredient_parts )
+            : self::parse_jsonld_ingredients( $raw_ingredients );
 
         $instructions = [];
+        $instruction_parts = [];
         if ( isset( $r['recipeInstructions'] ) ) {
-            $instructions = self::flatten_instructions( $r['recipeInstructions'] );
+            $instruction_parts = self::extract_jsonld_instruction_parts( $r['recipeInstructions'] );
+            $instructions = $instruction_parts
+                ? self::flatten_part_instructions( $instruction_parts )
+                : self::flatten_instructions( $r['recipeInstructions'] );
         }
+        $parts = self::merge_recipe_parts( $ingredient_parts, $instruction_parts );
 
         return [
             'title'        => $title,
@@ -410,8 +422,454 @@ class Importer {
             'cook_time'    => self::iso8601_to_minutes( $r['cookTime'] ?? '' ),
             'ingredients'  => $ingredients,
             'instructions' => $instructions,
+            'parts'        => $parts,
             'image_url'    => $image_url,
         ];
+    }
+
+    private static function parse_jsonld_ingredients( $raw_ingredients ): array {
+        $ingredients = [];
+        if ( is_string( $raw_ingredients ) ) {
+            $raw_ingredients = preg_split( '/(?:\r?\n)+/', $raw_ingredients );
+        }
+        if ( ! is_array( $raw_ingredients ) ) {
+            return $ingredients;
+        }
+
+        if ( self::jsonld_has_list_items( $raw_ingredients ) ) {
+            $raw_ingredients = $raw_ingredients['itemListElement'];
+        }
+
+        foreach ( $raw_ingredients as $line ) {
+            if ( is_array( $line ) && self::jsonld_has_list_items( $line ) ) {
+                $ingredients = array_merge( $ingredients, self::parse_jsonld_ingredients( $line['itemListElement'] ) );
+                continue;
+            }
+            if ( is_array( $line ) && isset( $line['item'] ) ) {
+                $line = $line['item'];
+            }
+
+            $text = self::jsonld_ingredient_text( $line );
+            if ( $text !== '' ) {
+                $ingredients[] = self::parse_ingredient_line( $text );
+            }
+        }
+
+        return $ingredients;
+    }
+
+    private static function extract_jsonld_ingredient_parts( $raw_ingredients ): array {
+        $parts = [];
+        if ( ! is_array( $raw_ingredients ) ) {
+            return $parts;
+        }
+
+        $items = self::jsonld_has_list_items( $raw_ingredients )
+            ? $raw_ingredients['itemListElement']
+            : $raw_ingredients;
+        if ( ! is_array( $items ) ) {
+            return $parts;
+        }
+
+        foreach ( $items as $item ) {
+            if ( is_array( $item ) && isset( $item['item'] ) && is_array( $item['item'] ) ) {
+                $item = $item['item'];
+            }
+            if ( ! is_array( $item ) || ! self::jsonld_has_list_items( $item ) ) {
+                continue;
+            }
+
+            $type = $item['@type'] ?? '';
+            if (
+                $type
+                && ! self::jsonld_is_type( $type, 'ItemList' )
+                && ! self::jsonld_is_type( $type, 'ListItem' )
+                && ! self::jsonld_is_type( $type, 'HowToSection' )
+            ) {
+                continue;
+            }
+
+            $ingredients = self::parse_jsonld_ingredients( $item['itemListElement'] );
+            $title       = self::jsonld_scalar_text( $item['name'] ?? '' );
+            if ( $title !== '' || $ingredients ) {
+                $parts[] = [
+                    'title'        => $title,
+                    'ingredients'  => $ingredients,
+                    'instructions' => [],
+                ];
+            }
+        }
+
+        return self::normalize_recipe_parts( $parts );
+    }
+
+    private static function extract_jsonld_instruction_parts( $instructions ): array {
+        if ( ! is_array( $instructions ) ) {
+            return [];
+        }
+
+        $items = self::jsonld_has_list_items( $instructions )
+            ? $instructions['itemListElement']
+            : $instructions;
+        if ( ! is_array( $items ) ) {
+            return [];
+        }
+
+        $parts = [];
+        foreach ( $items as $step ) {
+            if ( is_array( $step ) && isset( $step['item'] ) && is_array( $step['item'] ) ) {
+                $step = $step['item'];
+            }
+            if ( ! is_array( $step ) ) {
+                continue;
+            }
+            $type = $step['@type'] ?? '';
+            if ( ! self::jsonld_is_type( $type, 'HowToSection' ) ) {
+                continue;
+            }
+
+            $title = self::jsonld_scalar_text( $step['name'] ?? '' );
+            $items = $step['itemListElement'] ?? ( $step['steps'] ?? [] );
+            $part_steps = self::flatten_instructions( $items );
+            if ( $title !== '' || $part_steps ) {
+                $parts[] = [
+                    'title'        => $title,
+                    'ingredients'  => [],
+                    'instructions' => $part_steps,
+                ];
+            }
+        }
+
+        return self::normalize_recipe_parts( $parts );
+    }
+
+    private static function jsonld_has_list_items( array $node ): bool {
+        return isset( $node['itemListElement'] ) && is_array( $node['itemListElement'] );
+    }
+
+    private static function jsonld_is_type( $type, string $expected ): bool {
+        foreach ( (array) $type as $candidate ) {
+            $candidate = is_string( $candidate ) ? $candidate : '';
+            if ( $candidate !== '' && strcasecmp( $candidate, $expected ) === 0 ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function jsonld_scalar_text( $value ): string {
+        if ( is_scalar( $value ) ) {
+            return trim( (string) $value );
+        }
+        return '';
+    }
+
+    private static function jsonld_ingredient_text( $ingredient ): string {
+        if ( is_string( $ingredient ) ) {
+            return trim( $ingredient );
+        }
+        if ( ! is_array( $ingredient ) ) {
+            return '';
+        }
+        if ( isset( $ingredient['@value'] ) ) {
+            return self::jsonld_scalar_text( $ingredient['@value'] );
+        }
+        if ( isset( $ingredient['text'] ) ) {
+            return self::jsonld_scalar_text( $ingredient['text'] );
+        }
+        if ( isset( $ingredient['value'] ) || isset( $ingredient['name'] ) ) {
+            $amount = self::jsonld_scalar_text( $ingredient['value'] ?? '' );
+            $unit   = self::jsonld_scalar_text( $ingredient['unitText'] ?? '' );
+            $name   = self::jsonld_scalar_text( $ingredient['name'] ?? '' );
+            return trim( preg_replace( '/\s+/', ' ', trim( $amount . ' ' . $unit . ' ' . $name ) ) );
+        }
+        if ( isset( $ingredient['item'] ) ) {
+            return self::jsonld_ingredient_text( $ingredient['item'] );
+        }
+        return '';
+    }
+
+    private static function merge_html_parts_into_parsed( array $parsed, string $html ): array {
+        $html_parts = self::extract_html_recipe_parts( $html );
+        if ( ! $html_parts ) {
+            $parsed['parts'] = self::normalize_recipe_parts( $parsed['parts'] ?? [] );
+            return $parsed;
+        }
+
+        $parsed['parts'] = self::merge_recipe_parts(
+            self::normalize_recipe_parts( $parsed['parts'] ?? [] ),
+            $html_parts
+        );
+
+        $part_ingredients = self::flatten_part_ingredients( $parsed['parts'] );
+        if ( $part_ingredients ) {
+            $parsed['ingredients'] = $part_ingredients;
+        }
+
+        $part_instructions = self::flatten_part_instructions( $parsed['parts'] );
+        if ( $part_instructions && empty( $parsed['instructions'] ) ) {
+            $parsed['instructions'] = $part_instructions;
+        }
+
+        return $parsed;
+    }
+
+    private static function extract_html_recipe_parts( string $html ): array {
+        if ( ! class_exists( '\\DOMDocument' ) ) {
+            return [];
+        }
+
+        $doc = new \DOMDocument();
+        $prev = libxml_use_internal_errors( true );
+        $loaded = $doc->loadHTML( '<?xml encoding="utf-8" ?>' . $html );
+        libxml_clear_errors();
+        libxml_use_internal_errors( $prev );
+        if ( ! $loaded ) {
+            return [];
+        }
+
+        $xpath = new \DOMXPath( $doc );
+        $parts = self::extract_wprm_recipe_parts( $xpath );
+        if ( $parts ) {
+            return $parts;
+        }
+
+        return self::extract_heading_based_recipe_parts( $xpath );
+    }
+
+    private static function extract_wprm_recipe_parts( \DOMXPath $xpath ): array {
+        $parts = [];
+        $groups = $xpath->query( self::xpath_class_query( 'wprm-recipe-ingredient-group' ) );
+        if ( ! $groups || $groups->length === 0 ) {
+            return [];
+        }
+
+        foreach ( $groups as $group ) {
+            $title = self::first_descendant_class_text( $xpath, $group, 'wprm-recipe-group-name' );
+            if ( $title === '' ) {
+                $title = self::first_descendant_class_text( $xpath, $group, 'wprm-recipe-ingredient-group-name' );
+            }
+
+            $ingredients = [];
+            $items = $xpath->query( './/' . self::xpath_class_query( 'wprm-recipe-ingredient', false ), $group );
+            if ( ! $items || $items->length === 0 ) {
+                $items = $xpath->query( './/li', $group );
+            }
+            if ( $items ) {
+                foreach ( $items as $item ) {
+                    $row = self::wprm_ingredient_row( $xpath, $item );
+                    if ( ! empty( $row['name'] ) ) {
+                        $ingredients[] = $row;
+                    }
+                }
+            }
+
+            if ( $title !== '' || $ingredients ) {
+                $parts[] = [
+                    'title'        => $title,
+                    'ingredients'  => $ingredients,
+                    'instructions' => [],
+                ];
+            }
+        }
+
+        return self::normalize_recipe_parts( $parts );
+    }
+
+    private static function extract_heading_based_recipe_parts( \DOMXPath $xpath ): array {
+        $headings = $xpath->query( '//*[self::h2 or self::h3 or self::h4][translate(normalize-space(.), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz") = "ingredients"]' );
+        if ( ! $headings || $headings->length === 0 ) {
+            return [];
+        }
+
+        $parts = [];
+        $current = null;
+        $node = $headings->item( 0 );
+        while ( $node ) {
+            $node = $node->nextSibling;
+            if ( ! $node ) {
+                break;
+            }
+            if ( ! $node instanceof \DOMElement ) {
+                continue;
+            }
+
+            $tag = strtolower( $node->tagName );
+            $text = trim( preg_replace( '/\s+/', ' ', (string) $node->textContent ) );
+            if ( in_array( $tag, [ 'h2', 'h3' ], true ) && preg_match( '/^(instructions?|directions?|method|nutrition|notes?)$/i', $text ) ) {
+                break;
+            }
+            if ( in_array( $tag, [ 'h3', 'h4', 'strong', 'p' ], true ) && self::looks_like_recipe_part_title( $text ) ) {
+                if ( $current && ( $current['title'] !== '' || $current['ingredients'] ) ) {
+                    $parts[] = $current;
+                }
+                $current = [
+                    'title'        => $text,
+                    'ingredients'  => [],
+                    'instructions' => [],
+                ];
+                continue;
+            }
+            if ( $tag === 'ul' || $tag === 'ol' ) {
+                if ( ! $current ) {
+                    $current = [
+                        'title'        => '',
+                        'ingredients'  => [],
+                        'instructions' => [],
+                    ];
+                }
+                foreach ( $xpath->query( './/li', $node ) as $li ) {
+                    $line = self::clean_html_list_text( (string) $li->textContent );
+                    if ( $line !== '' ) {
+                        $current['ingredients'][] = self::parse_ingredient_line( $line );
+                    }
+                }
+            }
+        }
+
+        if ( $current && ( $current['title'] !== '' || $current['ingredients'] ) ) {
+            $parts[] = $current;
+        }
+
+        return self::normalize_recipe_parts( $parts );
+    }
+
+    private static function wprm_ingredient_row( \DOMXPath $xpath, \DOMNode $node ): array {
+        $amount = self::first_descendant_class_text( $xpath, $node, 'wprm-recipe-ingredient-amount' );
+        $unit   = self::first_descendant_class_text( $xpath, $node, 'wprm-recipe-ingredient-unit' );
+        $name   = self::first_descendant_class_text( $xpath, $node, 'wprm-recipe-ingredient-name' );
+        $notes  = self::first_descendant_class_text( $xpath, $node, 'wprm-recipe-ingredient-notes' );
+
+        if ( $name !== '' ) {
+            return [
+                'amount' => trim( $amount ),
+                'unit'   => Units::normalize_unit( $unit ),
+                'name'   => trim( $name ),
+                'notes'  => trim( $notes ),
+            ];
+        }
+
+        return self::parse_ingredient_line( self::clean_html_list_text( (string) $node->textContent ) );
+    }
+
+    private static function first_descendant_class_text( \DOMXPath $xpath, \DOMNode $scope, string $class_name ): string {
+        $nodes = $xpath->query( './/' . self::xpath_class_query( $class_name, false ), $scope );
+        if ( ! $nodes || $nodes->length === 0 ) {
+            return '';
+        }
+
+        return trim( preg_replace( '/\s+/', ' ', (string) $nodes->item( 0 )->textContent ) );
+    }
+
+    private static function xpath_class_query( string $class_name, bool $absolute = true ): string {
+        $prefix = $absolute ? '//*' : '*';
+        return $prefix . '[contains(concat(" ", normalize-space(@class), " "), " ' . $class_name . ' ")]';
+    }
+
+    private static function clean_html_list_text( string $text ): string {
+        $text = trim( preg_replace( '/\s+/', ' ', $text ) );
+        $text = preg_replace( '/^[\x{2610}\x{2611}\x{2612}\x{25A1}\x{25A2}\x{25A3}\x{25AA}\x{25AB}\x{25B8}\x{2022}\-*]+\s*/u', '', $text );
+        return trim( $text );
+    }
+
+    private static function looks_like_recipe_part_title( string $text ): bool {
+        $text = trim( $text );
+        if ( $text === '' || mb_strlen( $text ) > 60 ) {
+            return false;
+        }
+
+        return (bool) preg_match( '/^[\p{Lu}\d\s&\/\-]+$/u', $text );
+    }
+
+    private static function normalize_recipe_parts( array $parts ): array {
+        $normalized = [];
+        foreach ( $parts as $part ) {
+            if ( ! is_array( $part ) ) {
+                continue;
+            }
+
+            $ingredients = [];
+            foreach ( (array) ( $part['ingredients'] ?? [] ) as $ingredient ) {
+                if ( is_array( $ingredient ) && ! empty( $ingredient['name'] ) ) {
+                    $ingredients[] = [
+                        'amount' => isset( $ingredient['amount'] ) ? trim( (string) $ingredient['amount'] ) : '',
+                        'unit'   => isset( $ingredient['unit'] ) ? Units::normalize_unit( (string) $ingredient['unit'] ) : '',
+                        'name'   => trim( (string) $ingredient['name'] ),
+                        'notes'  => isset( $ingredient['notes'] ) ? trim( (string) $ingredient['notes'] ) : '',
+                    ];
+                }
+            }
+
+            $instructions = [];
+            foreach ( (array) ( $part['instructions'] ?? [] ) as $step ) {
+                if ( is_scalar( $step ) ) {
+                    $step = self::clean_step( (string) $step );
+                    if ( $step !== '' ) {
+                        $instructions[] = $step;
+                    }
+                }
+            }
+
+            $title = isset( $part['title'] ) && is_scalar( $part['title'] )
+                ? trim( (string) $part['title'] )
+                : '';
+
+            if ( $title !== '' || $ingredients || $instructions ) {
+                $normalized[] = [
+                    'title'        => $title,
+                    'ingredients'  => $ingredients,
+                    'instructions' => $instructions,
+                ];
+            }
+        }
+
+        return $normalized;
+    }
+
+    private static function merge_recipe_parts( array $first, array $second ): array {
+        $merged = [];
+        $index_by_key = [];
+        foreach ( array_merge( self::normalize_recipe_parts( $first ), self::normalize_recipe_parts( $second ) ) as $part ) {
+            $key = self::part_key( $part['title'] );
+            if ( $key !== '' && isset( $index_by_key[ $key ] ) ) {
+                $index = $index_by_key[ $key ];
+                if ( ! $merged[ $index ]['ingredients'] && $part['ingredients'] ) {
+                    $merged[ $index ]['ingredients'] = $part['ingredients'];
+                }
+                if ( ! $merged[ $index ]['instructions'] && $part['instructions'] ) {
+                    $merged[ $index ]['instructions'] = $part['instructions'];
+                }
+                continue;
+            }
+
+            $merged[] = $part;
+            if ( $key !== '' ) {
+                $index_by_key[ $key ] = count( $merged ) - 1;
+            }
+        }
+
+        return $merged;
+    }
+
+    private static function part_key( string $title ): string {
+        $title = strtolower( trim( $title ) );
+        return preg_replace( '/[^a-z0-9]+/', '', $title );
+    }
+
+    private static function flatten_part_ingredients( array $parts ): array {
+        $ingredients = [];
+        foreach ( self::normalize_recipe_parts( $parts ) as $part ) {
+            $ingredients = array_merge( $ingredients, $part['ingredients'] );
+        }
+        return $ingredients;
+    }
+
+    private static function flatten_part_instructions( array $parts ): array {
+        $instructions = [];
+        foreach ( self::normalize_recipe_parts( $parts ) as $part ) {
+            $instructions = array_merge( $instructions, $part['instructions'] );
+        }
+        return $instructions;
     }
 
     /**

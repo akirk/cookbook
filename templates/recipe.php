@@ -24,6 +24,7 @@ $prep             = (int) get_post_meta( $id, App::META_PREP, true );
 $cook             = (int) get_post_meta( $id, App::META_COOK, true );
 $ingredients      = (array) get_post_meta( $id, App::META_INGREDIENTS, true );
 $instructions     = (array) get_post_meta( $id, App::META_INSTRUCTIONS, true );
+$recipe_parts     = App::get_recipe_parts( $id );
 $source_url       = (string) get_post_meta( $id, App::META_SOURCE_URL, true );
 $notes            = (string) get_post_meta( $id, App::META_NOTES, true );
 
@@ -32,6 +33,34 @@ foreach ( $instructions as $step ) {
     $step = Importer::clean_step( (string) $step );
     if ( $step !== '' ) {
         $clean_instructions[] = $step;
+    }
+}
+
+$ingredient_parts = [];
+$clean_instruction_parts = [];
+foreach ( $recipe_parts as $part ) {
+    if ( ! empty( $part['ingredients'] ) ) {
+        $ingredient_parts[] = $part;
+    }
+
+    $part_steps = [];
+    foreach ( (array) ( $part['instructions'] ?? [] ) as $step ) {
+        $step = Importer::clean_step( (string) $step );
+        if ( $step !== '' ) {
+            $part_steps[] = $step;
+        }
+    }
+    if ( $part_steps ) {
+        $clean_instruction_parts[] = [
+            'title' => (string) ( $part['title'] ?? '' ),
+            'instructions' => $part_steps,
+        ];
+    }
+}
+if ( $clean_instruction_parts ) {
+    $clean_instructions = [];
+    foreach ( $clean_instruction_parts as $part ) {
+        $clean_instructions = array_merge( $clean_instructions, $part['instructions'] );
     }
 }
 
@@ -228,6 +257,65 @@ include __DIR__ . '/_header.php';
     <div class="description"><?php echo wp_kses_post( wpautop( $post->post_content ) ); ?></div>
 <?php endif; ?>
 
+<?php
+$render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id ) {
+    $rendered = Units::render_ingredient( $ing, 1.0, $preference );
+    $raw_amount = isset( $ing['amount'] ) ? $ing['amount'] : '';
+    $parsed_amount = Units::parse_amount( $raw_amount );
+    ?>
+    <li
+        data-amount="<?php echo esc_attr( $parsed_amount ?? '' ); ?>"
+        data-amount-raw="<?php echo esc_attr( $raw_amount ); ?>"
+        data-unit="<?php echo esc_attr( Units::normalize_unit( $ing['unit'] ?? '' ) ); ?>"
+        class="ingredient-row"
+    >
+        <div class="ingredient-line">
+            <span class="amt"><?php
+                echo esc_html( trim( $rendered['amount'] . ' ' . $rendered['unit'] ) );
+            ?></span>
+            <span class="ingredient-name">
+                <?php
+                $ing_term_id = isset( $ing['term_id'] ) ? (int) $ing['term_id'] : 0;
+                $ing_term    = $ing_term_id ? get_term( $ing_term_id, App::TAX_INGREDIENT ) : null;
+                if ( $ing_term && ! is_wp_error( $ing_term ) ) :
+                    ?>
+                    <a href="<?php echo esc_url( home_url( '/cookbook/ingredient/' . $ing_term->slug ) ); ?>"><?php echo esc_html( $rendered['name'] ); ?></a>
+                <?php else : ?>
+                    <?php echo esc_html( $rendered['name'] ); ?>
+                <?php endif; ?>
+                <?php if ( ! empty( $rendered['notes'] ) ) : ?>
+                    <span style="color:var(--muted)"> - <?php echo esc_html( $rendered['notes'] ); ?></span>
+                <?php endif; ?>
+            </span>
+            <?php if ( current_user_can( 'edit_post', $id ) ) : ?>
+                <span class="ingredient-actions">
+                    <button type="button" class="ingredient-replace-toggle" data-replace-target="replace-ingredient-<?php echo (int) $i; ?>"><?php esc_html_e( 'Replace', 'cookbook' ); ?></button>
+                </span>
+            <?php endif; ?>
+        </div>
+        <?php if ( current_user_can( 'edit_post', $id ) ) : ?>
+            <form id="replace-ingredient-<?php echo (int) $i; ?>" class="ingredient-replace-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" hidden>
+                <?php wp_nonce_field( 'cookbook_replace_ingredient_' . $id . '_' . $i ); ?>
+                <input type="hidden" name="action" value="cookbook_replace_ingredient">
+                <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
+                <input type="hidden" name="ingredient_index" value="<?php echo (int) $i; ?>">
+                <input type="text" name="amount" value="<?php echo esc_attr( $ing['amount'] ?? '' ); ?>" placeholder="<?php esc_attr_e( '2', 'cookbook' ); ?>">
+                <input type="text" name="unit" value="<?php echo esc_attr( $ing['unit'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'g', 'cookbook' ); ?>">
+                <input type="text" name="name" value="" placeholder="<?php echo esc_attr( sprintf(
+                    /* translators: %s: ingredient name */
+                    __( 'Replace %s with...', 'cookbook' ),
+                    $ing['name'] ?? ''
+                ) ); ?>" required>
+                <input type="text" name="notes" value="<?php echo esc_attr( $ing['notes'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'notes', 'cookbook' ); ?>">
+                <button class="btn fresh" type="submit"><?php esc_html_e( 'Save', 'cookbook' ); ?></button>
+                <button class="btn secondary ingredient-replace-cancel" type="button"><?php esc_html_e( 'Cancel', 'cookbook' ); ?></button>
+            </form>
+        <?php endif; ?>
+    </li>
+    <?php
+};
+?>
+
 <h2><?php esc_html_e( 'Ingredients', 'cookbook' ); ?></h2>
 <?php if ( ! $ingredients ) : ?>
     <p class="help">
@@ -240,68 +328,49 @@ include __DIR__ . '/_header.php';
         ?>
     </p>
 <?php else : ?>
-<ul class="ingredient-list" id="ingredients">
-    <?php foreach ( $ingredients as $i => $ing ) :
-        $rendered = Units::render_ingredient( $ing, 1.0, $preference );
-        $raw_amount = isset( $ing['amount'] ) ? $ing['amount'] : '';
-        $parsed_amount = Units::parse_amount( $raw_amount );
-        ?>
-        <li
-            data-amount="<?php echo esc_attr( $parsed_amount ?? '' ); ?>"
-            data-amount-raw="<?php echo esc_attr( $raw_amount ); ?>"
-            data-unit="<?php echo esc_attr( Units::normalize_unit( $ing['unit'] ?? '' ) ); ?>"
-            class="ingredient-row"
-        >
-            <div class="ingredient-line">
-                <span class="amt"><?php
-                    echo esc_html( trim( $rendered['amount'] . ' ' . $rendered['unit'] ) );
-                ?></span>
-                <span class="ingredient-name">
-                    <?php
-                    $ing_term_id = isset( $ing['term_id'] ) ? (int) $ing['term_id'] : 0;
-                    $ing_term    = $ing_term_id ? get_term( $ing_term_id, App::TAX_INGREDIENT ) : null;
-                    if ( $ing_term && ! is_wp_error( $ing_term ) ) :
-                        ?>
-                        <a href="<?php echo esc_url( home_url( '/cookbook/ingredient/' . $ing_term->slug ) ); ?>"><?php echo esc_html( $rendered['name'] ); ?></a>
-                    <?php else : ?>
-                        <?php echo esc_html( $rendered['name'] ); ?>
-                    <?php endif; ?>
-                    <?php if ( ! empty( $rendered['notes'] ) ) : ?>
-                        <span style="color:var(--muted)"> – <?php echo esc_html( $rendered['notes'] ); ?></span>
-                    <?php endif; ?>
-                </span>
-                <?php if ( current_user_can( 'edit_post', $id ) ) : ?>
-                    <span class="ingredient-actions">
-                        <button type="button" class="ingredient-replace-toggle" data-replace-target="replace-ingredient-<?php echo (int) $i; ?>"><?php esc_html_e( 'Replace', 'cookbook' ); ?></button>
-                    </span>
+<div id="ingredients" class="<?php echo $ingredient_parts ? 'ingredient-sections' : ''; ?>">
+    <?php if ( $ingredient_parts ) : ?>
+        <?php $ingredient_index = 0; ?>
+        <?php foreach ( $ingredient_parts as $part ) : ?>
+            <section class="recipe-part">
+                <?php if ( ! empty( $part['title'] ) ) : ?>
+                    <h3 class="recipe-part-title"><?php echo esc_html( $part['title'] ); ?></h3>
                 <?php endif; ?>
-            </div>
-            <?php if ( current_user_can( 'edit_post', $id ) ) : ?>
-                <form id="replace-ingredient-<?php echo (int) $i; ?>" class="ingredient-replace-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" hidden>
-                    <?php wp_nonce_field( 'cookbook_replace_ingredient_' . $id . '_' . $i ); ?>
-                    <input type="hidden" name="action" value="cookbook_replace_ingredient">
-                    <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
-                    <input type="hidden" name="ingredient_index" value="<?php echo (int) $i; ?>">
-                    <input type="text" name="amount" value="<?php echo esc_attr( $ing['amount'] ?? '' ); ?>" placeholder="<?php esc_attr_e( '2', 'cookbook' ); ?>">
-                    <input type="text" name="unit" value="<?php echo esc_attr( $ing['unit'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'g', 'cookbook' ); ?>">
-                    <input type="text" name="name" value="" placeholder="<?php echo esc_attr( sprintf(
-                        /* translators: %s: ingredient name */
-                        __( 'Replace %s with...', 'cookbook' ),
-                        $ing['name'] ?? ''
-                    ) ); ?>" required>
-                    <input type="text" name="notes" value="<?php echo esc_attr( $ing['notes'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'notes', 'cookbook' ); ?>">
-                    <button class="btn fresh" type="submit"><?php esc_html_e( 'Save', 'cookbook' ); ?></button>
-                    <button class="btn secondary ingredient-replace-cancel" type="button"><?php esc_html_e( 'Cancel', 'cookbook' ); ?></button>
-                </form>
-            <?php endif; ?>
-        </li>
-    <?php endforeach; ?>
-</ul>
+                <ul class="ingredient-list">
+                    <?php foreach ( (array) $part['ingredients'] as $ing ) : ?>
+                        <?php $render_ingredient_row( $ing, $ingredient_index++ ); ?>
+                    <?php endforeach; ?>
+                </ul>
+            </section>
+        <?php endforeach; ?>
+    <?php else : ?>
+        <ul class="ingredient-list">
+            <?php foreach ( $ingredients as $i => $ing ) : ?>
+                <?php $render_ingredient_row( $ing, (int) $i ); ?>
+            <?php endforeach; ?>
+        </ul>
+    <?php endif; ?>
+</div>
 <?php endif; ?>
 
 <h2><?php esc_html_e( 'Instructions', 'cookbook' ); ?></h2>
 <?php if ( ! $clean_instructions ) : ?>
     <p class="help"><?php esc_html_e( 'No instructions yet.', 'cookbook' ); ?></p>
+<?php elseif ( $clean_instruction_parts ) : ?>
+    <div class="instruction-sections">
+        <?php foreach ( $clean_instruction_parts as $part ) : ?>
+            <section class="recipe-part">
+                <?php if ( ! empty( $part['title'] ) ) : ?>
+                    <h3 class="recipe-part-title"><?php echo esc_html( $part['title'] ); ?></h3>
+                <?php endif; ?>
+                <ol class="instruction-list">
+                    <?php foreach ( (array) $part['instructions'] as $step ) : ?>
+                        <li><?php echo wp_kses_post( $step ); ?></li>
+                    <?php endforeach; ?>
+                </ol>
+            </section>
+        <?php endforeach; ?>
+    </div>
 <?php else : ?>
 <ol class="instruction-list">
     <?php foreach ( $clean_instructions as $step ) : ?>
@@ -577,7 +646,7 @@ include __DIR__ . '/_header.php';
         const wanted = Math.max(1, parseInt(servingsInput.value, 10) || baseServings);
         if (shoppingServings) shoppingServings.value = wanted;
         const scale = wanted / baseServings;
-        ingredients.querySelectorAll('li').forEach(li => {
+        ingredients.querySelectorAll('.ingredient-row').forEach(li => {
             const amt = li.querySelector('.amt');
             const raw = li.dataset.amount;
             const unit = li.dataset.unit;

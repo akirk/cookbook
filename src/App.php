@@ -21,6 +21,7 @@ class App extends BaseApp {
     const META_COOK        = '_recipe_cook_time';
     const META_INGREDIENTS = '_recipe_ingredients';
     const META_INSTRUCTIONS = '_recipe_instructions';
+    const META_PARTS       = '_recipe_parts';
     const META_SOURCE_URL  = '_recipe_source_url';
     const META_NOTES       = '_recipe_notes';
 
@@ -980,6 +981,13 @@ class App extends BaseApp {
         $instructions = isset( $input['instructions'] ) && is_array( $input['instructions'] )
             ? $this->sanitize_recipe_instruction_rows( $input['instructions'] )
             : ( $source_id ? (array) get_post_meta( $source_id, self::META_INSTRUCTIONS, true ) : [] );
+        $parts = (
+            $source_id
+            && ! array_key_exists( 'ingredients', $input )
+            && ! array_key_exists( 'instructions', $input )
+        )
+            ? (array) get_post_meta( $source_id, self::META_PARTS, true )
+            : [];
 
         $post_id = wp_insert_post( [
             'post_type'    => self::POST_TYPE,
@@ -999,6 +1007,7 @@ class App extends BaseApp {
         update_post_meta( $post_id, self::META_COOK, $cook );
         $this->persist_ingredients( $post_id, $ingredients );
         update_post_meta( $post_id, self::META_INSTRUCTIONS, $instructions );
+        $this->persist_recipe_parts( $post_id, $parts );
         update_post_meta( $post_id, self::META_SOURCE_URL, $source_url );
         update_post_meta( $post_id, self::META_NOTES, $notes );
 
@@ -1061,9 +1070,11 @@ class App extends BaseApp {
         }
         if ( array_key_exists( 'ingredients', $input ) && is_array( $input['ingredients'] ) ) {
             $this->persist_ingredients( $id, $this->sanitize_recipe_ingredient_rows( $input['ingredients'] ) );
+            delete_post_meta( $id, self::META_PARTS );
         }
         if ( array_key_exists( 'instructions', $input ) && is_array( $input['instructions'] ) ) {
             update_post_meta( $id, self::META_INSTRUCTIONS, $this->sanitize_recipe_instruction_rows( $input['instructions'] ) );
+            delete_post_meta( $id, self::META_PARTS );
         }
         if ( array_key_exists( 'source_url', $input ) ) {
             update_post_meta( $id, self::META_SOURCE_URL, esc_url_raw( (string) $input['source_url'] ) );
@@ -1306,6 +1317,7 @@ class App extends BaseApp {
         if ( $include_details ) {
             $payload['description']  = wp_strip_all_tags( $post->post_content );
             $payload['instructions'] = (array) get_post_meta( $id, self::META_INSTRUCTIONS, true );
+            $payload['parts']        = self::get_recipe_parts( $id );
             $payload['notes']        = wp_strip_all_tags( (string) get_post_meta( $id, self::META_NOTES, true ) );
             $payload['variation_family'] = array_map( function( $item ) {
                 $variation = $item['post'] ?? null;
@@ -1435,11 +1447,16 @@ class App extends BaseApp {
 
     private static function recipe_output_schema(): array {
         $schema = self::recipe_summary_schema();
-        $schema['required'] = array_merge( $schema['required'], [ 'description', 'instructions', 'notes' ] );
+        $schema['required'] = array_merge( $schema['required'], [ 'description', 'instructions', 'parts', 'notes' ] );
         $schema['properties']['description'] = [ 'type' => 'string' ];
         $schema['properties']['instructions'] = [
             'type'  => 'array',
             'items' => [ 'type' => 'string' ],
+        ];
+        $schema['properties']['parts'] = [
+            'type'        => 'array',
+            'description' => __( 'Optional named recipe sections with their own ingredients and instructions.', 'cookbook' ),
+            'items'       => self::recipe_part_schema(),
         ];
         $schema['properties']['notes'] = [ 'type' => 'string' ];
         $schema['properties']['variation_family'] = [
@@ -1677,6 +1694,25 @@ class App extends BaseApp {
         ];
     }
 
+    private static function recipe_part_schema(): array {
+        return [
+            'type'                 => 'object',
+            'required'             => [ 'title', 'ingredients', 'instructions' ],
+            'properties'           => [
+                'title'        => [ 'type' => 'string' ],
+                'ingredients'  => [
+                    'type'  => 'array',
+                    'items' => self::ingredient_schema(),
+                ],
+                'instructions' => [
+                    'type'  => 'array',
+                    'items' => [ 'type' => 'string' ],
+                ],
+            ],
+            'additionalProperties' => false,
+        ];
+    }
+
     private static function ingredient_input_schema(): array {
         return [
             'type'                 => 'object',
@@ -1825,6 +1861,18 @@ class App extends BaseApp {
                     'items' => [ 'type' => 'string' ],
                 ],
             ],
+            'auth_callback' => function() { return current_user_can( 'edit_posts' ); },
+        ] );
+        register_post_meta( self::POST_TYPE, self::META_PARTS, [
+            'type'         => 'array',
+            'single'       => true,
+            'show_in_rest' => [
+                'schema' => [
+                    'type'  => 'array',
+                    'items' => [ 'type' => 'object' ],
+                ],
+            ],
+            'revisions_enabled' => true,
             'auth_callback' => function() { return current_user_can( 'edit_posts' ); },
         ] );
         register_post_meta( self::POST_TYPE, self::META_SOURCE_URL, [
@@ -2619,6 +2667,7 @@ class App extends BaseApp {
         update_post_meta( $post_id, self::META_COOK, $cook );
         $this->persist_ingredients( $post_id, $ingredients );
         update_post_meta( $post_id, self::META_INSTRUCTIONS, $instructions );
+        delete_post_meta( $post_id, self::META_PARTS );
         update_post_meta( $post_id, self::META_SOURCE_URL, $source_url );
         update_post_meta( $post_id, self::META_NOTES, $notes );
 
@@ -2749,6 +2798,81 @@ class App extends BaseApp {
         }
         update_post_meta( $post_id, self::META_INGREDIENTS, $clean );
         wp_set_object_terms( $post_id, array_keys( $term_ids ), self::TAX_INGREDIENT, false );
+    }
+
+    public static function get_recipe_parts( int $post_id ): array {
+        $parts = get_post_meta( $post_id, self::META_PARTS, true );
+        return is_array( $parts ) ? self::normalize_recipe_parts_array( $parts, false ) : [];
+    }
+
+    private function persist_recipe_parts( int $post_id, array $parts ): void {
+        $clean = self::normalize_recipe_parts_array( $parts, true );
+        if ( ! $clean ) {
+            delete_post_meta( $post_id, self::META_PARTS );
+            return;
+        }
+
+        update_post_meta( $post_id, self::META_PARTS, $clean );
+    }
+
+    private static function normalize_recipe_parts_array( array $parts, bool $resolve_terms ): array {
+        $clean = [];
+        foreach ( $parts as $part ) {
+            if ( ! is_array( $part ) ) {
+                continue;
+            }
+
+            $title = isset( $part['title'] ) && is_scalar( $part['title'] )
+                ? sanitize_text_field( (string) $part['title'] )
+                : '';
+
+            $ingredients = [];
+            foreach ( (array) ( $part['ingredients'] ?? [] ) as $row ) {
+                if ( ! is_array( $row ) ) {
+                    continue;
+                }
+
+                $name = isset( $row['name'] ) ? sanitize_text_field( (string) $row['name'] ) : '';
+                if ( $name === '' ) {
+                    continue;
+                }
+
+                $term_id = isset( $row['term_id'] ) ? absint( $row['term_id'] ) : 0;
+                if ( $resolve_terms ) {
+                    $term_id = self::resolve_ingredient_term( $name ) ?: 0;
+                }
+
+                $ingredients[] = [
+                    'amount'  => isset( $row['amount'] ) ? sanitize_text_field( (string) $row['amount'] ) : '',
+                    'unit'    => isset( $row['unit'] ) ? sanitize_text_field( (string) $row['unit'] ) : '',
+                    'name'    => $name,
+                    'notes'   => isset( $row['notes'] ) ? sanitize_text_field( (string) $row['notes'] ) : '',
+                    'term_id' => $term_id,
+                ];
+            }
+
+            $instructions = [];
+            foreach ( (array) ( $part['instructions'] ?? [] ) as $step ) {
+                if ( ! is_scalar( $step ) ) {
+                    continue;
+                }
+
+                $step = Importer::clean_step( wp_kses_post( (string) $step ) );
+                if ( $step !== '' ) {
+                    $instructions[] = $step;
+                }
+            }
+
+            if ( $title !== '' || $ingredients || $instructions ) {
+                $clean[] = [
+                    'title'        => $title,
+                    'ingredients'  => $ingredients,
+                    'instructions' => $instructions,
+                ];
+            }
+        }
+
+        return $clean;
     }
 
     private function save_recipe_revision_snapshot( int $post_id ): void {
@@ -3012,15 +3136,31 @@ class App extends BaseApp {
             wp_die( esc_html__( 'Replacement ingredient is required.', 'cookbook' ), 400 );
         }
 
-        $ingredients[ $index ] = [
+        $replacement = [
             'amount' => isset( $_POST['amount'] ) ? sanitize_text_field( wp_unslash( $_POST['amount'] ) ) : '',
             'unit'   => isset( $_POST['unit'] ) ? sanitize_text_field( wp_unslash( $_POST['unit'] ) ) : '',
             'name'   => $name,
             'notes'  => isset( $_POST['notes'] ) ? sanitize_text_field( wp_unslash( $_POST['notes'] ) ) : '',
         ];
+        $ingredients[ $index ] = $replacement;
 
         $this->save_recipe_revision_snapshot( $id );
         $this->persist_ingredients( $id, $ingredients );
+        $parts = self::get_recipe_parts( $id );
+        if ( $parts ) {
+            $part_index = 0;
+            foreach ( $parts as &$part ) {
+                foreach ( $part['ingredients'] as &$part_ingredient ) {
+                    if ( $part_index === $index ) {
+                        $part_ingredient = $replacement;
+                        break 2;
+                    }
+                    $part_index++;
+                }
+            }
+            unset( $part, $part_ingredient );
+            $this->persist_recipe_parts( $id, $parts );
+        }
         $this->save_recipe_revision_snapshot( $id );
 
         wp_safe_redirect( add_query_arg( 'replaced', '1', home_url( '/' . $this->get_url_path() . '/recipe/' . $id . '#ingredients' ) ) );
@@ -3907,6 +4047,9 @@ class App extends BaseApp {
         }
         if ( ! $only_if_present || ! empty( $parsed['instructions'] ) ) {
             update_post_meta( $post_id, self::META_INSTRUCTIONS, $parsed['instructions'] ?? [] );
+        }
+        if ( ! $only_if_present || ! empty( $parsed['parts'] ) ) {
+            $this->persist_recipe_parts( $post_id, is_array( $parsed['parts'] ?? null ) ? $parsed['parts'] : [] );
         }
         if ( $url !== '' ) {
             update_post_meta( $post_id, self::META_SOURCE_URL, $url );

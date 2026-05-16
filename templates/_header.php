@@ -89,6 +89,11 @@ if ( ! defined( 'ABSPATH' ) ) {
         .ingredient-list li { padding: 0.35rem 0; border-bottom: 1px dashed var(--line); display: flex; gap: 0.5rem; }
         .ingredient-list .amt { min-width: 5rem; font-weight: 600; }
         .ingredient-list .ingredient-row { display: block; }
+        .ingredient-sections,
+        .instruction-sections { display: grid; gap: 0.85rem; }
+        .recipe-part-title { margin: 0.5rem 0 0.35rem; color: var(--muted); font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0; }
+        .recipe-part .ingredient-list,
+        .recipe-part .instruction-list { margin-top: 0; }
         .ingredient-line { display: flex; gap: 0.5rem; align-items: baseline; }
         .ingredient-line .ingredient-name { flex: 1; min-width: 0; }
         .ingredient-actions { opacity: 0; transition: opacity 0.1s; }
