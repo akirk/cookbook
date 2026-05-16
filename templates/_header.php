@@ -91,6 +91,44 @@ if ( ! defined( 'ABSPATH' ) ) {
         .recipe-form-section-rows { display: grid; gap: 0.4rem; }
         .recipe-form-section .add-ingredient-row,
         .recipe-form-section .add-instruction-row { margin-top: 0.15rem; }
+        #ingredient-sections { gap: 0; }
+        #ingredient-sections .recipe-form-section { border-left: 0; padding-left: 0; }
+        #ingredient-sections .recipe-form-section-header { display: none; grid-template-columns: minmax(0, 1fr) auto; gap: 0.35rem; align-items: center; margin: 0.65rem 0 0.3rem; }
+        #ingredient-sections.has-recipe-sections .recipe-form-section.has-section-boundary .recipe-form-section-header,
+        #ingredient-sections.has-recipe-sections .recipe-form-section.has-section-title .recipe-form-section-header { display: grid; }
+        #ingredient-sections .recipe-form-section:first-child .recipe-form-section-header { margin-top: 0.15rem; }
+        #ingredient-sections .recipe-form-section-header input {
+            border: 0;
+            border-bottom: 1px solid transparent;
+            border-radius: 0;
+            background: transparent;
+            color: var(--muted);
+            font-size: 0.9rem;
+            font-weight: 700;
+            padding: 0.15rem 0;
+            text-transform: uppercase;
+        }
+        #ingredient-sections .recipe-form-section-header input:focus {
+            border-bottom-color: var(--accent);
+            outline: none;
+        }
+        #ingredient-sections .recipe-section-remove {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            justify-self: end;
+            width: 1.55rem;
+            height: 1.55rem;
+            padding: 0;
+            border-radius: 999px;
+            background: transparent;
+            color: var(--muted);
+            font-size: 1.1rem;
+            line-height: 1;
+        }
+        #ingredient-sections .recipe-section-remove:hover,
+        #ingredient-sections .recipe-section-remove:focus { background: var(--error-bg); color: #b32d2e; }
+        #ingredient-sections .add-ingredient-row { display: none; }
         .recipe-row-inserter { position: relative; display: flex; align-items: center; justify-content: center; min-height: 0.9rem; margin: -0.25rem 0; opacity: 0; transition: opacity 0.12s ease; }
         .recipe-row-inserter:hover,
         .recipe-row-inserter:focus-within { opacity: 1; }
@@ -99,6 +137,9 @@ if ( ! defined( 'ABSPATH' ) ) {
         .recipe-row-inserter button { border: 1px solid var(--line); border-radius: 999px; background: var(--input-bg); color: var(--muted); cursor: pointer; font: inherit; font-size: 0.78rem; line-height: 1; padding: 0.18rem 0.45rem; }
         .recipe-row-inserter button:hover,
         .recipe-row-inserter button:focus { border-color: var(--accent); color: var(--accent); outline: none; }
+        @media (hover: none) {
+            .recipe-row-inserter { opacity: 1; }
+        }
         .ingredient-list { list-style: none; padding: 0; }
         .ingredient-list li { padding: 0.35rem 0; border-bottom: 1px dashed var(--line); display: flex; gap: 0.5rem; }
         .ingredient-list .amt { min-width: 5rem; font-weight: 600; }
