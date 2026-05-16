@@ -85,10 +85,70 @@ if ( ! defined( 'ABSPATH' ) ) {
         .row { display: grid; grid-template-columns: 5rem 6rem 1fr 1fr auto; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; }
         .row input { width: 100%; }
         .row .remove { background: transparent; border: 0; color: #b32d2e; cursor: pointer; font-size: 1.2rem; }
+        .recipe-form-sections { display: grid; gap: 0.85rem; margin-bottom: 0.75rem; }
+        .recipe-form-section { border-left: 3px solid var(--line); padding-left: 0.85rem; }
+        .recipe-form-section-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+        .recipe-form-section-rows { display: grid; gap: 0.4rem; }
+        .recipe-form-section .add-ingredient-row,
+        .recipe-form-section .add-instruction-row { margin-top: 0.15rem; }
+        #ingredient-sections { gap: 0; }
+        #ingredient-sections .recipe-form-section { border-left: 0; padding-left: 0; }
+        #ingredient-sections .recipe-form-section-header { display: none; grid-template-columns: minmax(0, 1fr) auto; gap: 0.35rem; align-items: center; margin: 0.65rem 0 0.3rem; }
+        #ingredient-sections.has-recipe-sections .recipe-form-section.has-section-boundary .recipe-form-section-header,
+        #ingredient-sections.has-recipe-sections .recipe-form-section.has-section-title .recipe-form-section-header { display: grid; }
+        #ingredient-sections .recipe-form-section:first-child .recipe-form-section-header { margin-top: 0.15rem; }
+        #ingredient-sections .recipe-form-section-header input {
+            border: 0;
+            border-bottom: 1px solid transparent;
+            border-radius: 0;
+            background: transparent;
+            color: var(--muted);
+            font-size: 0.9rem;
+            font-weight: 700;
+            padding: 0.15rem 0;
+            text-transform: uppercase;
+        }
+        #ingredient-sections .recipe-form-section-header input:focus {
+            border-bottom-color: var(--accent);
+            outline: none;
+        }
+        #ingredient-sections .recipe-section-remove {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            justify-self: end;
+            width: 1.55rem;
+            height: 1.55rem;
+            padding: 0;
+            border-radius: 999px;
+            background: transparent;
+            color: var(--muted);
+            font-size: 1.1rem;
+            line-height: 1;
+        }
+        #ingredient-sections .recipe-section-remove:hover,
+        #ingredient-sections .recipe-section-remove:focus { background: var(--error-bg); color: #b32d2e; }
+        #ingredient-sections .add-ingredient-row { display: none; }
+        .recipe-row-inserter { position: relative; display: flex; align-items: center; justify-content: center; min-height: 0.9rem; margin: -0.25rem 0; opacity: 0; transition: opacity 0.12s ease; }
+        .recipe-row-inserter:hover,
+        .recipe-row-inserter:focus-within { opacity: 1; }
+        .recipe-row-inserter-line { position: absolute; left: 0; right: 0; height: 1px; background: var(--line); }
+        .recipe-row-inserter-actions { position: relative; display: inline-flex; gap: 0.25rem; background: var(--bg); padding: 0 0.35rem; }
+        .recipe-row-inserter button { border: 1px solid var(--line); border-radius: 999px; background: var(--input-bg); color: var(--muted); cursor: pointer; font: inherit; font-size: 0.78rem; line-height: 1; padding: 0.18rem 0.45rem; }
+        .recipe-row-inserter button:hover,
+        .recipe-row-inserter button:focus { border-color: var(--accent); color: var(--accent); outline: none; }
+        @media (hover: none) {
+            .recipe-row-inserter { opacity: 1; }
+        }
         .ingredient-list { list-style: none; padding: 0; }
         .ingredient-list li { padding: 0.35rem 0; border-bottom: 1px dashed var(--line); display: flex; gap: 0.5rem; }
         .ingredient-list .amt { min-width: 5rem; font-weight: 600; }
         .ingredient-list .ingredient-row { display: block; }
+        .ingredient-sections,
+        .instruction-sections { display: grid; gap: 0.85rem; }
+        .recipe-part-title { margin: 0.5rem 0 0.35rem; color: var(--muted); font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0; }
+        .recipe-part .ingredient-list,
+        .recipe-part .instruction-list { margin-top: 0; }
         .ingredient-line { display: flex; gap: 0.5rem; align-items: baseline; }
         .ingredient-line .ingredient-name { flex: 1; min-width: 0; }
         .ingredient-actions { opacity: 0; transition: opacity 0.1s; }
@@ -245,6 +305,7 @@ if ( ! defined( 'ABSPATH' ) ) {
             .shopping-fields,
             .manual-item-row,
             .ingredient-replace-form { grid-template-columns: 1fr 1fr; }
+            .recipe-form-section-header { grid-template-columns: 1fr; }
             .ingredient-replace-form { margin-left: 0; }
             .manual-item-row .remove { justify-self: start; }
             .shop-add { grid-template-columns: 1fr; }

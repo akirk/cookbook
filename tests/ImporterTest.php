@@ -86,6 +86,98 @@ class ImporterTest extends TestCase {
         $this->assertCount( 3, $parsed['instructions'] );
     }
 
+    public function test_simplehomeedit_recipe_card_sections_are_preserved_when_jsonld_is_flat(): void {
+        $parsed = Importer::from_html( $this->fixture( 'simplehomeedit-dijon-salmon-sections.html' ) );
+
+        $this->assertIsArray( $parsed );
+        $this->assertSame( 'Dijon Salmon and Crispy Potatoes', $parsed['title'] );
+        $this->assertCount( 4, $parsed['parts'] );
+        $this->assertSame(
+            [ 'POTATOES', 'SALMON', 'CREAMY LEMON DILL SAUCE', 'TO SERVE' ],
+            array_column( $parsed['parts'], 'title' )
+        );
+
+        $this->assertSame( 'baby potatoes', $parsed['parts'][0]['ingredients'][0]['name'] );
+        $this->assertSame( 'washed - no need to peel', $parsed['parts'][0]['ingredients'][0]['notes'] );
+        $this->assertSame( 'salmon fillets', $parsed['parts'][1]['ingredients'][0]['name'] );
+        $this->assertSame( 'whole-egg mayonnaise', $parsed['parts'][2]['ingredients'][0]['name'] );
+        $this->assertSame( 'Green leafy salad', $parsed['parts'][3]['ingredients'][0]['name'] );
+
+        // The compatibility field stays flat for existing recipe storage,
+        // shopping-list code, and callers that do not understand parts yet.
+        $this->assertCount( 5, $parsed['ingredients'] );
+        $this->assertSame( 'baby potatoes', $parsed['ingredients'][0]['name'] );
+        $this->assertSame( 'Green leafy salad', $parsed['ingredients'][4]['name'] );
+    }
+
+    public function test_jsonld_howto_sections_are_preserved_as_parts(): void {
+        $html = '<script type="application/ld+json">' . json_encode( [
+            '@context' => 'https://schema.org',
+            '@type' => 'Recipe',
+            'name' => 'Sectioned Instructions',
+            'recipeIngredient' => [
+                '200 g flour',
+            ],
+            'recipeInstructions' => [
+                [
+                    '@type' => 'HowToSection',
+                    'name' => 'Dough',
+                    'itemListElement' => [
+                        [
+                            '@type' => 'HowToStep',
+                            'text' => 'Mix the flour and water.',
+                        ],
+                    ],
+                ],
+                [
+                    '@type' => 'HowToSection',
+                    'name' => 'Bake',
+                    'itemListElement' => [
+                        [
+                            '@type' => 'HowToStep',
+                            'text' => 'Bake until golden.',
+                        ],
+                    ],
+                ],
+            ],
+        ] ) . '</script>';
+
+        $parsed = Importer::from_html( $html );
+
+        $this->assertIsArray( $parsed );
+        $this->assertCount( 2, $parsed['parts'] );
+        $this->assertSame( 'Dough', $parsed['parts'][0]['title'] );
+        $this->assertSame( [ 'Mix the flour and water.' ], $parsed['parts'][0]['instructions'] );
+        $this->assertSame( 'Bake', $parsed['parts'][1]['title'] );
+        $this->assertSame( [ 'Bake until golden.' ], $parsed['parts'][1]['instructions'] );
+        $this->assertSame( [ 'Mix the flour and water.', 'Bake until golden.' ], $parsed['instructions'] );
+    }
+
+    public function test_flat_jsonld_does_not_invent_parts(): void {
+        $html = '<script type="application/ld+json">' . json_encode( [
+            '@context' => 'https://schema.org',
+            '@type' => 'Recipe',
+            'name' => 'Flat Recipe',
+            'recipeIngredient' => [
+                '200 g flour',
+                '2 eggs',
+            ],
+            'recipeInstructions' => [
+                [
+                    '@type' => 'HowToStep',
+                    'text' => 'Mix everything.',
+                ],
+            ],
+        ] ) . '</script>';
+
+        $parsed = Importer::from_html( $html );
+
+        $this->assertIsArray( $parsed );
+        $this->assertSame( [], $parsed['parts'] );
+        $this->assertCount( 2, $parsed['ingredients'] );
+        $this->assertSame( [ 'Mix everything.' ], $parsed['instructions'] );
+    }
+
     public function test_clean_step_strips_enumerators(): void {
         $this->assertSame( 'Mix everything', Importer::clean_step( '1. Mix everything' ) );
         $this->assertSame( 'Mix everything', Importer::clean_step( '1) Mix everything' ) );
@@ -110,6 +202,7 @@ class ImporterTest extends TestCase {
             'german el'     => [ '2 EL Öl',           [ 'amount' => '2',   'unit' => 'tbsp',  'name' => 'Öl',          'notes' => '' ] ],
             'german stk'    => [ '1 Stk Zwiebel',     [ 'amount' => '1',   'unit' => 'piece', 'name' => 'Zwiebel',     'notes' => '' ] ],
             'paren note'    => [ '200 g Nudeln (Fleckerl)', [ 'amount' => '200', 'unit' => 'g', 'name' => 'Nudeln', 'notes' => 'Fleckerl' ] ],
+            'alternate unit' => [ '700 g (1 1/2 lb) baby potatoes, washed', [ 'amount' => '700', 'unit' => 'g', 'name' => 'baby potatoes', 'notes' => 'washed' ] ],
             'no number'     => [ 'Salt to taste',     [ 'amount' => '',    'unit' => '',      'name' => 'Salt to taste', 'notes' => '' ] ],
         ];
     }

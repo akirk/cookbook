@@ -20,6 +20,7 @@ $prep         = $post ? (int) get_post_meta( $data_id, App::META_PREP, true ) : 
 $cook         = $post ? (int) get_post_meta( $data_id, App::META_COOK, true ) : 0;
 $ingredients  = $post ? (array) get_post_meta( $data_id, App::META_INGREDIENTS, true ) : [];
 $instructions = $post ? (array) get_post_meta( $data_id, App::META_INSTRUCTIONS, true ) : [];
+$recipe_parts = $post ? App::get_recipe_parts( $data_id ) : [];
 $source_url   = $post ? (string) get_post_meta( $data_id, App::META_SOURCE_URL, true ) : '';
 $notes        = $post ? (string) get_post_meta( $data_id, App::META_NOTES, true ) : '';
 $parent_id    = isset( $variation_parent_id )
@@ -35,6 +36,56 @@ if ( ! $ingredients ) {
 }
 if ( ! $instructions ) {
     $instructions = [ '' ];
+}
+
+$blank_ingredient = [ 'amount' => '', 'unit' => '', 'name' => '', 'notes' => '' ];
+$ingredient_sections = [];
+$instruction_sections = [];
+foreach ( $recipe_parts as $part ) {
+    if ( ! empty( $part['ingredients'] ) ) {
+        $ingredient_sections[] = [
+            'title'       => (string) ( $part['title'] ?? '' ),
+            'ingredients' => (array) $part['ingredients'],
+        ];
+    }
+    if ( ! empty( $part['instructions'] ) ) {
+        $instruction_sections[] = [
+            'title'        => (string) ( $part['title'] ?? '' ),
+            'instructions' => (array) $part['instructions'],
+        ];
+    }
+}
+if ( ! $ingredient_sections ) {
+    $ingredient_sections[] = [
+        'title'       => '',
+        'ingredients' => $ingredients ?: [ $blank_ingredient ],
+    ];
+}
+if ( ! $instruction_sections ) {
+    $instruction_sections[] = [
+        'title'        => '',
+        'instructions' => $instructions ?: [ '' ],
+    ];
+}
+foreach ( $ingredient_sections as &$section ) {
+    if ( empty( $section['ingredients'] ) ) {
+        $section['ingredients'] = [ $blank_ingredient ];
+    }
+}
+unset( $section );
+foreach ( $instruction_sections as &$section ) {
+    if ( empty( $section['instructions'] ) ) {
+        $section['instructions'] = [ '' ];
+    }
+}
+unset( $section );
+
+$has_ingredient_sections = count( $ingredient_sections ) > 1;
+foreach ( $ingredient_sections as $section ) {
+    if ( '' !== trim( (string) ( $section['title'] ?? '' ) ) ) {
+        $has_ingredient_sections = true;
+        break;
+    }
 }
 
 $categories = get_terms( [ 'taxonomy' => App::TAX_CATEGORY, 'hide_empty' => false ] );
@@ -136,15 +187,34 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
 
     <h2><?php esc_html_e( 'Ingredients', 'cookbook' ); ?></h2>
     <p class="help"><?php esc_html_e( 'Amount + unit are optional. Enter "1/2", "1.5", or use fractions like ½. Recognised units convert automatically; "piece", "clove", "pinch" etc. are kept as-is.', 'cookbook' ); ?></p>
-    <div id="ingredient-rows">
-        <?php foreach ( $ingredients as $i => $row ) : ?>
-            <div class="row">
-                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][amount]" value="<?php echo esc_attr( $row['amount'] ?? '' ); ?>" placeholder="<?php esc_attr_e( '2', 'cookbook' ); ?>">
-                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][unit]"   value="<?php echo esc_attr( $row['unit'] ?? '' ); ?>"   placeholder="<?php esc_attr_e( 'g', 'cookbook' ); ?>" list="recipe-units">
-                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][name]"   value="<?php echo esc_attr( $row['name'] ?? '' ); ?>"   placeholder="<?php esc_attr_e( 'ingredient', 'cookbook' ); ?>" required>
-                <input type="text"   name="ingredients[<?php echo (int) $i; ?>][notes]"  value="<?php echo esc_attr( $row['notes'] ?? '' ); ?>"  placeholder="<?php esc_attr_e( 'chopped', 'cookbook' ); ?>">
-                <button type="button" class="remove" aria-label="<?php esc_attr_e( 'Remove', 'cookbook' ); ?>">×</button>
-            </div>
+    <div id="ingredient-sections" class="recipe-form-sections<?php echo $has_ingredient_sections ? ' has-recipe-sections' : ''; ?>" data-section-root="ingredient">
+        <?php foreach ( $ingredient_sections as $section_index => $section ) : ?>
+            <?php
+            $section_has_title = '' !== trim( (string) ( $section['title'] ?? '' ) );
+            $section_classes = 'recipe-form-section';
+            if ( $section_has_title ) {
+                $section_classes .= ' has-section-title has-section-boundary';
+            } elseif ( $section_index > 0 ) {
+                $section_classes .= ' has-section-boundary';
+            }
+            ?>
+            <section class="<?php echo esc_attr( $section_classes ); ?>" data-ingredient-section data-section-index="<?php echo (int) $section_index; ?>">
+                <div class="recipe-form-section-header">
+                    <input type="text" name="ingredient_parts[<?php echo (int) $section_index; ?>][title]" value="<?php echo esc_attr( $section['title'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'Section header', 'cookbook' ); ?>">
+                    <button type="button" class="btn secondary remove-section recipe-section-remove" aria-label="<?php esc_attr_e( 'Remove section header and merge ingredients', 'cookbook' ); ?>" title="<?php esc_attr_e( 'Remove section header and merge ingredients', 'cookbook' ); ?>">×</button>
+                </div>
+                <div class="recipe-form-section-rows" data-ingredient-rows>
+                    <?php foreach ( (array) $section['ingredients'] as $i => $row ) : ?>
+                        <div class="row">
+                            <input type="text" name="ingredient_parts[<?php echo (int) $section_index; ?>][ingredients][<?php echo (int) $i; ?>][amount]" value="<?php echo esc_attr( $row['amount'] ?? '' ); ?>" placeholder="<?php esc_attr_e( '2', 'cookbook' ); ?>">
+                            <input type="text" name="ingredient_parts[<?php echo (int) $section_index; ?>][ingredients][<?php echo (int) $i; ?>][unit]" value="<?php echo esc_attr( $row['unit'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'g', 'cookbook' ); ?>" list="recipe-units">
+                            <input type="text" name="ingredient_parts[<?php echo (int) $section_index; ?>][ingredients][<?php echo (int) $i; ?>][name]" value="<?php echo esc_attr( $row['name'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'ingredient', 'cookbook' ); ?>" required>
+                            <input type="text" name="ingredient_parts[<?php echo (int) $section_index; ?>][ingredients][<?php echo (int) $i; ?>][notes]" value="<?php echo esc_attr( $row['notes'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'chopped', 'cookbook' ); ?>">
+                            <button type="button" class="remove" aria-label="<?php esc_attr_e( 'Remove', 'cookbook' ); ?>">×</button>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </section>
         <?php endforeach; ?>
     </div>
     <datalist id="recipe-units">
@@ -152,21 +222,32 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
             <option value="<?php echo esc_attr( $u ); ?>"></option>
         <?php endforeach; ?>
     </datalist>
-    <button type="button" class="btn secondary" id="add-ingredient"><?php esc_html_e( '+ Add ingredient', 'cookbook' ); ?></button>
+    <button type="button" class="btn secondary" id="add-ingredient-section"><?php esc_html_e( '+ Section', 'cookbook' ); ?></button>
 
     <h2><?php esc_html_e( 'Instructions', 'cookbook' ); ?></h2>
-    <div id="instruction-rows">
-        <?php foreach ( $instructions as $i => $step ) : ?>
-            <div class="row" style="grid-template-columns: 1fr auto; align-items: flex-start">
-                <textarea name="instructions[]" placeholder="<?php
-                    /* translators: %d: step number */
-                    echo esc_attr( sprintf( __( 'Step %d', 'cookbook' ), (int) $i + 1 ) );
-                ?>"><?php echo esc_textarea( $step ); ?></textarea>
-                <button type="button" class="remove" aria-label="<?php esc_attr_e( 'Remove', 'cookbook' ); ?>">×</button>
-            </div>
+    <div id="instruction-sections" class="recipe-form-sections" data-section-root="instruction">
+        <?php foreach ( $instruction_sections as $section_index => $section ) : ?>
+            <section class="recipe-form-section" data-instruction-section data-section-index="<?php echo (int) $section_index; ?>">
+                <div class="recipe-form-section-header">
+                    <input type="text" name="instruction_parts[<?php echo (int) $section_index; ?>][title]" value="<?php echo esc_attr( $section['title'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'Section title (optional)', 'cookbook' ); ?>">
+                    <button type="button" class="btn secondary remove-section"><?php esc_html_e( 'Remove section', 'cookbook' ); ?></button>
+                </div>
+                <div class="recipe-form-section-rows" data-instruction-rows>
+                    <?php foreach ( (array) $section['instructions'] as $i => $step ) : ?>
+                        <div class="row" style="grid-template-columns: 1fr auto; align-items: flex-start">
+                            <textarea name="instruction_parts[<?php echo (int) $section_index; ?>][instructions][]" placeholder="<?php
+                                /* translators: %d: step number */
+                                echo esc_attr( sprintf( __( 'Step %d', 'cookbook' ), (int) $i + 1 ) );
+                            ?>"><?php echo esc_textarea( $step ); ?></textarea>
+                            <button type="button" class="remove" aria-label="<?php esc_attr_e( 'Remove', 'cookbook' ); ?>">×</button>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <button type="button" class="btn secondary add-instruction-row"><?php esc_html_e( '+ Add step', 'cookbook' ); ?></button>
+            </section>
         <?php endforeach; ?>
     </div>
-    <button type="button" class="btn secondary" id="add-instruction"><?php esc_html_e( '+ Add step', 'cookbook' ); ?></button>
+    <button type="button" class="btn secondary" id="add-instruction-section"><?php esc_html_e( '+ Add instruction section', 'cookbook' ); ?></button>
 
     <h2><?php esc_html_e( 'Categorisation', 'cookbook' ); ?></h2>
     <div class="grid">
@@ -208,53 +289,388 @@ $unit_options = Units::COMMON_UNITS[ $pref ];
 
 <script>
 (function () {
-    const ingRoot = document.getElementById('ingredient-rows');
-    const insRoot = document.getElementById('instruction-rows');
+    const ingredientRoot = document.getElementById('ingredient-sections');
+    const instructionRoot = document.getElementById('instruction-sections');
+    const strings = {
+        sectionTitle: <?php echo wp_json_encode( __( 'Section title (optional)', 'cookbook' ) ); ?>,
+        ingredientSectionTitle: <?php echo wp_json_encode( __( 'Section header', 'cookbook' ) ); ?>,
+        removeSection: <?php echo wp_json_encode( __( 'Remove section', 'cookbook' ) ); ?>,
+        mergeIngredientSection: <?php echo wp_json_encode( __( 'Remove section header and merge ingredients', 'cookbook' ) ); ?>,
+        addIngredient: <?php echo wp_json_encode( __( '+ Add ingredient', 'cookbook' ) ); ?>,
+        addStep: <?php echo wp_json_encode( __( '+ Add step', 'cookbook' ) ); ?>,
+        two: <?php echo wp_json_encode( __( '2', 'cookbook' ) ); ?>,
+        gram: <?php echo wp_json_encode( __( 'g', 'cookbook' ) ); ?>,
+        ingredient: <?php echo wp_json_encode( __( 'ingredient', 'cookbook' ) ); ?>,
+        chopped: <?php echo wp_json_encode( __( 'chopped', 'cookbook' ) ); ?>,
+        remove: <?php echo wp_json_encode( __( 'Remove', 'cookbook' ) ); ?>,
+        ingredientShort: <?php echo wp_json_encode( __( 'Ingredient', 'cookbook' ) ); ?>,
+        sectionShort: <?php echo wp_json_encode( __( 'Section', 'cookbook' ) ); ?>,
+        step: <?php echo wp_json_encode( __( 'Step', 'cookbook' ) ); ?>
+    };
 
-    function nextIndex(root) {
-        return root.querySelectorAll('.row').length;
+    function initSectionCounters(root, sectionSelector) {
+        if (!root) return;
+        let next = 0;
+        root.querySelectorAll(sectionSelector).forEach(section => {
+            const index = parseInt(section.dataset.sectionIndex, 10);
+            if (!isNaN(index)) next = Math.max(next, index + 1);
+            const ingredientRows = section.querySelector('[data-ingredient-rows]');
+            if (ingredientRows) {
+                section.dataset.nextRowIndex = String(ingredientRows.querySelectorAll('.row').length);
+            }
+            updateSectionNames(section);
+        });
+        root.dataset.nextSectionIndex = String(next);
     }
 
-    document.getElementById('add-ingredient').addEventListener('click', () => {
-        const i = nextIndex(ingRoot);
+    function nextSectionIndex(root) {
+        const next = parseInt(root.dataset.nextSectionIndex || '0', 10) || 0;
+        root.dataset.nextSectionIndex = String(next + 1);
+        return next;
+    }
+
+    function nextIngredientRowIndex(section) {
+        const next = parseInt(section.dataset.nextRowIndex || '0', 10) || 0;
+        section.dataset.nextRowIndex = String(next + 1);
+        return next;
+    }
+
+    function addIngredientRow(section, focus) {
+        const rows = section.querySelector('[data-ingredient-rows]');
+        if (!rows) return;
+        const sectionIndex = section.dataset.sectionIndex;
+        const rowIndex = nextIngredientRowIndex(section);
         const row = document.createElement('div');
         row.className = 'row';
         row.innerHTML = `
-            <input type="text" name="ingredients[${i}][amount]" placeholder="2">
-            <input type="text" name="ingredients[${i}][unit]"   placeholder="g" list="recipe-units">
-            <input type="text" name="ingredients[${i}][name]"   placeholder="ingredient" required>
-            <input type="text" name="ingredients[${i}][notes]"  placeholder="chopped">
-            <button type="button" class="remove" aria-label="Remove">×</button>
+            <input type="text" name="ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][amount]" placeholder="${strings.two}">
+            <input type="text" name="ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][unit]" placeholder="${strings.gram}" list="recipe-units">
+            <input type="text" name="ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][name]" placeholder="${strings.ingredient}" required>
+            <input type="text" name="ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][notes]" placeholder="${strings.chopped}">
+            <button type="button" class="remove" aria-label="${strings.remove}">×</button>
         `;
-        ingRoot.appendChild(row);
-        row.querySelector('input').focus();
-    });
+        rows.appendChild(row);
+        updateSectionNames(section);
+        if (focus) row.querySelector('input').focus();
+    }
 
-    document.getElementById('add-instruction').addEventListener('click', () => {
+    function addInstructionRow(section, focus) {
+        const rows = section.querySelector('[data-instruction-rows]');
+        if (!rows) return;
+        const sectionIndex = section.dataset.sectionIndex;
         const row = document.createElement('div');
         row.className = 'row';
         row.style.gridTemplateColumns = '1fr auto';
         row.style.alignItems = 'flex-start';
-        const num = insRoot.querySelectorAll('.row').length + 1;
+        const num = rows.querySelectorAll('.row').length + 1;
         row.innerHTML = `
-            <textarea name="instructions[]" placeholder="Step ${num}"></textarea>
-            <button type="button" class="remove" aria-label="Remove">×</button>
+            <textarea name="instruction_parts[${sectionIndex}][instructions][]" placeholder="${strings.step} ${num}"></textarea>
+            <button type="button" class="remove" aria-label="${strings.remove}">×</button>
         `;
-        insRoot.appendChild(row);
-        row.querySelector('textarea').focus();
-    });
+        rows.appendChild(row);
+        updateSectionNames(section);
+        if (focus) row.querySelector('textarea').focus();
+    }
+
+    function rowElements(container) {
+        return Array.from(container.children).filter(child => child.classList && child.classList.contains('row'));
+    }
+
+    function updateSectionNames(section) {
+        const sectionIndex = section.dataset.sectionIndex;
+        const title = section.querySelector('.recipe-form-section-header input');
+        const rows = section.querySelector('.recipe-form-section-rows');
+        if (!rows) return;
+
+        if (section.matches('[data-ingredient-section]')) {
+            if (title) title.name = `ingredient_parts[${sectionIndex}][title]`;
+            rowElements(rows).forEach((row, rowIndex) => {
+                const inputs = row.querySelectorAll('input');
+                if (inputs[0]) inputs[0].name = `ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][amount]`;
+                if (inputs[1]) inputs[1].name = `ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][unit]`;
+                if (inputs[2]) inputs[2].name = `ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][name]`;
+                if (inputs[3]) inputs[3].name = `ingredient_parts[${sectionIndex}][ingredients][${rowIndex}][notes]`;
+            });
+            section.dataset.nextRowIndex = String(rowElements(rows).length);
+            refreshIngredientInserters(section);
+            return;
+        }
+
+        if (title) title.name = `instruction_parts[${sectionIndex}][title]`;
+        rowElements(rows).forEach(row => {
+            const textarea = row.querySelector('textarea');
+            if (textarea) textarea.name = `instruction_parts[${sectionIndex}][instructions][]`;
+        });
+    }
+
+    function refreshIngredientInserters(section) {
+        const rows = section.querySelector('[data-ingredient-rows]');
+        if (!rows) return;
+        rows.querySelectorAll('.recipe-row-inserter').forEach(inserter => inserter.remove());
+        rowElements(rows).forEach(row => {
+            const inserter = document.createElement('div');
+            inserter.className = 'recipe-row-inserter';
+            inserter.innerHTML = `
+                <span class="recipe-row-inserter-line"></span>
+                <span class="recipe-row-inserter-actions">
+                    <button type="button" class="insert-ingredient-here">+ ${strings.ingredientShort}</button>
+                    <button type="button" class="insert-section-here">+ ${strings.sectionShort}</button>
+                </span>
+            `;
+            rows.insertBefore(inserter, row.nextSibling);
+        });
+    }
+
+    function syncIngredientSectionState() {
+        if (!ingredientRoot) return;
+        const sections = Array.from(ingredientRoot.querySelectorAll('[data-ingredient-section]'));
+        const hasSections = sections.length > 1 || sections.some(section => {
+            const title = section.querySelector('.recipe-form-section-header input');
+            return title && (title.value.trim() !== '' || title === document.activeElement);
+        });
+        ingredientRoot.classList.toggle('has-recipe-sections', hasSections);
+
+        sections.forEach((section, index) => {
+            const title = section.querySelector('.recipe-form-section-header input');
+            const hasTitle = title && title.value.trim() !== '';
+            const hasFocusedTitle = title && title === document.activeElement;
+            section.classList.toggle('has-section-title', Boolean(hasTitle));
+            section.classList.toggle('has-section-boundary', index > 0 || Boolean(hasTitle) || Boolean(hasFocusedTitle));
+        });
+    }
+
+    function addIngredientSection(focus) {
+        const index = nextSectionIndex(ingredientRoot);
+        const section = document.createElement('section');
+        section.className = 'recipe-form-section';
+        section.dataset.sectionIndex = String(index);
+        section.dataset.nextRowIndex = '0';
+        section.setAttribute('data-ingredient-section', '');
+        section.innerHTML = `
+            <div class="recipe-form-section-header">
+                <input type="text" name="ingredient_parts[${index}][title]" placeholder="${strings.ingredientSectionTitle}">
+                <button type="button" class="btn secondary remove-section recipe-section-remove" aria-label="${strings.mergeIngredientSection}" title="${strings.mergeIngredientSection}">×</button>
+            </div>
+            <div class="recipe-form-section-rows" data-ingredient-rows></div>
+        `;
+        ingredientRoot.appendChild(section);
+        addIngredientRow(section, false);
+        syncIngredientSectionState();
+        if (focus) section.querySelector('input').focus();
+    }
+
+    function addInstructionSection(focus) {
+        const index = nextSectionIndex(instructionRoot);
+        const section = document.createElement('section');
+        section.className = 'recipe-form-section';
+        section.dataset.sectionIndex = String(index);
+        section.setAttribute('data-instruction-section', '');
+        section.innerHTML = `
+            <div class="recipe-form-section-header">
+                <input type="text" name="instruction_parts[${index}][title]" placeholder="${strings.sectionTitle}">
+                <button type="button" class="btn secondary remove-section">${strings.removeSection}</button>
+            </div>
+            <div class="recipe-form-section-rows" data-instruction-rows></div>
+            <button type="button" class="btn secondary add-instruction-row">${strings.addStep}</button>
+        `;
+        instructionRoot.appendChild(section);
+        addInstructionRow(section, false);
+        if (focus) section.querySelector('input').focus();
+    }
+
+    function clearSection(section) {
+        const root = section.parentElement;
+        const rows = section.querySelector('.recipe-form-section-rows');
+        const title = section.querySelector('.recipe-form-section-header input');
+        if (title) title.value = '';
+        if (!rows) return;
+        Array.from(rows.querySelectorAll('.row')).slice(1).forEach(row => row.remove());
+        let first = rows.querySelector('.row');
+        if (!first && section.matches('[data-ingredient-section]')) {
+            addIngredientRow(section, false);
+            first = rows.querySelector('.row');
+        } else if (!first && section.matches('[data-instruction-section]')) {
+            addInstructionRow(section, false);
+            first = rows.querySelector('.row');
+        }
+        if (first) first.querySelectorAll('input, textarea').forEach(el => { el.value = ''; });
+        if (root) {
+            const input = section.querySelector('input, textarea');
+            if (input) input.focus();
+        }
+        updateSectionNames(section);
+        syncIngredientSectionState();
+    }
+
+    function insertIngredientAtBoundary(inserter) {
+        const section = inserter.closest('[data-ingredient-section]');
+        const rows = section ? section.querySelector('[data-ingredient-rows]') : null;
+        if (!section || !rows) return;
+
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `
+            <input type="text" placeholder="${strings.two}">
+            <input type="text" placeholder="${strings.gram}" list="recipe-units">
+            <input type="text" placeholder="${strings.ingredient}" required>
+            <input type="text" placeholder="${strings.chopped}">
+            <button type="button" class="remove" aria-label="${strings.remove}">×</button>
+        `;
+        rows.insertBefore(row, inserter.nextSibling);
+        updateSectionNames(section);
+        row.querySelector('input').focus();
+    }
+
+    function insertIngredientSectionAtBoundary(inserter) {
+        const section = inserter.closest('[data-ingredient-section]');
+        const root = section ? section.parentElement : null;
+        const rows = section ? section.querySelector('[data-ingredient-rows]') : null;
+        if (!section || !root || !rows) return;
+
+        const index = nextSectionIndex(root);
+        const newSection = document.createElement('section');
+        newSection.className = 'recipe-form-section';
+        newSection.dataset.sectionIndex = String(index);
+        newSection.dataset.nextRowIndex = '0';
+        newSection.setAttribute('data-ingredient-section', '');
+        newSection.innerHTML = `
+            <div class="recipe-form-section-header">
+                <input type="text" name="ingredient_parts[${index}][title]" placeholder="${strings.ingredientSectionTitle}">
+                <button type="button" class="btn secondary remove-section recipe-section-remove" aria-label="${strings.mergeIngredientSection}" title="${strings.mergeIngredientSection}">×</button>
+            </div>
+            <div class="recipe-form-section-rows" data-ingredient-rows></div>
+        `;
+        if (section.nextSibling) {
+            root.insertBefore(newSection, section.nextSibling);
+        } else {
+            root.appendChild(newSection);
+        }
+
+        const targetRows = newSection.querySelector('[data-ingredient-rows]');
+        let node = inserter.nextElementSibling;
+        while (node) {
+            const next = node.nextElementSibling;
+            if (node.classList.contains('row')) {
+                targetRows.appendChild(node);
+            }
+            node = next;
+        }
+        if (!rowElements(targetRows).length) {
+            addIngredientRow(newSection, false);
+        }
+        updateSectionNames(section);
+        updateSectionNames(newSection);
+        syncIngredientSectionState();
+        newSection.querySelector('.recipe-form-section-header input').focus();
+    }
+
+    function removeIngredientSectionHeader(section) {
+        const root = section ? section.parentElement : null;
+        if (!section || !root) return;
+
+        const sections = Array.from(root.querySelectorAll('[data-ingredient-section]'));
+        const sectionIndex = sections.indexOf(section);
+        const title = section.querySelector('.recipe-form-section-header input');
+
+        if (sectionIndex <= 0) {
+            if (title) title.value = '';
+            updateSectionNames(section);
+            syncIngredientSectionState();
+            const firstInput = section.querySelector('[data-ingredient-rows] input');
+            if (firstInput) firstInput.focus();
+            return;
+        }
+
+        const previous = sections[sectionIndex - 1];
+        const previousRows = previous ? previous.querySelector('[data-ingredient-rows]') : null;
+        const rows = section.querySelector('[data-ingredient-rows]');
+        if (!previousRows || !rows) return;
+
+        rowElements(rows).forEach(row => previousRows.appendChild(row));
+        section.remove();
+        updateSectionNames(previous);
+        syncIngredientSectionState();
+    }
+
+    initSectionCounters(ingredientRoot, '[data-ingredient-section]');
+    initSectionCounters(instructionRoot, '[data-instruction-section]');
+    syncIngredientSectionState();
+
+    const addIngredientSectionButton = document.getElementById('add-ingredient-section');
+    if (addIngredientSectionButton) {
+        addIngredientSectionButton.addEventListener('click', () => addIngredientSection(true));
+    }
+    const addInstructionSectionButton = document.getElementById('add-instruction-section');
+    if (addInstructionSectionButton) {
+        addInstructionSectionButton.addEventListener('click', () => addInstructionSection(true));
+    }
 
     document.addEventListener('click', (e) => {
+        if (e.target.classList && e.target.classList.contains('add-ingredient-row')) {
+            const section = e.target.closest('[data-ingredient-section]');
+            if (section) addIngredientRow(section, true);
+            return;
+        }
+        if (e.target.classList && e.target.classList.contains('add-instruction-row')) {
+            const section = e.target.closest('[data-instruction-section]');
+            if (section) addInstructionRow(section, true);
+            return;
+        }
+        if (e.target.classList && e.target.classList.contains('remove-section')) {
+            const section = e.target.closest('.recipe-form-section');
+            const root = section ? section.parentElement : null;
+            if (!section || !root) return;
+            if (section.matches('[data-ingredient-section]')) {
+                removeIngredientSectionHeader(section);
+                return;
+            }
+            if (root.querySelectorAll('.recipe-form-section').length > 1) {
+                section.remove();
+            } else {
+                clearSection(section);
+            }
+            return;
+        }
+        if (e.target.classList && e.target.classList.contains('insert-ingredient-here')) {
+            const inserter = e.target.closest('.recipe-row-inserter');
+            if (inserter) insertIngredientAtBoundary(inserter);
+            return;
+        }
+        if (e.target.classList && e.target.classList.contains('insert-section-here')) {
+            const inserter = e.target.closest('.recipe-row-inserter');
+            if (inserter) insertIngredientSectionAtBoundary(inserter);
+            return;
+        }
         if (e.target.classList && e.target.classList.contains('remove')) {
             const row = e.target.closest('.row');
             const root = row.parentElement;
             if (root.querySelectorAll('.row').length > 1) {
                 row.remove();
+                const section = root.closest('.recipe-form-section');
+                if (section) updateSectionNames(section);
             } else {
                 row.querySelectorAll('input, textarea').forEach(el => el.value = '');
             }
         }
     });
+
+    if (ingredientRoot) {
+        ingredientRoot.addEventListener('input', (e) => {
+            if (e.target.matches('.recipe-form-section-header input')) {
+                syncIngredientSectionState();
+            }
+        });
+        ingredientRoot.addEventListener('focusin', (e) => {
+            if (e.target.matches('.recipe-form-section-header input')) {
+                syncIngredientSectionState();
+            }
+        });
+        ingredientRoot.addEventListener('focusout', (e) => {
+            if (e.target.matches('.recipe-form-section-header input')) {
+                window.setTimeout(syncIngredientSectionState, 0);
+            }
+        });
+    }
 
     const imageUrl = document.getElementById('image_url');
     const imagePreview = document.getElementById('image-url-preview');
