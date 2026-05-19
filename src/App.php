@@ -96,6 +96,7 @@ class App extends BaseApp {
         add_action( 'wp_abilities_api_init', [ $this, 'register_abilities' ] );
         add_filter( 'ai_assistant_ability_domains', [ $this, 'register_ability_domains' ] );
         add_filter( 'ai_assistant_ability_instructions', [ $this, 'ability_result_instructions' ], 10, 4 );
+        add_filter( 'ai_assistant_welcome_tips', [ $this, 'register_welcome_tips' ], 10, 2 );
         add_action( 'set_object_terms', [ self::class, 'maybe_flush_home_ingredient_stats_cache_for_terms' ], 10, 6 );
         add_action( 'created_' . self::TAX_INGREDIENT, [ self::class, 'flush_home_ingredient_stats_cache' ] );
         add_action( 'edited_' . self::TAX_INGREDIENT, [ self::class, 'flush_home_ingredient_stats_cache' ] );
@@ -153,6 +154,27 @@ class App extends BaseApp {
         ] );
 
         return $domains;
+    }
+
+    /**
+     * Register AI Assistant welcome tips for Cookbook pages.
+     *
+     * @param array $tips Existing welcome tips.
+     * @param array $context AI Assistant request context.
+     * @return array
+     */
+    public function register_welcome_tips( array $tips, array $context = [] ): array {
+        $cookbook_tips = [
+            __( 'Ask me to find saved recipes by title, ingredient, category, or tag.', 'cookbook' ),
+            __( 'Ask me to import a recipe from a URL, create a recipe variation, or help plan meals for the week.', 'cookbook' ),
+        ];
+
+        $existing = isset( $tips[ $this->get_url_path() ] ) ? $tips[ $this->get_url_path() ] : [];
+        $existing = is_array( $existing ) ? $existing : [ $existing ];
+
+        $tips[ $this->get_url_path() ] = array_merge( $existing, $cookbook_tips );
+
+        return $tips;
     }
 
     /**

@@ -70,7 +70,7 @@ When the WordPress Abilities API is available, Cookbook registers a `cookbook` c
 - `cookbook/get-week-plan` returns the signed-in user's week planner for a normalized week.
 - `cookbook/save-week-plan` saves recipe IDs into the signed-in user's breakfast, lunch, and dinner slots for a normalized week.
 
-Cookbook also registers `ai_assistant_ability_domains` hints for recipe, ingredient, shopping-list, and meal-planning prompts so the AI Assistant knows to inspect Cookbook abilities instead of falling back to generic tools.
+Cookbook also registers `ai_assistant_ability_domains` hints for recipe, ingredient, shopping-list, and meal-planning prompts so the AI Assistant knows to inspect Cookbook abilities instead of falling back to generic tools. Cookbook pages provide `ai_assistant_welcome_tips` prompts for common recipe search, import, variation, and meal-planning tasks.
 
 ## Architecture
 
