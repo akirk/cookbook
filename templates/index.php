@@ -86,6 +86,12 @@ if ( $current_plan_id ) {
     }
 }
 
+$cooked_entries = App::get_user_cooked_entries();
+$cooked_entries_count = count( $cooked_entries );
+$last_cooked_date = $cooked_entries
+    ? (string) get_post_meta( $cooked_entries[0]->ID, App::META_COOKED_DATE, true )
+    : '';
+
 $recipes_by_letter = [];
 foreach ( $recipes as $recipe ) {
     $letter = mb_strtoupper( mb_substr( trim( get_the_title( $recipe ) ), 0, 1 ) );
@@ -128,7 +134,7 @@ include __DIR__ . '/_header.php';
     .home-today-head h2 { margin: 0; }
     .home-today-head a { white-space: nowrap; }
     .home-ingredients[hidden] { display: none; }
-    @media (min-width: 720px) { .home-tools { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (min-width: 720px) { .home-tools { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); } }
     @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } }
 </style>
 <div class="page-head">
@@ -157,6 +163,26 @@ include __DIR__ . '/_header.php';
                     _n( '%d item', '%d items', $shopping_items_count, 'cookbook' ),
                     $shopping_items_count
                 ) );
+                ?>
+            </span>
+        </a>
+        <a class="home-tool" href="<?php echo esc_url( home_url( '/cookbook/cooked' ) ); ?>">
+            <strong><?php esc_html_e( 'Cooked', 'cookbook' ); ?></strong>
+            <span>
+                <?php
+                if ( $last_cooked_date ) {
+                    echo esc_html( sprintf(
+                        /* translators: %s: last cooked date */
+                        __( 'Last: %s', 'cookbook' ),
+                        App::format_cooked_date( $last_cooked_date )
+                    ) );
+                } else {
+                    echo esc_html( sprintf(
+                        /* translators: %d: saved cooked-history entries */
+                        _n( '%d saved', '%d saved', $cooked_entries_count, 'cookbook' ),
+                        $cooked_entries_count
+                    ) );
+                }
                 ?>
             </span>
         </a>

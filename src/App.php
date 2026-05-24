@@ -27,6 +27,7 @@ class App extends BaseApp {
 
     const SHOPPING_LIST_POST_TYPE = 'cb-shopping-list';
     const WEEK_PLAN_POST_TYPE     = 'cb-week-plan';
+    const COOKED_ENTRY_POST_TYPE  = 'cb-cooked-entry';
     const SHOPPING_ITEM_STATUS_CHECKED = 'cb_checked';
 
     const META_SHOPPING_ITEMS = '_cookbook_shopping_items';
@@ -39,6 +40,8 @@ class App extends BaseApp {
     const META_SHOPPING_HOUSEHOLD_REMINDERS = '_cookbook_shopping_household_reminders';
     const META_WEEK_START     = '_cookbook_week_start';
     const META_WEEK_MEALS     = '_cookbook_week_meals';
+    const META_COOKED_RECIPE_ID = '_cookbook_cooked_recipe_id';
+    const META_COOKED_DATE      = '_cookbook_cooked_date';
 
     const USER_PREF_UNITS = 'cookbook_unit_preference';
     const USER_HOUSEHOLD_INGREDIENTS = 'cookbook_household_ingredient_ids';
@@ -78,6 +81,7 @@ class App extends BaseApp {
         add_action( 'admin_post_cookbook_update_shopping_list', [ $this, 'handle_update_shopping_list' ] );
         add_action( 'admin_post_cookbook_save_planner', [ $this, 'handle_save_planner' ] );
         add_action( 'admin_post_cookbook_add_planner_to_shopping_list', [ $this, 'handle_add_planner_to_shopping_list' ] );
+        add_action( 'admin_post_cookbook_log_cooked', [ $this, 'handle_log_cooked' ] );
         add_action( 'admin_post_cookbook_merge_ingredients', [ $this, 'handle_merge_ingredients' ] );
         add_action( 'admin_post_cookbook_group_ingredients', [ $this, 'handle_group_ingredients' ] );
         add_action( 'admin_post_cookbook_rename_ingredient', [ $this, 'handle_rename_ingredient' ] );
@@ -117,6 +121,7 @@ class App extends BaseApp {
         $this->app->route( 'import' );
         $this->app->route( 'shopping-list' );
         $this->app->route( 'planner' );
+        $this->app->route( 'cooked' );
         $this->app->route( 'by-ingredients' );
         $this->app->route( 'manage-ingredients' );
         $this->app->route( 'settings' );
@@ -128,6 +133,7 @@ class App extends BaseApp {
     protected function setup_menu(): void {
         $home = home_url( '/' . $this->get_url_path() . '/' );
         $this->app->add_menu_item( 'all', __( 'All recipes', 'cookbook' ), $home );
+        $this->app->add_menu_item( 'cooked', __( 'Cooked', 'cookbook' ), $home . 'cooked' );
         $this->app->add_menu_item( 'shopping-list', __( 'Shopping list', 'cookbook' ), $home . 'shopping-list' );
         $this->app->add_menu_item( 'planner', __( 'Week planner', 'cookbook' ), $home . 'planner' );
         $this->app->add_menu_item( 'by-ingredients', __( 'By ingredients', 'cookbook' ), $home . 'by-ingredients' );
@@ -2205,6 +2211,37 @@ class App extends BaseApp {
             ],
             'auth_callback' => function() { return current_user_can( 'edit_posts' ); },
         ] );
+
+        register_post_type( self::COOKED_ENTRY_POST_TYPE, [
+            'labels' => [
+                'name'          => __( 'Cooked entries', 'cookbook' ),
+                'singular_name' => __( 'Cooked entry', 'cookbook' ),
+                'edit_item'     => __( 'Edit cooked entry', 'cookbook' ),
+                'view_item'     => __( 'View cooked entry', 'cookbook' ),
+                'not_found'     => __( 'No cooked entries yet', 'cookbook' ),
+            ],
+            'public'             => false,
+            'publicly_queryable' => false,
+            'show_ui'            => true,
+            'show_in_menu'       => 'edit.php?post_type=' . self::POST_TYPE,
+            'show_in_rest'       => true,
+            'supports'           => [ 'title', 'author' ],
+            'has_archive'        => false,
+            'rewrite'            => false,
+            'capability_type'    => 'post',
+        ] );
+        register_post_meta( self::COOKED_ENTRY_POST_TYPE, self::META_COOKED_RECIPE_ID, [
+            'type'         => 'integer',
+            'single'       => true,
+            'show_in_rest' => true,
+            'auth_callback' => function() { return is_user_logged_in(); },
+        ] );
+        register_post_meta( self::COOKED_ENTRY_POST_TYPE, self::META_COOKED_DATE, [
+            'type'         => 'string',
+            'single'       => true,
+            'show_in_rest' => true,
+            'auth_callback' => function() { return is_user_logged_in(); },
+        ] );
     }
 
     public function register_taxonomies(): void {
@@ -2578,6 +2615,79 @@ class App extends BaseApp {
         update_post_meta( (int) $post_id, self::META_WEEK_START, $week_start );
         update_post_meta( (int) $post_id, self::META_WEEK_MEALS, [] );
         return (int) $post_id;
+    }
+
+    public static function sanitize_cooked_date( string $date = '' ): string {
+        $date = trim( $date );
+        if ( $date !== '' && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+            $timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+            $parsed   = \DateTimeImmutable::createFromFormat( '!Y-m-d', $date, $timezone );
+            if ( $parsed && $parsed->format( 'Y-m-d' ) === $date ) {
+                return $date;
+            }
+        }
+
+        return wp_date( 'Y-m-d' );
+    }
+
+    public static function format_cooked_date( string $date, string $format = '' ): string {
+        $date     = self::sanitize_cooked_date( $date );
+        $format   = $format !== '' ? $format : get_option( 'date_format' );
+        $timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+        $parsed   = \DateTimeImmutable::createFromFormat( '!Y-m-d', $date, $timezone );
+
+        return $parsed ? wp_date( $format, $parsed->getTimestamp() ) : wp_date( $format );
+    }
+
+    public static function get_user_cooked_entries( array $args = [] ): array {
+        $user_id = isset( $args['user_id'] ) ? absint( $args['user_id'] ) : get_current_user_id();
+        if ( ! $user_id ) {
+            return [];
+        }
+
+        $number = array_key_exists( 'number', $args ) ? (int) $args['number'] : -1;
+        $query  = [
+            'post_type'      => self::COOKED_ENTRY_POST_TYPE,
+            'post_status'    => [ 'publish', 'private', 'draft' ],
+            'author'         => $user_id,
+            'posts_per_page' => $number,
+            'meta_key'       => self::META_COOKED_DATE,
+            'orderby'        => [
+                'meta_value' => 'DESC',
+                'date'       => 'DESC',
+            ],
+        ];
+
+        $recipe_id = isset( $args['recipe_id'] ) ? absint( $args['recipe_id'] ) : 0;
+        if ( $recipe_id ) {
+            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- scoped lookup for one user's cooked history.
+            $query['meta_query'] = [
+                [
+                    'key'   => self::META_COOKED_RECIPE_ID,
+                    'value' => $recipe_id,
+                    'type'  => 'NUMERIC',
+                ],
+            ];
+        }
+
+        return get_posts( $query );
+    }
+
+    public static function get_recipe_cooked_entries( int $recipe_id, int $number = 5, int $user_id = 0 ): array {
+        return self::get_user_cooked_entries( [
+            'recipe_id' => $recipe_id,
+            'number'    => $number,
+            'user_id'   => $user_id,
+        ] );
+    }
+
+    public static function get_recipe_last_cooked_date( int $recipe_id, int $user_id = 0 ): string {
+        $entries = self::get_recipe_cooked_entries( $recipe_id, 1, $user_id );
+        if ( ! $entries ) {
+            return '';
+        }
+
+        return (string) get_post_meta( $entries[0]->ID, self::META_COOKED_DATE, true );
     }
 
     public static function get_shopping_items( int $list_id ): array {
@@ -3550,6 +3660,105 @@ class App extends BaseApp {
             'household' => count( $household ),
         ], home_url( '/' . $this->get_url_path() . '/planner' ) ) );
         exit;
+    }
+
+    public function handle_log_cooked(): void {
+        if ( ! is_user_logged_in() ) {
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
+        }
+        check_admin_referer( 'cookbook_log_cooked' );
+
+        $recipe_id = isset( $_POST['recipe_id'] ) ? absint( $_POST['recipe_id'] ) : 0;
+        $recipe    = $this->get_recipe_or_die( $recipe_id );
+        $date      = isset( $_POST['cooked_date'] )
+            ? self::sanitize_cooked_date( sanitize_text_field( wp_unslash( $_POST['cooked_date'] ) ) )
+            : self::sanitize_cooked_date();
+        $result    = $this->record_cooked_recipe( $recipe, $date );
+
+        if ( is_wp_error( $result ) ) {
+            wp_die( esc_html( $result->get_error_message() ) );
+        }
+
+        $fallback = home_url( '/' . $this->get_url_path() . '/recipe/' . $recipe->ID );
+        $redirect = isset( $_POST['redirect_to'] ) ? esc_url_raw( wp_unslash( $_POST['redirect_to'] ) ) : '';
+        $redirect = wp_validate_redirect( $redirect, $fallback );
+        $redirect = add_query_arg( [
+            'cooked'      => ! empty( $result['created'] ) ? 'logged' : 'exists',
+            'cooked_date' => $result['date'],
+        ], $redirect );
+
+        wp_safe_redirect( $redirect );
+        exit;
+    }
+
+    private function record_cooked_recipe( \WP_Post $recipe, string $date, int $user_id = 0 ) {
+        if ( $recipe->post_type !== self::POST_TYPE ) {
+            return new \WP_Error( 'cookbook_recipe_not_found', __( 'Recipe not found.', 'cookbook' ) );
+        }
+
+        $user_id = $user_id ?: get_current_user_id();
+        if ( ! $user_id ) {
+            return new \WP_Error( 'cookbook_not_allowed', __( 'Not allowed.', 'cookbook' ) );
+        }
+
+        $date        = self::sanitize_cooked_date( $date );
+        $existing_id = $this->find_cooked_entry_id( (int) $recipe->ID, $date, $user_id );
+        if ( $existing_id ) {
+            return [
+                'id'      => $existing_id,
+                'date'    => $date,
+                'created' => false,
+            ];
+        }
+
+        $post_id = wp_insert_post( [
+            'post_type'   => self::COOKED_ENTRY_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title'  => sprintf(
+                /* translators: 1: recipe title, 2: cooked date */
+                __( '%1$s on %2$s', 'cookbook' ),
+                get_the_title( $recipe ),
+                self::format_cooked_date( $date )
+            ),
+            'post_author' => $user_id,
+        ], true );
+        if ( is_wp_error( $post_id ) ) {
+            return $post_id;
+        }
+
+        update_post_meta( (int) $post_id, self::META_COOKED_RECIPE_ID, (int) $recipe->ID );
+        update_post_meta( (int) $post_id, self::META_COOKED_DATE, $date );
+
+        return [
+            'id'      => (int) $post_id,
+            'date'    => $date,
+            'created' => true,
+        ];
+    }
+
+    private function find_cooked_entry_id( int $recipe_id, string $date, int $user_id ): int {
+        $ids = get_posts( [
+            'post_type'      => self::COOKED_ENTRY_POST_TYPE,
+            'post_status'    => [ 'publish', 'private', 'draft' ],
+            'author'         => $user_id,
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- exact duplicate check for one user's recipe/date entry.
+            'meta_query'     => [
+                'relation' => 'AND',
+                [
+                    'key'   => self::META_COOKED_RECIPE_ID,
+                    'value' => $recipe_id,
+                    'type'  => 'NUMERIC',
+                ],
+                [
+                    'key'   => self::META_COOKED_DATE,
+                    'value' => $date,
+                ],
+            ],
+        ] );
+
+        return $ids ? (int) $ids[0] : 0;
     }
 
     private function get_owned_post_or_die( int $post_id, string $post_type ): \WP_Post {
