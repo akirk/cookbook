@@ -204,15 +204,15 @@ include __DIR__ . '/_header.php';
         <?php if ( $last_cooked_date ) : ?>
             <a href="#cooked-history"><time datetime="<?php echo esc_attr( $last_cooked_date ); ?>"><?php echo esc_html( App::format_cooked_date( $last_cooked_date ) ); ?></time></a>
             <small>
-                (
                 <?php
-                echo esc_html( sprintf(
-                    /* translators: %d: number of times the recipe was cooked */
-                    _n( '%d time', '%d times', $cooked_count, 'cookbook' ),
-                    $cooked_count
-                ) );
+                echo esc_html(
+                    '(' . sprintf(
+                        /* translators: %d: number of times the recipe was cooked */
+                        _n( '%d time', '%d times', $cooked_count, 'cookbook' ),
+                        $cooked_count
+                    ) . ')'
+                );
                 ?>
-                )
             </small>
         <?php else : ?>
             <strong><?php esc_html_e( 'Not yet', 'cookbook' ); ?></strong>
