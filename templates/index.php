@@ -113,7 +113,7 @@ include __DIR__ . '/_header.php';
     .home-ingredients[hidden] { display: none; }
     @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } }
 </style>
-<?php cookbook_page_head( __( 'Cookbook', 'cookbook' ) ); ?>
+<?php cookbook_page_head( __( 'Cookbook', 'cookbook' ), [ 'current_section' => 'recipes' ] ); ?>
 
 <form method="get" action="" class="home-search">
     <input id="cookbook-search" type="text" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search recipes or paste a URL to import…', 'cookbook' ); ?>">

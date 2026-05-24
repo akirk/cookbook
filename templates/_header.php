@@ -22,6 +22,10 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
         $subtitle = isset( $args['subtitle'] ) ? (string) $args['subtitle'] : '';
         $actions_html = isset( $args['actions_html'] ) ? (string) $args['actions_html'] : '';
         $sections = [
+            'recipes'     => [
+                'label' => __( 'Recipes', 'cookbook' ),
+                'url'   => home_url( '/cookbook/' ),
+            ],
             'shopping'    => [
                 'label' => __( 'Shopping', 'cookbook' ),
                 'url'   => home_url( '/cookbook/shopping-list' ),
