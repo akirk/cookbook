@@ -7,6 +7,11 @@ use Cookbook\App;
 
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- idempotent read-only search.
 $search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- idempotent read-only display preference.
+$view = isset( $_GET['view'] ) ? sanitize_key( wp_unslash( $_GET['view'] ) ) : 'compact';
+if ( ! in_array( $view, [ 'images', 'compact' ], true ) ) {
+    $view = 'compact';
+}
 
 // If the user pasted a URL into the search box, redirect to the import flow.
 if ( $search !== '' && preg_match( '~^https?://~i', $search ) && filter_var( $search, FILTER_VALIDATE_URL ) ) {
@@ -45,6 +50,9 @@ if ( $is_searching ) {
         return mb_strpos( mb_strtolower( wp_strip_all_tags( $haystack ) ), $needle ) !== false;
     } ) );
 }
+$image_recipes = array_values( array_filter( $recipes, function( $recipe ) {
+    return has_post_thumbnail( $recipe->ID );
+} ) );
 
 $categories = get_terms( [
     'taxonomy'   => App::TAX_CATEGORY,
@@ -91,6 +99,13 @@ uksort( $recipes_by_letter, function( $a, $b ) {
     return strcasecmp( $a, $b );
 } );
 
+$view_query_args = [];
+if ( $search !== '' ) {
+    $view_query_args['s'] = $search;
+}
+$images_view_url = add_query_arg( array_merge( $view_query_args, [ 'view' => 'images' ] ), home_url( '/cookbook/' ) );
+$compact_view_url = add_query_arg( array_merge( $view_query_args, [ 'view' => 'compact' ] ), home_url( '/cookbook/' ) );
+
 $page_title = __( 'Cookbook', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
@@ -100,6 +115,14 @@ include __DIR__ . '/_header.php';
     .recipe-index .badge { min-width: 2rem; box-sizing: border-box; text-align: center; }
     .recipe-index .badge.muted { background: transparent; color: var(--muted); opacity: 0.45; }
     .recipe-index-row .btn { margin-left: auto; white-space: nowrap; }
+    .recipe-view-switch { display: inline-flex; gap: 0.2rem; flex-shrink: 0; align-items: center; }
+    .recipe-view-switch a { display: inline-flex; gap: 0.35rem; align-items: center; justify-content: center; min-height: 2rem; padding: 0 0.65rem; color: var(--muted); text-decoration: none; border-radius: 4px; font-size: 0.9rem; }
+    .recipe-view-switch a:hover,
+    .recipe-view-switch a:focus { color: var(--fg); background: var(--secondary-bg); }
+    .recipe-view-switch a.is-active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
+    .recipe-view-switch a.is-active:hover,
+    .recipe-view-switch a.is-active:focus { color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+    .recipe-view-icon { width: 1rem; height: 1rem; flex: 0 0 1rem; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; fill: none; }
     .recipe-alpha-section { margin-top: 1.4rem; }
     .recipe-alpha-heading { margin: 0 0 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--line); font-size: 1.1rem; }
     .recipe-alpha-list { list-style: none; padding: 0; margin: 0; }
@@ -107,19 +130,25 @@ include __DIR__ . '/_header.php';
     .recipe-alpha-list a { display: grid; gap: 0.12rem; padding: 0.38rem 0; text-decoration: none; color: inherit; }
     .recipe-alpha-list a:hover .recipe-title { color: var(--accent); }
     .recipe-alpha-list .recipe-title { min-width: 0; }
-    .recipe-alpha-list .meta { font-size: 0.82rem; gap: 0.45rem; }
+    .recipe-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0.75rem; margin: 1rem 0; }
+    .recipe-photo-card { position: relative; display: block; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: var(--secondary-bg); color: #fff; text-decoration: none; }
+    .recipe-photo-card img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.12s ease; }
+    .recipe-photo-card:hover img,
+    .recipe-photo-card:focus img { transform: scale(1.03); }
+    .recipe-photo-title { position: absolute; left: 0; right: 0; bottom: 0; padding: 1.8rem 0.75rem 0.65rem; background: linear-gradient(to top, rgba(0,0,0,0.76), transparent); color: #fff; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
     .home-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; margin: 1rem 0; }
     .home-today-plan { margin: 1.25rem 0; }
     .home-today-head { display: flex; gap: 0.75rem; align-items: baseline; justify-content: space-between; }
     .home-today-head h2 { margin: 0; }
     .home-today-head a { white-space: nowrap; }
     .home-ingredients[hidden] { display: none; }
-    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } .recipe-index-row { align-items: stretch; } .recipe-index-row .btn { margin-left: 0; } }
+    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } .recipe-index-row { align-items: stretch; } .recipe-index-row .btn { margin-left: 0; } .recipe-view-switch { width: 100%; } .recipe-view-switch a { flex: 1; } }
 </style>
 <?php cookbook_page_head( __( 'Cookbook', 'cookbook' ), [ 'current_section' => 'recipes' ] ); ?>
 
 <form method="get" action="" class="home-search">
     <input id="cookbook-search" type="text" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search recipes or paste a URL to import…', 'cookbook' ); ?>">
+    <input type="hidden" name="view" value="<?php echo esc_attr( $view ); ?>">
     <button class="btn" type="submit"><?php esc_html_e( 'Search', 'cookbook' ); ?></button>
 </form>
 <?php if ( ! $is_searching ) : ?>
@@ -168,7 +197,7 @@ include __DIR__ . '/_header.php';
 <?php endif; ?>
 
 <div class="recipe-index-row">
-    <?php if ( $recipes_by_letter ) : ?>
+    <?php if ( $view === 'compact' && $recipes_by_letter ) : ?>
         <nav class="recipe-index" aria-label="<?php esc_attr_e( 'Recipe index', 'cookbook' ); ?>">
             <?php foreach ( range( 'A', 'Z' ) as $letter ) : ?>
                 <?php $letter_id = sanitize_title( $letter ); ?>
@@ -183,6 +212,27 @@ include __DIR__ . '/_header.php';
             <?php endif; ?>
         </nav>
     <?php endif; ?>
+    <nav class="recipe-view-switch" aria-label="<?php esc_attr_e( 'Recipe view', 'cookbook' ); ?>">
+        <a class="<?php echo $view === 'images' ? 'is-active' : ''; ?>" href="<?php echo esc_url( $images_view_url ); ?>"<?php echo $view === 'images' ? ' aria-current="true"' : ''; ?>>
+            <svg class="recipe-view-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                <circle cx="8.5" cy="10" r="1.4"></circle>
+                <path d="M21 15l-4.5-4.5L10 17l-2.5-2.5L3 19"></path>
+            </svg>
+            <?php esc_html_e( 'Photos', 'cookbook' ); ?>
+        </a>
+        <a class="<?php echo $view === 'compact' ? 'is-active' : ''; ?>" href="<?php echo esc_url( $compact_view_url ); ?>"<?php echo $view === 'compact' ? ' aria-current="true"' : ''; ?>>
+            <svg class="recipe-view-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M8 6h13"></path>
+                <path d="M8 12h13"></path>
+                <path d="M8 18h13"></path>
+                <path d="M3 6h.01"></path>
+                <path d="M3 12h.01"></path>
+                <path d="M3 18h.01"></path>
+            </svg>
+            <?php esc_html_e( 'Compact', 'cookbook' ); ?>
+        </a>
+    </nav>
     <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/new' ) ); ?>"><?php esc_html_e( 'New recipe', 'cookbook' ); ?></a>
 </div>
 
@@ -201,59 +251,46 @@ include __DIR__ . '/_header.php';
             ?>
         </div>
     <?php endif; ?>
-<?php else :
-    foreach ( $recipes_by_letter as $letter => $group ) : ?>
-        <?php $letter_id = $letter === '#' ? 'other' : sanitize_title( $letter ); ?>
-        <section class="recipe-alpha-section" id="recipes-<?php echo esc_attr( $letter_id ); ?>">
-            <h3 class="recipe-alpha-heading"><?php echo esc_html( $letter ); ?></h3>
-            <ul class="recipe-alpha-list">
-                <?php foreach ( $group as $r ) :
-                    $servings  = (int) get_post_meta( $r->ID, App::META_SERVINGS, true );
-                    $prep      = (int) get_post_meta( $r->ID, App::META_PREP, true );
-                    $cook      = (int) get_post_meta( $r->ID, App::META_COOK, true );
-                    $cui_terms = get_the_terms( $r, App::TAX_CUISINE );
-                    ?>
-                    <li>
-                        <a href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>">
-                            <span class="recipe-title">
-                                <?php echo esc_html( get_the_title( $r ) ); ?>
-                            </span>
-                            <span class="meta">
-                                <?php if ( $servings ) : ?>
-                                    <span>
-                                        <?php
-                                        /* translators: %d: number of servings */
-                                        echo esc_html( sprintf( _n( '%d serving', '%d servings', $servings, 'cookbook' ), $servings ) );
-                                        ?>
-                                    </span>
-                                <?php endif; ?>
-                                <?php if ( $prep ) : ?>
-                                    <span>
-                                        <?php
-                                        /* translators: %d: prep time in minutes */
-                                        echo esc_html( sprintf( __( 'prep %dm', 'cookbook' ), $prep ) );
-                                        ?>
-                                    </span>
-                                <?php endif; ?>
-                                <?php if ( $cook ) : ?>
-                                    <span>
-                                        <?php
-                                        /* translators: %d: cook time in minutes */
-                                        echo esc_html( sprintf( __( 'cook %dm', 'cookbook' ), $cook ) );
-                                        ?>
-                                    </span>
-                                <?php endif; ?>
-                                <?php if ( ! is_wp_error( $cui_terms ) && $cui_terms ) : ?>
-                                    <span><?php echo esc_html( implode( ', ', wp_list_pluck( $cui_terms, 'name' ) ) ); ?></span>
-                                <?php endif; ?>
-                            </span>
-                        </a>
-                    </li>
+    <?php elseif ( $view === 'images' ) : ?>
+        <?php if ( ! $image_recipes ) : ?>
+            <div class="notice">
+                <?php
+                echo esc_html(
+                    $is_searching
+                        ? __( 'No recipes with photos match your search.', 'cookbook' )
+                        : __( 'No recipes with photos yet.', 'cookbook' )
+                );
+                ?>
+            </div>
+        <?php else : ?>
+            <div class="recipe-photo-grid">
+                <?php foreach ( $image_recipes as $r ) : ?>
+                    <a class="recipe-photo-card" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>">
+                        <?php echo get_the_post_thumbnail( $r->ID, 'medium_large', [ 'alt' => '' ] ); ?>
+                        <span class="recipe-photo-title"><?php echo esc_html( get_the_title( $r ) ); ?></span>
+                    </a>
                 <?php endforeach; ?>
-            </ul>
-        </section>
-    <?php endforeach; ?>
-<?php endif; ?>
+            </div>
+        <?php endif; ?>
+    <?php else :
+        foreach ( $recipes_by_letter as $letter => $group ) : ?>
+            <?php $letter_id = $letter === '#' ? 'other' : sanitize_title( $letter ); ?>
+            <section class="recipe-alpha-section" id="recipes-<?php echo esc_attr( $letter_id ); ?>">
+                <h3 class="recipe-alpha-heading"><?php echo esc_html( $letter ); ?></h3>
+                <ul class="recipe-alpha-list">
+                    <?php foreach ( $group as $r ) : ?>
+                        <li>
+                            <a href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>">
+                                <span class="recipe-title">
+                                    <?php echo esc_html( get_the_title( $r ) ); ?>
+                                </span>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </section>
+        <?php endforeach; ?>
+    <?php endif; ?>
 
 <?php if ( ! $is_searching ) : ?>
     <section class="home-ingredients" id="home-ingredients" hidden>
