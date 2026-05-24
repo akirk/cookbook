@@ -122,7 +122,7 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
         h1 { margin: 0 0 0.25rem; font-size: 2rem; line-height: 1.15; }
         h2 { margin: 1.5rem 0 0.5rem; font-size: 1.3rem; border-bottom: 1px solid var(--line); padding-bottom: 0.25rem; }
         .subtitle { color: var(--muted); margin: 0 0 1rem; }
-        .page-head-nav { display: flex; gap: 0.65rem; align-items: baseline; flex-wrap: wrap; margin: 0.15rem 0 1rem; color: var(--muted); font-size: 0.95rem; line-height: 1.2; }
+        .page-head-nav { display: flex; gap: 0.65rem; align-items: baseline; flex-wrap: wrap; margin: 0.35rem 0 1rem; color: var(--muted); font-size: 0.95rem; line-height: 1.05; }
         .page-head-nav a { text-decoration: none; }
         .page-head-nav a:hover,
         .page-head-nav a:focus { text-decoration: underline; }
