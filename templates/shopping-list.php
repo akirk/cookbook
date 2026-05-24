@@ -59,31 +59,30 @@ include __DIR__ . '/_header.php';
     <input type="hidden" name="list_id" value="<?php echo (int) $list_id; ?>">
     <input type="hidden" name="return_mode" value="<?php echo $is_shop_mode ? 'shop' : 'edit'; ?>">
 
-    <div class="page-head">
-        <div>
-            <h1><?php esc_html_e( 'Shopping list', 'cookbook' ); ?></h1>
-            <p class="subtitle">
-                <?php
-                echo esc_html( sprintf(
-                    /* translators: 1: total items, 2: checked items */
-                    __( '%1$d items, %2$d checked off.', 'cookbook' ),
-                    count( $items ),
-                    $checked_count
-                ) );
-                ?>
-            </p>
-        </div>
-        <div class="page-actions">
-            <?php if ( $is_shop_mode ) : ?>
-                <a class="btn secondary" href="<?php echo esc_url( add_query_arg( 'mode', 'edit', home_url( '/cookbook/shopping-list' ) ) ); ?>"><?php esc_html_e( 'Edit list', 'cookbook' ); ?></a>
-            <?php else : ?>
-                <a class="btn fresh" href="<?php echo esc_url( home_url( '/cookbook/shopping-list' ) ); ?>"><?php esc_html_e( 'Shop mode', 'cookbook' ); ?></a>
-                <button class="btn fresh" type="submit" name="list_command" value="save"><?php esc_html_e( 'Save list', 'cookbook' ); ?></button>
-                <button class="btn secondary" type="submit" name="list_command" value="clear_checked"><?php esc_html_e( 'Clear checked', 'cookbook' ); ?></button>
-                <button class="btn danger" type="submit" name="list_command" value="clear_all" onclick="return confirm('<?php echo esc_js( __( 'Clear the whole shopping list?', 'cookbook' ) ); ?>')"><?php esc_html_e( 'Clear list', 'cookbook' ); ?></button>
-            <?php endif; ?>
-        </div>
-    </div>
+    <?php
+    ob_start();
+    ?>
+    <?php if ( $is_shop_mode ) : ?>
+        <a class="btn secondary" href="<?php echo esc_url( add_query_arg( 'mode', 'edit', home_url( '/cookbook/shopping-list' ) ) ); ?>"><?php esc_html_e( 'Edit list', 'cookbook' ); ?></a>
+    <?php else : ?>
+        <a class="btn fresh" href="<?php echo esc_url( home_url( '/cookbook/shopping-list' ) ); ?>"><?php esc_html_e( 'Shop mode', 'cookbook' ); ?></a>
+        <button class="btn fresh" type="submit" name="list_command" value="save"><?php esc_html_e( 'Save list', 'cookbook' ); ?></button>
+        <button class="btn secondary" type="submit" name="list_command" value="clear_checked"><?php esc_html_e( 'Clear checked', 'cookbook' ); ?></button>
+        <button class="btn danger" type="submit" name="list_command" value="clear_all" onclick="return confirm('<?php echo esc_js( __( 'Clear the whole shopping list?', 'cookbook' ) ); ?>')"><?php esc_html_e( 'Clear list', 'cookbook' ); ?></button>
+    <?php endif; ?>
+    <?php
+    $shopping_actions = ob_get_clean();
+    cookbook_page_head( __( 'Shopping list', 'cookbook' ), [
+        'current_section' => 'shopping',
+        'subtitle'        => sprintf(
+            /* translators: 1: total items, 2: checked items */
+            __( '%1$d items, %2$d checked off.', 'cookbook' ),
+            count( $items ),
+            $checked_count
+        ),
+        'actions_html'    => $shopping_actions,
+    ] );
+    ?>
 
     <?php if ( $saved ) : ?>
         <div class="notice success"><?php esc_html_e( 'Shopping list saved.', 'cookbook' ); ?></div>

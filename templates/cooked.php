@@ -27,20 +27,7 @@ foreach ( $entries as $entry ) {
 $page_title = __( 'Cooking history', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
-<div class="page-head">
-    <div>
-        <h1><?php esc_html_e( 'Cooking history', 'cookbook' ); ?></h1>
-        <p class="subtitle">
-            <?php
-            echo esc_html( sprintf(
-                /* translators: %d: cooked-history entries */
-                _n( '%d saved cook.', '%d saved cooks.', count( $entries ), 'cookbook' ),
-                count( $entries )
-            ) );
-            ?>
-        </p>
-    </div>
-</div>
+<?php cookbook_page_head( __( 'Cooking history', 'cookbook' ), [ 'current_section' => 'cooked' ] ); ?>
 
 <?php if ( ! $entries_by_date ) : ?>
     <div class="notice"><?php esc_html_e( 'No cooking history yet. Save a cooked date from any recipe page.', 'cookbook' ); ?></div>

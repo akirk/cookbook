@@ -2,6 +2,69 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+if ( ! function_exists( 'cookbook_page_head' ) ) {
+    /**
+     * Render a consistent Cookbook page heading with optional section navigation.
+     *
+     * @param string $title Page heading text.
+     * @param array  $args  {
+     *     Optional heading arguments.
+     *
+     *     @type string $current_section Current section key: shopping, planner, cooked, ingredients.
+     *     @type string $subtitle        Plain subtitle text.
+     *     @type string $actions_html    Already escaped/rendered action controls.
+     *     @type bool   $nav             Whether to show section navigation. Default true.
+     * }
+     */
+    function cookbook_page_head( string $title, array $args = [] ): void {
+        $show_nav = array_key_exists( 'nav', $args ) ? (bool) $args['nav'] : true;
+        $current_section = isset( $args['current_section'] ) ? (string) $args['current_section'] : '';
+        $subtitle = isset( $args['subtitle'] ) ? (string) $args['subtitle'] : '';
+        $actions_html = isset( $args['actions_html'] ) ? (string) $args['actions_html'] : '';
+        $sections = [
+            'shopping'    => [
+                'label' => __( 'Shopping', 'cookbook' ),
+                'url'   => home_url( '/cookbook/shopping-list' ),
+            ],
+            'planner'     => [
+                'label' => __( 'Planner', 'cookbook' ),
+                'url'   => home_url( '/cookbook/planner' ),
+            ],
+            'cooked'      => [
+                'label' => __( 'Cooking history', 'cookbook' ),
+                'url'   => home_url( '/cookbook/cooked' ),
+            ],
+            'ingredients' => [
+                'label' => __( 'Ingredients', 'cookbook' ),
+                'url'   => home_url( '/cookbook/by-ingredients' ),
+            ],
+        ];
+        ?>
+        <div class="page-head">
+            <div>
+                <h1><?php echo esc_html( $title ); ?></h1>
+                <?php if ( $show_nav ) : ?>
+                    <nav class="page-head-nav" aria-label="<?php esc_attr_e( 'Cookbook sections', 'cookbook' ); ?>">
+                        <?php foreach ( $sections as $section_key => $section ) : ?>
+                            <a href="<?php echo esc_url( $section['url'] ); ?>"<?php echo $current_section === $section_key ? ' aria-current="page"' : ''; ?>>
+                                <?php echo esc_html( $section['label'] ); ?>
+                            </a>
+                        <?php endforeach; ?>
+                    </nav>
+                <?php endif; ?>
+                <?php if ( $subtitle !== '' ) : ?>
+                    <p class="subtitle"><?php echo esc_html( $subtitle ); ?></p>
+                <?php endif; ?>
+            </div>
+            <?php if ( $actions_html !== '' ) : ?>
+                <div class="page-actions">
+                    <?php echo $actions_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- callers build escaped controls. ?>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+}
 /**
  * Shared header partial for the Cookbook app.
  *
@@ -55,6 +118,11 @@ if ( ! defined( 'ABSPATH' ) ) {
         h1 { margin: 0 0 0.25rem; font-size: 2rem; }
         h2 { margin: 1.5rem 0 0.5rem; font-size: 1.3rem; border-bottom: 1px solid var(--line); padding-bottom: 0.25rem; }
         .subtitle { color: var(--muted); margin: 0 0 1rem; }
+        .page-head-nav { display: flex; gap: 0.65rem; align-items: baseline; flex-wrap: wrap; margin: 0.15rem 0 1rem; color: var(--muted); font-size: 0.95rem; }
+        .page-head-nav a { text-decoration: none; }
+        .page-head-nav a:hover,
+        .page-head-nav a:focus { text-decoration: underline; }
+        .page-head-nav a[aria-current="page"] { color: var(--fg); font-weight: 600; }
         .toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin: 1rem 0; }
         .toolbar .spacer { flex: 1; }
         .btn, button.btn, input[type="submit"].btn { display: inline-block; background: var(--accent); color: var(--accent-fg); border: 0; padding: 0.5rem 0.9rem; border-radius: 4px; text-decoration: none; font: inherit; cursor: pointer; }

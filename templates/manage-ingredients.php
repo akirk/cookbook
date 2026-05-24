@@ -60,8 +60,10 @@ include __DIR__ . '/_header.php';
     .mi-selected-count { font-weight: 600; }
 </style>
 
-<h1><?php esc_html_e( 'Manage ingredients', 'cookbook' ); ?></h1>
-<p class="subtitle"><?php esc_html_e( 'Tick duplicates and merge them into one canonical term, or group similar ingredients under a parent. Merging rewrites the linked recipes; grouping just sets a hierarchy.', 'cookbook' ); ?></p>
+<?php cookbook_page_head( __( 'Manage ingredients', 'cookbook' ), [
+    'current_section' => 'ingredients',
+    'subtitle'        => __( 'Tick duplicates and merge them into one canonical term, or group similar ingredients under a parent. Merging rewrites the linked recipes; grouping just sets a hierarchy.', 'cookbook' ),
+] ); ?>
 
 <?php if ( $merged_count >= 0 ) : ?>
     <div class="notice success">
