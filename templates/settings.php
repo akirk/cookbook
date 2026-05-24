@@ -16,7 +16,6 @@ $saved = isset( $_GET['saved'] );
 $page_title = __( 'Settings', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
 <h1><?php esc_html_e( 'Settings', 'cookbook' ); ?></h1>
 
 <?php if ( $saved ) : ?>

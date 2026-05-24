@@ -29,7 +29,6 @@ $recipes = get_posts( [
 $page_title = '#' . $term->name;
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
 <h1>#<?php echo esc_html( $term->name ); ?></h1>
 <p class="subtitle">
     <?php

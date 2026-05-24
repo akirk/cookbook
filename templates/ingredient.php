@@ -31,7 +31,6 @@ $recipes = get_posts( [
 $page_title = ucfirst( $term->name );
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>"><?php esc_html_e( '← All ingredients', 'cookbook' ); ?></a>
 <h1><?php echo esc_html( ucfirst( $term->name ) ); ?></h1>
 <p class="subtitle">
     <?php

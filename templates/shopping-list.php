@@ -53,8 +53,6 @@ $shopping_item_detail = function( array $item ): string {
 $page_title = __( 'Shopping list', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
-
 <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="shopping-list-form">
     <?php wp_nonce_field( 'cookbook_update_shopping_list' ); ?>
     <input type="hidden" name="action" value="cookbook_update_shopping_list">

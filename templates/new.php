@@ -37,7 +37,6 @@ if ( $requested_variation_source ) {
 $page_title = $variation_source_id ? __( 'New variation', 'cookbook' ) : __( 'New recipe', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
 <h1><?php echo $variation_source_id ? esc_html__( 'New variation', 'cookbook' ) : esc_html__( 'New recipe', 'cookbook' ); ?></h1>
 <?php if ( $variation_source_id ) : ?>
     <p class="subtitle">

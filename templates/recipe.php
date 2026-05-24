@@ -103,7 +103,6 @@ $recent_cooked_entries = array_slice( $cooked_entries, 0, 5 );
 
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
 <h1><?php echo esc_html( get_the_title( $post ) ); ?></h1>
 
 <?php if ( has_post_thumbnail( $id ) ) : ?>

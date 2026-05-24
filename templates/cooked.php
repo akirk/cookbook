@@ -40,9 +40,6 @@ include __DIR__ . '/_header.php';
             ?>
         </p>
     </div>
-    <div class="page-actions">
-        <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( 'All recipes', 'cookbook' ); ?></a>
-    </div>
 </div>
 
 <?php if ( ! $entries_by_date ) : ?>

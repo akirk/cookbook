@@ -124,8 +124,6 @@ foreach ( $days as $date => $day ) {
 $page_title = __( 'Week planner', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
-
 <div class="page-head">
     <div>
         <h1><?php esc_html_e( 'Week planner', 'cookbook' ); ?></h1>
@@ -136,7 +134,6 @@ include __DIR__ . '/_header.php';
         ) ); ?></p>
     </div>
     <div class="page-actions">
-        <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/shopping-list' ) ); ?>"><?php esc_html_e( 'Shopping list', 'cookbook' ); ?></a>
         <?php if ( ! $is_current_week && $plan_id ) : ?>
             <a class="btn secondary" href="<?php echo esc_url( add_query_arg( [
                 'week'      => $current_week_start,

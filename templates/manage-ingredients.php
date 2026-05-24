@@ -60,7 +60,6 @@ include __DIR__ . '/_header.php';
     .mi-selected-count { font-weight: 600; }
 </style>
 
-<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>"><?php esc_html_e( '← Back to By ingredients', 'cookbook' ); ?></a>
 <h1><?php esc_html_e( 'Manage ingredients', 'cookbook' ); ?></h1>
 <p class="subtitle"><?php esc_html_e( 'Tick duplicates and merge them into one canonical term, or group similar ingredients under a parent. Merging rewrites the linked recipes; grouping just sets a hierarchy.', 'cookbook' ); ?></p>
 
