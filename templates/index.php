@@ -105,6 +105,10 @@ include __DIR__ . '/_header.php';
     .recipe-alpha-list a:hover .recipe-title { color: var(--accent); }
     .recipe-alpha-list .recipe-title { min-width: 0; }
     .recipe-alpha-list .meta { font-size: 0.82rem; gap: 0.45rem; }
+    .home-section-links { display: flex; gap: 0.65rem; align-items: baseline; flex-wrap: wrap; margin: 0.15rem 0 1rem; color: var(--muted); font-size: 0.95rem; }
+    .home-section-links a { text-decoration: none; }
+    .home-section-links a:hover,
+    .home-section-links a:focus { text-decoration: underline; }
     .home-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; margin: 1rem 0; }
     .home-today-plan { margin: 1.25rem 0; }
     .home-today-head { display: flex; gap: 0.75rem; align-items: baseline; justify-content: space-between; }
@@ -116,7 +120,12 @@ include __DIR__ . '/_header.php';
 <div class="page-head">
     <div>
         <h1><?php esc_html_e( 'Cookbook', 'cookbook' ); ?></h1>
-        <p class="subtitle"><?php esc_html_e( 'Your personal recipes.', 'cookbook' ); ?></p>
+        <nav class="home-section-links" aria-label="<?php esc_attr_e( 'Cookbook sections', 'cookbook' ); ?>">
+            <a href="<?php echo esc_url( home_url( '/cookbook/shopping-list' ) ); ?>"><?php esc_html_e( 'Shopping', 'cookbook' ); ?></a>
+            <a href="<?php echo esc_url( home_url( '/cookbook/planner' ) ); ?>"><?php esc_html_e( 'Planner', 'cookbook' ); ?></a>
+            <a href="<?php echo esc_url( home_url( '/cookbook/cooked' ) ); ?>"><?php esc_html_e( 'Cooking history', 'cookbook' ); ?></a>
+            <a href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>"><?php esc_html_e( 'Ingredients', 'cookbook' ); ?></a>
+        </nav>
     </div>
 </div>
 

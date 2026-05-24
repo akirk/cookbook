@@ -65,14 +65,6 @@ if ( ! defined( 'ABSPATH' ) ) {
         .btn.household { background: var(--household); color: var(--household-fg); }
         .meta { display: flex; gap: 1rem; color: var(--muted); font-size: 0.9rem; flex-wrap: wrap; }
         .badge { display: inline-block; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.85rem; color: var(--muted); margin-right: 0.25rem; text-decoration: none; }
-        .cookbook-nav { display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 0 0 1.25rem; padding: 0.3rem; border: 1px solid var(--line); border-radius: 6px; background: color-mix(in srgb, var(--card) 72%, var(--bg)); }
-        .cookbook-nav-main,
-        .cookbook-nav-actions { display: flex; gap: 0.2rem; align-items: center; flex-wrap: wrap; min-width: 0; }
-        .cookbook-nav-actions { margin-left: auto; }
-        .cookbook-nav a { display: inline-flex; align-items: center; min-height: 2rem; padding: 0.25rem 0.55rem; border-radius: 4px; color: var(--muted); font-size: 0.9rem; text-decoration: none; white-space: nowrap; }
-        .cookbook-nav a:hover,
-        .cookbook-nav a:focus { background: var(--secondary-bg); color: var(--fg); outline: none; }
-        .cookbook-nav a[aria-current="page"] { background: var(--accent); color: var(--accent-fg); }
         .recipe-toolbar { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 1rem 0 1.25rem; padding: 0.55rem; border: 1px solid var(--line); border-radius: 6px; background: color-mix(in srgb, var(--card) 82%, var(--bg)); }
         .recipe-toolbar-settings,
         .recipe-primary-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; min-width: 0; }
@@ -358,10 +350,6 @@ if ( ! defined( 'ABSPATH' ) ) {
             }
             .page-head { display: block; }
             .page-actions { justify-content: flex-start; margin-top: 0.75rem; }
-            .cookbook-nav { align-items: stretch; }
-            .cookbook-nav-main,
-            .cookbook-nav-actions { width: 100%; }
-            .cookbook-nav-actions { margin-left: 0; }
             .recipe-toolbar { align-items: stretch; }
             .recipe-toolbar-settings,
             .recipe-primary-actions,
@@ -405,83 +393,3 @@ if ( ! defined( 'ABSPATH' ) ) {
 <body class="wp-app-body">
     <?php wp_app_body_open(); ?>
     <main>
-        <?php
-        $cookbook_request_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
-        $cookbook_request_path = wp_parse_url( $cookbook_request_uri, PHP_URL_PATH );
-        $cookbook_normalize_path = static function( string $path ): string {
-            $path = '/' . trim( $path, '/' );
-            return $path === '/' ? '/' : $path;
-        };
-        $cookbook_base_path = $cookbook_normalize_path( (string) ( wp_parse_url( home_url( '/cookbook/' ), PHP_URL_PATH ) ?: '/cookbook' ) );
-        $cookbook_current_path = $cookbook_normalize_path( (string) ( $cookbook_request_path ?: $cookbook_base_path ) );
-        $cookbook_path_matches = static function( array $patterns ) use ( $cookbook_current_path, $cookbook_normalize_path, $cookbook_base_path ): bool {
-            foreach ( $patterns as $pattern ) {
-                $pattern = $cookbook_normalize_path( (string) $pattern );
-                if ( $pattern === $cookbook_base_path && $cookbook_current_path !== $pattern ) {
-                    continue;
-                }
-                if ( $cookbook_current_path === $pattern || strpos( $cookbook_current_path, $pattern . '/' ) === 0 ) {
-                    return true;
-                }
-            }
-            return false;
-        };
-        $cookbook_nav_groups = [
-            [
-                [
-                    'label'    => __( 'Recipes', 'cookbook' ),
-                    'url'      => home_url( '/cookbook/' ),
-                    'patterns' => [ $cookbook_base_path, $cookbook_base_path . '/recipe', $cookbook_base_path . '/category', $cookbook_base_path . '/tag' ],
-                ],
-                [
-                    'label'    => __( 'Shopping', 'cookbook' ),
-                    'url'      => home_url( '/cookbook/shopping-list' ),
-                    'patterns' => [ $cookbook_base_path . '/shopping-list' ],
-                ],
-                [
-                    'label'    => __( 'Planner', 'cookbook' ),
-                    'url'      => home_url( '/cookbook/planner' ),
-                    'patterns' => [ $cookbook_base_path . '/planner' ],
-                ],
-                [
-                    'label'    => __( 'Cooked', 'cookbook' ),
-                    'url'      => home_url( '/cookbook/cooked' ),
-                    'patterns' => [ $cookbook_base_path . '/cooked' ],
-                ],
-                [
-                    'label'    => __( 'Ingredients', 'cookbook' ),
-                    'url'      => home_url( '/cookbook/by-ingredients' ),
-                    'patterns' => [ $cookbook_base_path . '/by-ingredients', $cookbook_base_path . '/ingredient', $cookbook_base_path . '/manage-ingredients' ],
-                ],
-            ],
-            [
-                [
-                    'label'    => __( 'New recipe', 'cookbook' ),
-                    'url'      => home_url( '/cookbook/new' ),
-                    'patterns' => [ $cookbook_base_path . '/new' ],
-                ],
-                [
-                    'label'    => __( 'Import', 'cookbook' ),
-                    'url'      => home_url( '/cookbook/import' ),
-                    'patterns' => [ $cookbook_base_path . '/import' ],
-                ],
-                [
-                    'label'    => __( 'Settings', 'cookbook' ),
-                    'url'      => home_url( '/cookbook/settings' ),
-                    'patterns' => [ $cookbook_base_path . '/settings' ],
-                ],
-            ],
-        ];
-        ?>
-        <nav class="cookbook-nav" aria-label="<?php esc_attr_e( 'Cookbook navigation', 'cookbook' ); ?>">
-            <?php foreach ( $cookbook_nav_groups as $group_index => $group ) : ?>
-                <div class="<?php echo $group_index === 0 ? 'cookbook-nav-main' : 'cookbook-nav-actions'; ?>">
-                    <?php foreach ( $group as $item ) : ?>
-                        <?php $is_current = $cookbook_path_matches( $item['patterns'] ); ?>
-                        <a href="<?php echo esc_url( $item['url'] ); ?>"<?php echo $is_current ? ' aria-current="page"' : ''; ?>>
-                            <?php echo esc_html( $item['label'] ); ?>
-                        </a>
-                    <?php endforeach; ?>
-                </div>
-            <?php endforeach; ?>
-        </nav>

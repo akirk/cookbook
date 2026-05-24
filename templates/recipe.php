@@ -451,7 +451,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
 <?php endif; ?>
 
 <?php if ( $cooked_entries ) : ?>
-    <h2 id="cooked-history"><?php esc_html_e( 'Cooked history', 'cookbook' ); ?></h2>
+    <h2 id="cooked-history"><?php esc_html_e( 'Cooking history', 'cookbook' ); ?></h2>
     <p class="subtitle">
         <?php
         echo esc_html( sprintf(
@@ -473,7 +473,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
         <?php endforeach; ?>
     </ul>
     <p>
-        <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/cooked' ) ); ?>"><?php esc_html_e( 'All cooked history', 'cookbook' ); ?></a>
+        <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/cooked' ) ); ?>"><?php esc_html_e( 'Cooking history', 'cookbook' ); ?></a>
     </p>
 <?php endif; ?>
 
@@ -540,7 +540,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
 
                 <div class="cook-mode-panel cook-finish" id="cook-finish" hidden>
                     <strong><?php esc_html_e( 'Save that you cooked this?', 'cookbook' ); ?></strong>
-                    <p class="help"><?php esc_html_e( 'Add it to your cooked history.', 'cookbook' ); ?></p>
+                    <p class="help"><?php esc_html_e( 'Add it to your cooking history.', 'cookbook' ); ?></p>
                     <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                         <?php wp_nonce_field( 'cookbook_log_cooked' ); ?>
                         <input type="hidden" name="action" value="cookbook_log_cooked">

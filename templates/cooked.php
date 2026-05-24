@@ -24,12 +24,12 @@ foreach ( $entries as $entry ) {
     ];
 }
 
-$page_title = __( 'Cooked', 'cookbook' );
+$page_title = __( 'Cooking history', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
 <div class="page-head">
     <div>
-        <h1><?php esc_html_e( 'Cooked', 'cookbook' ); ?></h1>
+        <h1><?php esc_html_e( 'Cooking history', 'cookbook' ); ?></h1>
         <p class="subtitle">
             <?php
             echo esc_html( sprintf(
@@ -43,7 +43,7 @@ include __DIR__ . '/_header.php';
 </div>
 
 <?php if ( ! $entries_by_date ) : ?>
-    <div class="notice"><?php esc_html_e( 'No cooked history yet. Save a cooked date from any recipe page.', 'cookbook' ); ?></div>
+    <div class="notice"><?php esc_html_e( 'No cooking history yet. Save a cooked date from any recipe page.', 'cookbook' ); ?></div>
 <?php else : ?>
     <?php foreach ( $entries_by_date as $date => $date_entries ) : ?>
         <section class="recipe-alpha-section">
