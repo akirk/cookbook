@@ -95,8 +95,11 @@ $page_title = __( 'Cookbook', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
 <style>
-    .recipe-index { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 1rem 0; }
-    .recipe-index a { min-width: 2rem; text-align: center; }
+    .recipe-index-row { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 1rem 0; }
+    .recipe-index { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0; }
+    .recipe-index .badge { min-width: 2rem; box-sizing: border-box; text-align: center; }
+    .recipe-index .badge.muted { background: transparent; color: var(--muted); opacity: 0.45; }
+    .recipe-index-row .btn { margin-left: auto; white-space: nowrap; }
     .recipe-alpha-section { margin-top: 1.4rem; }
     .recipe-alpha-heading { margin: 0 0 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--line); font-size: 1.1rem; }
     .recipe-alpha-list { list-style: none; padding: 0; margin: 0; }
@@ -111,7 +114,7 @@ include __DIR__ . '/_header.php';
     .home-today-head h2 { margin: 0; }
     .home-today-head a { white-space: nowrap; }
     .home-ingredients[hidden] { display: none; }
-    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } }
+    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } .recipe-index-row { align-items: stretch; } .recipe-index-row .btn { margin-left: 0; } }
 </style>
 <?php cookbook_page_head( __( 'Cookbook', 'cookbook' ), [ 'current_section' => 'recipes' ] ); ?>
 
@@ -164,14 +167,24 @@ include __DIR__ . '/_header.php';
     <h2 style="margin-top:1.25rem"><?php esc_html_e( 'Search results', 'cookbook' ); ?></h2>
 <?php endif; ?>
 
-<?php if ( $recipes_by_letter ) : ?>
-    <nav class="recipe-index" aria-label="<?php esc_attr_e( 'Recipe index', 'cookbook' ); ?>">
-        <?php foreach ( array_keys( $recipes_by_letter ) as $letter ) : ?>
-            <?php $letter_id = $letter === '#' ? 'other' : sanitize_title( $letter ); ?>
-            <a class="badge" href="#recipes-<?php echo esc_attr( $letter_id ); ?>"><?php echo esc_html( $letter ); ?></a>
-        <?php endforeach; ?>
-    </nav>
-<?php endif; ?>
+<div class="recipe-index-row">
+    <?php if ( $recipes_by_letter ) : ?>
+        <nav class="recipe-index" aria-label="<?php esc_attr_e( 'Recipe index', 'cookbook' ); ?>">
+            <?php foreach ( range( 'A', 'Z' ) as $letter ) : ?>
+                <?php $letter_id = sanitize_title( $letter ); ?>
+                <?php if ( isset( $recipes_by_letter[ $letter ] ) ) : ?>
+                    <a class="badge" href="#recipes-<?php echo esc_attr( $letter_id ); ?>"><?php echo esc_html( $letter ); ?></a>
+                <?php else : ?>
+                    <span class="badge muted" aria-disabled="true"><?php echo esc_html( $letter ); ?></span>
+                <?php endif; ?>
+            <?php endforeach; ?>
+            <?php if ( isset( $recipes_by_letter['#'] ) ) : ?>
+                <a class="badge" href="#recipes-other">#</a>
+            <?php endif; ?>
+        </nav>
+    <?php endif; ?>
+    <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/new' ) ); ?>"><?php esc_html_e( 'New recipe', 'cookbook' ); ?></a>
+</div>
 
 <?php if ( ! $recipes ) : ?>
     <?php if ( $is_searching ) : ?>
