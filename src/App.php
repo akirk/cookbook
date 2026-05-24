@@ -2640,7 +2640,7 @@ class App extends BaseApp {
     }
 
     public static function get_user_cooked_entries( array $args = [] ): array {
-        $user_id = isset( $args['user_id'] ) ? absint( $args['user_id'] ) : get_current_user_id();
+        $user_id = ! empty( $args['user_id'] ) ? absint( $args['user_id'] ) : get_current_user_id();
         if ( ! $user_id ) {
             return [];
         }

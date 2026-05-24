@@ -136,16 +136,10 @@ include __DIR__ . '/_header.php';
             <a href="<?php echo esc_url( $source_url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( wp_parse_url( $source_url, PHP_URL_HOST ) ?: $source_url ); ?></a>
         </span>
     <?php endif; ?>
-    <?php if ( $variation_parent ) : ?>
+    <?php if ( $variation_parent && count( $variation_family ) <= 1 ) : ?>
         <span>
             <?php esc_html_e( 'Variation of:', 'cookbook' ); ?>
             <a href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $variation_parent->ID ) ); ?>"><?php echo esc_html( get_the_title( $variation_parent ) ); ?></a>
-        </span>
-    <?php endif; ?>
-    <?php if ( $last_cooked_date ) : ?>
-        <span>
-            <?php esc_html_e( 'Last cooked:', 'cookbook' ); ?>
-            <a href="<?php echo esc_url( home_url( '/cookbook/cooked' ) ); ?>"><?php echo esc_html( App::format_cooked_date( $last_cooked_date ) ); ?></a>
         </span>
     <?php endif; ?>
 </div>
@@ -168,17 +162,6 @@ include __DIR__ . '/_header.php';
     <section class="variation-panel" aria-labelledby="recipe-variations-title">
         <div class="variation-panel-title">
             <strong id="recipe-variations-title"><?php esc_html_e( 'Recipe variations', 'cookbook' ); ?></strong>
-            <?php if ( $variation_parent ) : ?>
-                <span class="help" style="margin:0">
-                    <?php
-                    printf(
-                        /* translators: %s: parent recipe title */
-                        esc_html__( 'Parent: %s', 'cookbook' ),
-                        esc_html( get_the_title( $variation_parent ) )
-                    );
-                    ?>
-                </span>
-            <?php endif; ?>
         </div>
         <ul class="variation-list">
             <?php foreach ( $variation_family as $variation_item ) :
@@ -205,50 +188,85 @@ include __DIR__ . '/_header.php';
     </section>
 <?php endif; ?>
 
-<div class="toolbar">
-    <div class="portion-control">
-        <label for="servings" style="margin:0"><?php esc_html_e( 'Servings:', 'cookbook' ); ?></label>
-        <input id="servings" type="number" min="1" step="1" value="<?php echo (int) $servings_default; ?>" data-default="<?php echo (int) $servings_default; ?>">
+<div class="recipe-toolbar" role="group" aria-label="<?php esc_attr_e( 'Recipe controls', 'cookbook' ); ?>">
+    <div class="recipe-toolbar-settings">
+        <div class="portion-control">
+            <label for="servings" style="margin:0"><?php esc_html_e( 'Servings:', 'cookbook' ); ?></label>
+            <input id="servings" type="number" min="1" step="1" value="<?php echo (int) $servings_default; ?>" data-default="<?php echo (int) $servings_default; ?>">
+        </div>
+        <div class="unit-toggle" role="tablist" aria-label="<?php esc_attr_e( 'Unit system', 'cookbook' ); ?>">
+            <button type="button" class="<?php echo $preference === 'metric' ? 'active' : ''; ?>" data-units="metric"><?php esc_html_e( 'Metric', 'cookbook' ); ?></button>
+            <button type="button" class="<?php echo $preference === 'imperial' ? 'active' : ''; ?>" data-units="imperial"><?php esc_html_e( 'Imperial', 'cookbook' ); ?></button>
+        </div>
     </div>
-    <div class="unit-toggle" role="tablist" aria-label="<?php esc_attr_e( 'Unit system', 'cookbook' ); ?>">
-        <button type="button" class="<?php echo $preference === 'metric' ? 'active' : ''; ?>" data-units="metric"><?php esc_html_e( 'Metric', 'cookbook' ); ?></button>
-        <button type="button" class="<?php echo $preference === 'imperial' ? 'active' : ''; ?>" data-units="imperial"><?php esc_html_e( 'Imperial', 'cookbook' ); ?></button>
+
+    <div class="recipe-cooked-status">
+        <span><?php esc_html_e( 'Last cooked:', 'cookbook' ); ?></span>
+        <?php if ( $last_cooked_date ) : ?>
+            <a href="#cooked-history"><time datetime="<?php echo esc_attr( $last_cooked_date ); ?>"><?php echo esc_html( App::format_cooked_date( $last_cooked_date ) ); ?></time></a>
+            <small>
+                (
+                <?php
+                echo esc_html( sprintf(
+                    /* translators: %d: number of times the recipe was cooked */
+                    _n( '%d time', '%d times', $cooked_count, 'cookbook' ),
+                    $cooked_count
+                ) );
+                ?>
+                )
+            </small>
+        <?php else : ?>
+            <strong><?php esc_html_e( 'Not yet', 'cookbook' ); ?></strong>
+        <?php endif; ?>
     </div>
-    <span class="spacer"></span>
-    <?php if ( $clean_instructions ) : ?>
-        <button class="btn" type="button" id="cook-mode-open"><?php esc_html_e( 'Cook mode', 'cookbook' ); ?></button>
-    <?php endif; ?>
-    <form class="cooked-log-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-        <?php wp_nonce_field( 'cookbook_log_cooked' ); ?>
-        <input type="hidden" name="action" value="cookbook_log_cooked">
-        <input type="hidden" name="recipe_id" value="<?php echo (int) $id; ?>">
-        <input type="hidden" name="redirect_to" value="<?php echo esc_url( $recipe_url ); ?>">
-        <label for="recipe-cooked-date"><?php esc_html_e( 'Cooked on', 'cookbook' ); ?></label>
-        <input id="recipe-cooked-date" type="date" name="cooked_date" value="<?php echo esc_attr( $today_date ); ?>" max="<?php echo esc_attr( $today_date ); ?>">
-        <button class="btn secondary" type="submit"><?php esc_html_e( 'Cooked this', 'cookbook' ); ?></button>
-    </form>
-    <?php if ( $ingredients ) : ?>
-        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline">
-            <?php wp_nonce_field( 'cookbook_add_to_shopping_list' ); ?>
-            <input type="hidden" name="action" value="cookbook_add_to_shopping_list">
-            <input type="hidden" name="recipe_id" value="<?php echo (int) $id; ?>">
-            <input type="hidden" id="shopping-servings" name="servings" value="<?php echo (int) $servings_default; ?>">
-            <button class="btn fresh" type="submit"><?php esc_html_e( 'Add to shopping list', 'cookbook' ); ?></button>
-        </form>
-        <a class="btn secondary" href="<?php echo esc_url( add_query_arg( 'recipe_id', $id, home_url( '/cookbook/planner' ) ) ); ?>"><?php esc_html_e( 'Plan recipe', 'cookbook' ); ?></a>
-    <?php endif; ?>
-    <?php if ( $source_url ) : ?>
-        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline" onsubmit="return confirm('<?php echo esc_js( __( 'Re-fetch this recipe from its source URL? Ingredients, instructions, times and image will be replaced with the latest parsed data. Notes and tags are kept.', 'cookbook' ) ); ?>')">
-            <?php wp_nonce_field( 'cookbook_refetch' ); ?>
-            <input type="hidden" name="action" value="cookbook_refetch">
-            <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
-            <button class="btn secondary" type="submit" title="<?php esc_attr_e( 'Re-import from source URL', 'cookbook' ); ?>"><?php esc_html_e( 'Refetch', 'cookbook' ); ?></button>
-        </form>
-    <?php endif; ?>
-    <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $id . '/edit' ) ); ?>"><?php esc_html_e( 'Edit', 'cookbook' ); ?></a>
-    <?php if ( current_user_can( 'edit_posts' ) ) : ?>
-        <a class="btn secondary" href="<?php echo esc_url( add_query_arg( 'variation_of', $id, home_url( '/cookbook/new' ) ) ); ?>"><?php esc_html_e( 'Edit as variation', 'cookbook' ); ?></a>
-    <?php endif; ?>
+
+    <div class="recipe-primary-actions">
+        <?php if ( $clean_instructions ) : ?>
+            <button class="btn" type="button" id="cook-mode-open"><?php esc_html_e( 'Cook mode', 'cookbook' ); ?></button>
+        <?php endif; ?>
+        <?php if ( $ingredients ) : ?>
+            <form class="recipe-inline-action" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <?php wp_nonce_field( 'cookbook_add_to_shopping_list' ); ?>
+                <input type="hidden" name="action" value="cookbook_add_to_shopping_list">
+                <input type="hidden" name="recipe_id" value="<?php echo (int) $id; ?>">
+                <input type="hidden" id="shopping-servings" name="servings" value="<?php echo (int) $servings_default; ?>">
+                <button class="btn fresh" type="submit"><?php esc_html_e( 'Add to shopping list', 'cookbook' ); ?></button>
+            </form>
+        <?php endif; ?>
+
+        <details class="recipe-action-menu">
+            <summary class="btn secondary"><?php esc_html_e( 'More actions', 'cookbook' ); ?></summary>
+            <div class="recipe-action-menu-panel">
+                <?php if ( $ingredients ) : ?>
+                    <a class="recipe-menu-action" href="<?php echo esc_url( add_query_arg( 'recipe_id', $id, home_url( '/cookbook/planner' ) ) ); ?>"><?php esc_html_e( 'Plan recipe', 'cookbook' ); ?></a>
+                <?php endif; ?>
+
+                <form class="recipe-menu-form cooked-log-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                    <?php wp_nonce_field( 'cookbook_log_cooked' ); ?>
+                    <input type="hidden" name="action" value="cookbook_log_cooked">
+                    <input type="hidden" name="recipe_id" value="<?php echo (int) $id; ?>">
+                    <input type="hidden" name="redirect_to" value="<?php echo esc_url( $recipe_url ); ?>">
+                    <label for="recipe-cooked-date"><?php esc_html_e( 'Cooked on', 'cookbook' ); ?></label>
+                    <input id="recipe-cooked-date" type="date" name="cooked_date" value="<?php echo esc_attr( $today_date ); ?>" max="<?php echo esc_attr( $today_date ); ?>">
+                    <button class="btn secondary" type="submit"><?php esc_html_e( 'Log cooked date', 'cookbook' ); ?></button>
+                </form>
+
+                <?php if ( $source_url ) : ?>
+                    <form class="recipe-menu-action-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Re-fetch this recipe from its source URL? Ingredients, instructions, times and image will be replaced with the latest parsed data. Notes and tags are kept.', 'cookbook' ) ); ?>')">
+                        <?php wp_nonce_field( 'cookbook_refetch' ); ?>
+                        <input type="hidden" name="action" value="cookbook_refetch">
+                        <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
+                        <button class="recipe-menu-action" type="submit" title="<?php esc_attr_e( 'Re-import from source URL', 'cookbook' ); ?>"><?php esc_html_e( 'Refetch from source', 'cookbook' ); ?></button>
+                    </form>
+                <?php endif; ?>
+
+                <a class="recipe-menu-action" href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $id . '/edit' ) ); ?>"><?php esc_html_e( 'Edit recipe', 'cookbook' ); ?></a>
+                <?php if ( current_user_can( 'edit_posts' ) ) : ?>
+                    <a class="recipe-menu-action" href="<?php echo esc_url( add_query_arg( 'variation_of', $id, home_url( '/cookbook/new' ) ) ); ?>"><?php esc_html_e( 'Edit as variation', 'cookbook' ); ?></a>
+                <?php endif; ?>
+            </div>
+        </details>
+    </div>
 </div>
 
 <?php if ( $refetch_status === 'ok' ) : ?>

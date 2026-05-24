@@ -65,6 +65,34 @@ if ( ! defined( 'ABSPATH' ) ) {
         .btn.household { background: var(--household); color: var(--household-fg); }
         .meta { display: flex; gap: 1rem; color: var(--muted); font-size: 0.9rem; flex-wrap: wrap; }
         .badge { display: inline-block; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.85rem; color: var(--muted); margin-right: 0.25rem; text-decoration: none; }
+        .recipe-toolbar { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 1rem 0 1.25rem; padding: 0.55rem; border: 1px solid var(--line); border-radius: 6px; background: color-mix(in srgb, var(--card) 82%, var(--bg)); }
+        .recipe-toolbar-settings,
+        .recipe-primary-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; min-width: 0; }
+        .recipe-toolbar-settings { flex: 1 1 19rem; }
+        .recipe-primary-actions { justify-content: flex-end; margin-left: auto; }
+        .recipe-primary-actions .btn { white-space: nowrap; }
+        .recipe-inline-action { margin: 0; }
+        .recipe-cooked-status { display: inline-flex; gap: 0.35rem; align-items: baseline; min-width: 0; padding: 0.1rem 0.25rem; color: var(--muted); font-size: 0.85rem; line-height: 1.3; white-space: nowrap; }
+        .recipe-cooked-status a,
+        .recipe-cooked-status strong { color: var(--fg); font-size: 0.95rem; font-weight: 600; text-decoration: none; }
+        .recipe-cooked-status a:hover,
+        .recipe-cooked-status a:focus { color: var(--accent-hover); text-decoration: underline; }
+        .recipe-cooked-status small { color: var(--muted); font-size: 0.78rem; }
+        .recipe-action-menu { position: relative; }
+        .recipe-action-menu summary.btn { display: inline-flex; gap: 0.35rem; align-items: center; list-style: none; white-space: nowrap; }
+        .recipe-action-menu summary.btn::-webkit-details-marker { display: none; }
+        .recipe-action-menu summary.btn::after { content: ""; border-left: 0.28rem solid transparent; border-right: 0.28rem solid transparent; border-top: 0.34rem solid currentColor; transform-origin: 50% 40%; transition: transform 0.12s ease; }
+        .recipe-action-menu[open] summary.btn::after { transform: rotate(180deg); }
+        .recipe-action-menu-panel { position: absolute; top: calc(100% + 0.4rem); right: 0; z-index: 20; display: grid; gap: 0.15rem; width: min(19rem, calc(100vw - 2rem)); box-sizing: border-box; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.35rem; box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
+        .recipe-action-menu form { margin: 0; }
+        .recipe-menu-action { display: flex; align-items: center; width: 100%; box-sizing: border-box; border: 0; border-radius: 4px; background: transparent; color: var(--fg); cursor: pointer; font: inherit; padding: 0.55rem 0.65rem; text-align: left; text-decoration: none; }
+        .recipe-menu-action:hover,
+        .recipe-menu-action:focus { background: var(--secondary-bg); color: var(--fg); outline: none; }
+        .recipe-menu-form { display: grid; gap: 0.45rem; margin: 0.2rem 0; padding: 0.6rem 0.65rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+        .recipe-menu-form label { margin: 0; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+        .recipe-menu-form input[type="date"] { width: 100%; min-width: 0; }
+        .recipe-menu-form .btn { justify-self: start; }
+        .recipe-action-menu .cooked-log-form { display: grid; align-items: stretch; }
         .recipe-card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1rem 1.25rem; margin: 0.75rem 0; display: block; text-decoration: none; color: inherit; }
         .recipe-card h3 { margin: 0 0 0.25rem; }
         .recipe-card .meta { font-size: 0.85rem; }
@@ -322,6 +350,18 @@ if ( ! defined( 'ABSPATH' ) ) {
             }
             .page-head { display: block; }
             .page-actions { justify-content: flex-start; margin-top: 0.75rem; }
+            .recipe-toolbar { align-items: stretch; }
+            .recipe-toolbar-settings,
+            .recipe-primary-actions,
+            .recipe-cooked-status { flex: 1 1 100%; }
+            .recipe-primary-actions { justify-content: stretch; margin-left: 0; }
+            .recipe-primary-actions > .btn,
+            .recipe-primary-actions > .recipe-inline-action,
+            .recipe-primary-actions > .recipe-action-menu { flex: 1 1 auto; }
+            .recipe-inline-action .btn,
+            .recipe-action-menu summary.btn { width: 100%; box-sizing: border-box; justify-content: center; text-align: center; }
+            .recipe-action-menu { position: static; }
+            .recipe-action-menu-panel { position: static; width: 100%; margin-top: 0.4rem; }
             .shopping-fields,
             .manual-item-row,
             .ingredient-replace-form { grid-template-columns: 1fr 1fr; }

@@ -119,23 +119,22 @@ include __DIR__ . '/_header.php';
     .recipe-alpha-heading { margin: 0 0 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--line); font-size: 1.1rem; }
     .recipe-alpha-list { list-style: none; padding: 0; margin: 0; }
     .recipe-alpha-list li { border-bottom: 1px dashed var(--line); }
-    .recipe-alpha-list a { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.38rem 0; text-decoration: none; color: inherit; }
+    .recipe-alpha-list a { display: grid; gap: 0.12rem; padding: 0.38rem 0; text-decoration: none; color: inherit; }
     .recipe-alpha-list a:hover .recipe-title { color: var(--accent); }
-    .recipe-alpha-list .recipe-title { flex: 1; min-width: 0; }
+    .recipe-alpha-list .recipe-title { min-width: 0; }
     .recipe-alpha-list .meta { font-size: 0.82rem; gap: 0.45rem; }
     .home-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; margin: 1rem 0; }
-    .home-tools { display: grid; grid-template-columns: 1fr; gap: 0.6rem; margin: 0.75rem 0 1.25rem; }
-    .home-tool { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: inherit; text-decoration: none; }
+    .home-tools { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; margin: 0.5rem 0 0.9rem; }
+    .home-tool { display: inline-flex; gap: 0.45rem; align-items: baseline; max-width: 100%; padding: 0.32rem 0.6rem; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: inherit; text-decoration: none; }
     .home-tool:hover { border-color: var(--accent); }
-    .home-tool strong { color: var(--fg); }
-    .home-tool span { color: var(--muted); font-size: 0.86rem; white-space: nowrap; }
+    .home-tool strong { color: var(--fg); font-size: 0.9rem; white-space: nowrap; }
+    .home-tool span { min-width: 0; color: var(--muted); font-size: 0.84rem; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .home-today-plan { margin: 1.25rem 0; }
     .home-today-head { display: flex; gap: 0.75rem; align-items: baseline; justify-content: space-between; }
     .home-today-head h2 { margin: 0; }
     .home-today-head a { white-space: nowrap; }
     .home-ingredients[hidden] { display: none; }
-    @media (min-width: 720px) { .home-tools { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); } }
-    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } }
+    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-tool { flex: 1 1 100%; } .home-today-head { display: block; } }
 </style>
 <div class="page-head">
     <div>
