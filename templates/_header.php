@@ -326,7 +326,7 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
         .ing-chip-count { color: var(--muted); font-size: 0.8em; }
         .ing-chip.on .ing-chip-count { color: color-mix(in srgb, var(--accent-fg) 78%, transparent); }
         .page-head { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; }
-        .page-head-main { display: grid; gap: 0.35rem; min-width: 0; }
+        .page-head-main { display: grid; gap: 0.65rem; min-width: 0; }
         .page-head-main h1 { margin: 0; }
         .page-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
         .soft-panel { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1rem; }
