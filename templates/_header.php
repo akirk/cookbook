@@ -78,7 +78,7 @@ if ( ! defined( 'ABSPATH' ) ) {
         .grid { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
         @media (min-width: 600px) { .grid { grid-template-columns: 1fr 1fr; } }
         label { display: block; margin: 0.75rem 0 0.25rem; font-weight: 600; }
-        input[type="text"], input[type="number"], input[type="url"], input[type="file"], textarea, select {
+        input[type="text"], input[type="number"], input[type="url"], input[type="date"], input[type="file"], textarea, select {
             width: 100%; max-width: 100%; padding: 0.5rem; border: 1px solid var(--input-border); border-radius: 4px; font: inherit; box-sizing: border-box; background: var(--input-bg); color: var(--fg);
         }
         textarea { min-height: 8rem; }
@@ -193,6 +193,16 @@ if ( ! defined( 'ABSPATH' ) ) {
         .cook-active-check { display: inline-flex; gap: 0.5rem; align-items: center; margin: 0; font-weight: 600; cursor: pointer; }
         .cook-mode-nav { display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
         .cook-mode-nav-group { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+        .cook-finish { display: grid; gap: 0.65rem; }
+        .cook-finish[hidden] { display: none; }
+        .cook-finish strong { font-size: 1.05rem; }
+        .cook-finish p { margin: 0; }
+        .cook-finish form,
+        .cooked-log-form { display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+        .cook-finish label,
+        .cooked-log-form label { margin: 0; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+        .cook-finish input[type="date"],
+        .cooked-log-form input[type="date"] { width: auto; min-width: 9.5rem; }
         .cook-step-row { border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
         .cook-step-row.is-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
         .cook-step-list-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.65rem; align-items: start; margin: 0; padding: 0.65rem; }
@@ -287,6 +297,16 @@ if ( ! defined( 'ABSPATH' ) ) {
         .planned-card .planned-thumb { display: flex; align-items: center; justify-content: center; color: var(--muted); font-weight: 700; }
         .planned-card strong { display: block; color: var(--fg); }
         .planned-card span { display: block; color: var(--muted); font-size: 0.85rem; }
+        .cooked-history-list,
+        .cooked-day-list { list-style: none; padding: 0; margin: 0.75rem 0; display: grid; gap: 0.4rem; }
+        .cooked-history-list li,
+        .cooked-day-list li { display: flex; gap: 0.6rem; align-items: baseline; justify-content: space-between; border-bottom: 1px dashed var(--line); padding: 0.4rem 0; }
+        .cooked-history-list li:last-child,
+        .cooked-day-list li:last-child { border-bottom: 0; }
+        .cooked-history-list time,
+        .cooked-day-list time { color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
+        .cooked-day-list a { min-width: 0; overflow-wrap: anywhere; }
+        .cooked-count { color: var(--muted); font-size: 0.9rem; }
         @media (min-width: 680px) {
             .planner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .planned-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -319,6 +339,14 @@ if ( ! defined( 'ABSPATH' ) ) {
             .cook-mode-nav { align-items: stretch; flex-direction: column; }
             .cook-mode-nav-group { width: 100%; }
             .cook-mode-nav-group .btn { flex: 1; text-align: center; }
+            .cook-finish form,
+            .cooked-log-form { align-items: stretch; flex-direction: column; }
+            .cook-finish input[type="date"],
+            .cooked-log-form input[type="date"],
+            .cook-finish .btn,
+            .cooked-log-form .btn { width: 100%; }
+            .cooked-history-list li,
+            .cooked-day-list li { align-items: flex-start; flex-direction: column; gap: 0.2rem; }
         }
     </style>
 </head>

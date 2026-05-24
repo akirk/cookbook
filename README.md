@@ -12,7 +12,7 @@ Built on the [WpApp framework](https://github.com/akirk/wp-app), so the app live
 - **Recipe refetch.** Imported recipes keep their source URL and can be re-parsed later without replacing notes or tags.
 - **Metric ⇄ Imperial.** Recipes are stored in their original units; conversion happens on display. Set your preference in `/cookbook/settings`, or flip the live toggle on any recipe page. Unit aliases cover English and German (`EL`, `TL`, `Stk`, `Prise`, `Bund`, ...).
 - **Live portion scaling.** Type the number of servings you want and every parsed amount rescales and reconverts immediately, client-side. The same scaled quantities flow into shopping-list adds and cooking mode.
-- **Cooking mode.** Recipe pages can open a focused cooking view with a large active step, step navigation, ingredient and step checkoffs, progress state saved in the browser, and screen wake lock where supported.
+- **Cooking mode and history.** Recipe pages can open a focused cooking view with a large active step, step navigation, ingredient and step checkoffs, progress state saved in the browser, and screen wake lock where supported. When you finish, Cookbook can save that you cooked the recipe; recipe pages also offer a dated **Cooked this** button and show when you last cooked it.
 - **Ingredient tools.** Browse recipes by ingredients you have, allow a configurable number of missing ingredients, browse individual ingredient pages, replace an ingredient from the recipe view, and merge/group/rename ingredient terms.
 - **Shopping list.** Add a recipe's scaled ingredients to your personal shopping list, combine compatible duplicate items, edit the list at home, and use a focused shop mode with large tap targets, undo, and quick add.
 - **Week planner.** Plan breakfast, lunch, and dinner for a week, place a recipe into the planner from its recipe page, then add the planned recipes' ingredients to your shopping list.
@@ -43,6 +43,7 @@ Then activate **Cookbook** in WordPress and visit `/cookbook/`.
 | `/cookbook/import`               | Paste a URL or recipe text to import       |
 | `/cookbook/shopping-list`        | Personal shopping list                     |
 | `/cookbook/planner`              | Weekly meal planner                        |
+| `/cookbook/cooked`               | Cooked history                             |
 | `/cookbook/by-ingredients`       | Find recipes by ingredients on hand        |
 | `/cookbook/manage-ingredients`   | Merge, group, and rename ingredients       |
 | `/cookbook/recipe/{id}`          | View                                       |
@@ -82,13 +83,14 @@ src/
   Units.php           Mass/volume conversion, unit aliases, formatting
 templates/
   index.php           Recipe list
-  recipe.php          Recipe view (portion scaling, unit toggle, cooking mode)
+  recipe.php          Recipe view (portion scaling, unit toggle, cooking mode, cooked history)
   recipe-edit.php     Edit existing
   new.php             Create new
   _form.php           Shared edit form
   import.php          Paste URL or text
   shopping-list.php   User-authored shopping list CPT view
   planner.php         User-authored week plan CPT view
+  cooked.php          User-authored cooked history
   by-ingredients.php  Ingredient-on-hand search
   manage-ingredients.php  Ingredient term maintenance
   settings.php        User preferences

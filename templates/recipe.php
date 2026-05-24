@@ -87,6 +87,19 @@ $shopping_items = isset( $_GET['items'] ) ? absint( $_GET['items'] ) : 0;
 $shopping_household = isset( $_GET['household'] ) ? absint( $_GET['household'] ) : 0;
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
 $replaced = isset( $_GET['replaced'] );
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
+$cooked_status = isset( $_GET['cooked'] ) ? sanitize_text_field( wp_unslash( $_GET['cooked'] ) ) : '';
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash code.
+$cooked_flash_date = isset( $_GET['cooked_date'] ) ? App::sanitize_cooked_date( sanitize_text_field( wp_unslash( $_GET['cooked_date'] ) ) ) : '';
+
+$today_date      = wp_date( 'Y-m-d' );
+$recipe_url      = home_url( '/cookbook/recipe/' . $id );
+$cooked_entries  = App::get_recipe_cooked_entries( $id, -1 );
+$cooked_count    = count( $cooked_entries );
+$last_cooked_date = $cooked_entries
+    ? (string) get_post_meta( $cooked_entries[0]->ID, App::META_COOKED_DATE, true )
+    : '';
+$recent_cooked_entries = array_slice( $cooked_entries, 0, 5 );
 
 include __DIR__ . '/_header.php';
 ?>
@@ -127,6 +140,12 @@ include __DIR__ . '/_header.php';
         <span>
             <?php esc_html_e( 'Variation of:', 'cookbook' ); ?>
             <a href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $variation_parent->ID ) ); ?>"><?php echo esc_html( get_the_title( $variation_parent ) ); ?></a>
+        </span>
+    <?php endif; ?>
+    <?php if ( $last_cooked_date ) : ?>
+        <span>
+            <?php esc_html_e( 'Last cooked:', 'cookbook' ); ?>
+            <a href="<?php echo esc_url( home_url( '/cookbook/cooked' ) ); ?>"><?php echo esc_html( App::format_cooked_date( $last_cooked_date ) ); ?></a>
         </span>
     <?php endif; ?>
 </div>
@@ -199,6 +218,15 @@ include __DIR__ . '/_header.php';
     <?php if ( $clean_instructions ) : ?>
         <button class="btn" type="button" id="cook-mode-open"><?php esc_html_e( 'Cook mode', 'cookbook' ); ?></button>
     <?php endif; ?>
+    <form class="cooked-log-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+        <?php wp_nonce_field( 'cookbook_log_cooked' ); ?>
+        <input type="hidden" name="action" value="cookbook_log_cooked">
+        <input type="hidden" name="recipe_id" value="<?php echo (int) $id; ?>">
+        <input type="hidden" name="redirect_to" value="<?php echo esc_url( $recipe_url ); ?>">
+        <label for="recipe-cooked-date"><?php esc_html_e( 'Cooked on', 'cookbook' ); ?></label>
+        <input id="recipe-cooked-date" type="date" name="cooked_date" value="<?php echo esc_attr( $today_date ); ?>" max="<?php echo esc_attr( $today_date ); ?>">
+        <button class="btn secondary" type="submit"><?php esc_html_e( 'Cooked this', 'cookbook' ); ?></button>
+    </form>
     <?php if ( $ingredients ) : ?>
         <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline">
             <?php wp_nonce_field( 'cookbook_add_to_shopping_list' ); ?>
@@ -251,6 +279,27 @@ include __DIR__ . '/_header.php';
 <?php endif; ?>
 <?php if ( $replaced ) : ?>
     <div class="notice success"><?php esc_html_e( 'Ingredient replaced.', 'cookbook' ); ?></div>
+<?php endif; ?>
+<?php if ( $cooked_status === 'logged' && $cooked_flash_date ) : ?>
+    <div class="notice success">
+        <?php
+        echo esc_html( sprintf(
+            /* translators: %s: cooked date */
+            __( 'Saved that you cooked this on %s.', 'cookbook' ),
+            App::format_cooked_date( $cooked_flash_date )
+        ) );
+        ?>
+    </div>
+<?php elseif ( $cooked_status === 'exists' && $cooked_flash_date ) : ?>
+    <div class="notice">
+        <?php
+        echo esc_html( sprintf(
+            /* translators: %s: cooked date */
+            __( 'This recipe was already saved for %s.', 'cookbook' ),
+            App::format_cooked_date( $cooked_flash_date )
+        ) );
+        ?>
+    </div>
 <?php endif; ?>
 
 <?php if ( $post->post_content ) : ?>
@@ -384,6 +433,33 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
     <div><?php echo wp_kses_post( wpautop( $notes ) ); ?></div>
 <?php endif; ?>
 
+<?php if ( $cooked_entries ) : ?>
+    <h2 id="cooked-history"><?php esc_html_e( 'Cooked history', 'cookbook' ); ?></h2>
+    <p class="subtitle">
+        <?php
+        echo esc_html( sprintf(
+            /* translators: 1: number of times, 2: last cooked date */
+            _n( 'Cooked %1$d time. Last: %2$s.', 'Cooked %1$d times. Last: %2$s.', $cooked_count, 'cookbook' ),
+            $cooked_count,
+            App::format_cooked_date( $last_cooked_date )
+        ) );
+        ?>
+    </p>
+    <ul class="cooked-history-list">
+        <?php foreach ( $recent_cooked_entries as $entry ) :
+            $entry_date = (string) get_post_meta( $entry->ID, App::META_COOKED_DATE, true );
+            ?>
+            <li>
+                <span><?php esc_html_e( 'Cooked', 'cookbook' ); ?></span>
+                <time datetime="<?php echo esc_attr( $entry_date ); ?>"><?php echo esc_html( App::format_cooked_date( $entry_date ) ); ?></time>
+            </li>
+        <?php endforeach; ?>
+    </ul>
+    <p>
+        <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/cooked' ) ); ?>"><?php esc_html_e( 'All cooked history', 'cookbook' ); ?></a>
+    </p>
+<?php endif; ?>
+
 <?php if ( $clean_instructions ) : ?>
 <div class="cook-mode" id="cook-mode" role="dialog" aria-modal="true" aria-labelledby="cook-mode-title" hidden>
     <div class="cook-mode-shell">
@@ -443,6 +519,21 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
                         <button class="btn" type="button" id="cook-next-step" aria-keyshortcuts="ArrowRight Space" title="<?php esc_attr_e( 'Next step (Space or Right arrow)', 'cookbook' ); ?>"><?php esc_html_e( 'Next', 'cookbook' ); ?></button>
                         <button class="btn secondary" type="button" id="cook-reset"><?php esc_html_e( 'Reset', 'cookbook' ); ?></button>
                     </div>
+                </div>
+
+                <div class="cook-mode-panel cook-finish" id="cook-finish" hidden>
+                    <strong><?php esc_html_e( 'Save that you cooked this?', 'cookbook' ); ?></strong>
+                    <p class="help"><?php esc_html_e( 'Add it to your cooked history.', 'cookbook' ); ?></p>
+                    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                        <?php wp_nonce_field( 'cookbook_log_cooked' ); ?>
+                        <input type="hidden" name="action" value="cookbook_log_cooked">
+                        <input type="hidden" name="recipe_id" value="<?php echo (int) $id; ?>">
+                        <input type="hidden" name="redirect_to" value="<?php echo esc_url( $recipe_url . '#cooked-history' ); ?>">
+                        <label for="cook-finish-date"><?php esc_html_e( 'Cooked on', 'cookbook' ); ?></label>
+                        <input id="cook-finish-date" type="date" name="cooked_date" value="<?php echo esc_attr( $today_date ); ?>" max="<?php echo esc_attr( $today_date ); ?>">
+                        <button class="btn fresh" type="submit"><?php esc_html_e( 'Save cooked date', 'cookbook' ); ?></button>
+                        <button class="btn secondary" type="button" id="cook-finish-dismiss"><?php esc_html_e( 'Not now', 'cookbook' ); ?></button>
+                    </form>
                 </div>
 
                 <ol class="cook-step-list">
@@ -508,16 +599,21 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
     const cookProgress = document.getElementById('cook-step-progress');
     const cookStepCount = document.getElementById('cook-step-count');
     const cookDoneCount = document.getElementById('cook-step-done-count');
+    const cookFinish = document.getElementById('cook-finish');
+    const cookFinishDismiss = document.getElementById('cook-finish-dismiss');
     const cookStepRows = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-step-index]')) : [];
     const cookStepChecks = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-step-check]')) : [];
     const cookIngredientRows = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-ingredient-index]')) : [];
     const cookIngredientChecks = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-ingredient-check]')) : [];
     const cookStrings = {
         stepOf: <?php echo wp_json_encode( __( 'Step %1$d of %2$d', 'cookbook' ) ); ?>,
-        doneCount: <?php echo wp_json_encode( __( '%1$d of %2$d done', 'cookbook' ) ); ?>
+        doneCount: <?php echo wp_json_encode( __( '%1$d of %2$d done', 'cookbook' ) ); ?>,
+        next: <?php echo wp_json_encode( __( 'Next', 'cookbook' ) ); ?>,
+        finish: <?php echo wp_json_encode( __( 'Finish', 'cookbook' ) ); ?>
     };
     const cookStateKey = 'cookbook:cook-mode:<?php echo (int) $id; ?>';
     let activeCookStep = 0;
+    let cookFinishDismissed = false;
     let wakeLock = null;
 
     document.addEventListener('keydown', (e) => {
@@ -676,6 +772,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
             activeCookStep = Math.max(0, Math.min(cookStepRows.length - 1, parseInt(state.activeStep, 10) || 0));
             const checkedSteps = Array.isArray(state.checkedSteps) ? state.checkedSteps : [];
             const checkedIngredients = Array.isArray(state.checkedIngredients) ? state.checkedIngredients : [];
+            cookFinishDismissed = !!state.finishDismissed;
             cookStepChecks.forEach((check, index) => {
                 check.checked = checkedSteps.indexOf(index) >= 0;
             });
@@ -684,6 +781,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
             });
         } catch (e) {
             activeCookStep = 0;
+            cookFinishDismissed = false;
         }
     }
 
@@ -699,7 +797,8 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
                 checkedIngredients: cookIngredientChecks.reduce((out, check, index) => {
                     if (check.checked) out.push(index);
                     return out;
-                }, [])
+                }, []),
+                finishDismissed: cookFinishDismissed
             }));
         } catch (e) {}
     }
@@ -707,6 +806,9 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
     function updateCookState() {
         if (!cookMode || !cookStepRows.length) return;
         const completed = cookStepChecks.filter(check => check.checked).length;
+        if (completed < cookStepRows.length) {
+            cookFinishDismissed = false;
+        }
         cookStepRows.forEach((row, index) => {
             row.classList.toggle('is-active', index === activeCookStep);
             row.classList.toggle('is-checked', !!(cookStepChecks[index] && cookStepChecks[index].checked));
@@ -718,7 +820,15 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
             cookActiveCheck.checked = !!(cookStepChecks[activeCookStep] && cookStepChecks[activeCookStep].checked);
         }
         if (cookPrev) cookPrev.disabled = activeCookStep <= 0;
-        if (cookNext) cookNext.disabled = activeCookStep >= cookStepRows.length - 1;
+        if (cookNext) {
+            const onLastStep = activeCookStep >= cookStepRows.length - 1;
+            const activeStepDone = !!(cookStepChecks[activeCookStep] && cookStepChecks[activeCookStep].checked);
+            cookNext.disabled = onLastStep && activeStepDone;
+            cookNext.textContent = onLastStep ? cookStrings.finish : cookStrings.next;
+        }
+        if (cookFinish) {
+            cookFinish.hidden = completed < cookStepRows.length || cookFinishDismissed;
+        }
         if (cookProgress) {
             cookProgress.max = cookStepRows.length;
             cookProgress.value = activeCookStep + 1;
@@ -800,7 +910,14 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
         cookReset.addEventListener('click', () => {
             cookStepChecks.forEach(check => { check.checked = false; });
             cookIngredientChecks.forEach(check => { check.checked = false; });
+            cookFinishDismissed = false;
             setCookStep(0, true);
+        });
+    }
+    if (cookFinishDismiss) {
+        cookFinishDismiss.addEventListener('click', () => {
+            cookFinishDismissed = true;
+            updateCookState();
         });
     }
     if (cookActiveCheck) {
