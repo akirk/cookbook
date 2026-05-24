@@ -31,14 +31,14 @@ $recipes = get_posts( [
 $page_title = ucfirst( $term->name );
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>"><?php esc_html_e( '← All ingredients', 'cookbook' ); ?></a>
-<h1><?php echo esc_html( ucfirst( $term->name ) ); ?></h1>
-<p class="subtitle">
-    <?php
-    /* translators: %d: number of recipes using this ingredient */
-    echo esc_html( sprintf( _n( '%d recipe uses this ingredient.', '%d recipes use this ingredient.', count( $recipes ), 'cookbook' ), count( $recipes ) ) );
-    ?>
-</p>
+<?php cookbook_page_head( ucfirst( $term->name ), [
+    'current_section' => 'ingredients',
+    'subtitle'        => sprintf(
+        /* translators: %d: number of recipes using this ingredient */
+        _n( '%d recipe uses this ingredient.', '%d recipes use this ingredient.', count( $recipes ), 'cookbook' ),
+        count( $recipes )
+    ),
+] ); ?>
 
 <?php if ( ! $recipes ) : ?>
     <div class="notice"><?php esc_html_e( 'No recipes use this ingredient yet.', 'cookbook' ); ?></div>

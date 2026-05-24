@@ -43,7 +43,7 @@ Then activate **Cookbook** in WordPress and visit `/cookbook/`.
 | `/cookbook/import`               | Paste a URL or recipe text to import       |
 | `/cookbook/shopping-list`        | Personal shopping list                     |
 | `/cookbook/planner`              | Weekly meal planner                        |
-| `/cookbook/cooked`               | Cooked history                             |
+| `/cookbook/cooked`               | Cooking history                            |
 | `/cookbook/by-ingredients`       | Find recipes by ingredients on hand        |
 | `/cookbook/manage-ingredients`   | Merge, group, and rename ingredients       |
 | `/cookbook/recipe/{id}`          | View                                       |
@@ -83,14 +83,14 @@ src/
   Units.php           Mass/volume conversion, unit aliases, formatting
 templates/
   index.php           Recipe list
-  recipe.php          Recipe view (portion scaling, unit toggle, cooking mode, cooked history)
+  recipe.php          Recipe view (portion scaling, unit toggle, cooking mode, cooking history)
   recipe-edit.php     Edit existing
   new.php             Create new
   _form.php           Shared edit form
   import.php          Paste URL or text
   shopping-list.php   User-authored shopping list CPT view
   planner.php         User-authored week plan CPT view
-  cooked.php          User-authored cooked history
+  cooked.php          User-authored cooking history
   by-ingredients.php  Ingredient-on-hand search
   manage-ingredients.php  Ingredient term maintenance
   settings.php        User preferences

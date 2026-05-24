@@ -21,7 +21,6 @@ $autoimport = ! empty( $_GET['autoimport'] ) && $source_url !== '' && $error ===
 $page_title = __( 'Import a recipe', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
 <h1><?php esc_html_e( 'Import a recipe', 'cookbook' ); ?></h1>
 <p class="subtitle"><?php esc_html_e( 'Paste a URL from a recipe site, or paste the recipe text itself.', 'cookbook' ); ?></p>
 

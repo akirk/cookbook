@@ -133,7 +133,7 @@ class App extends BaseApp {
     protected function setup_menu(): void {
         $home = home_url( '/' . $this->get_url_path() . '/' );
         $this->app->add_menu_item( 'all', __( 'All recipes', 'cookbook' ), $home );
-        $this->app->add_menu_item( 'cooked', __( 'Cooked', 'cookbook' ), $home . 'cooked' );
+        $this->app->add_menu_item( 'cooked', __( 'Cooking history', 'cookbook' ), $home . 'cooked' );
         $this->app->add_menu_item( 'shopping-list', __( 'Shopping list', 'cookbook' ), $home . 'shopping-list' );
         $this->app->add_menu_item( 'planner', __( 'Week planner', 'cookbook' ), $home . 'planner' );
         $this->app->add_menu_item( 'by-ingredients', __( 'By ingredients', 'cookbook' ), $home . 'by-ingredients' );
@@ -2214,11 +2214,11 @@ class App extends BaseApp {
 
         register_post_type( self::COOKED_ENTRY_POST_TYPE, [
             'labels' => [
-                'name'          => __( 'Cooked entries', 'cookbook' ),
-                'singular_name' => __( 'Cooked entry', 'cookbook' ),
-                'edit_item'     => __( 'Edit cooked entry', 'cookbook' ),
-                'view_item'     => __( 'View cooked entry', 'cookbook' ),
-                'not_found'     => __( 'No cooked entries yet', 'cookbook' ),
+                'name'          => __( 'Cooking history entries', 'cookbook' ),
+                'singular_name' => __( 'Cooking history entry', 'cookbook' ),
+                'edit_item'     => __( 'Edit cooking history entry', 'cookbook' ),
+                'view_item'     => __( 'View cooking history entry', 'cookbook' ),
+                'not_found'     => __( 'No cooking history entries yet', 'cookbook' ),
             ],
             'public'             => false,
             'publicly_queryable' => false,
@@ -2640,7 +2640,7 @@ class App extends BaseApp {
     }
 
     public static function get_user_cooked_entries( array $args = [] ): array {
-        $user_id = isset( $args['user_id'] ) ? absint( $args['user_id'] ) : get_current_user_id();
+        $user_id = ! empty( $args['user_id'] ) ? absint( $args['user_id'] ) : get_current_user_id();
         if ( ! $user_id ) {
             return [];
         }
@@ -2660,7 +2660,7 @@ class App extends BaseApp {
 
         $recipe_id = isset( $args['recipe_id'] ) ? absint( $args['recipe_id'] ) : 0;
         if ( $recipe_id ) {
-            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- scoped lookup for one user's cooked history.
+            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- scoped lookup for one user's cooking history.
             $query['meta_query'] = [
                 [
                     'key'   => self::META_COOKED_RECIPE_ID,

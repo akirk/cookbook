@@ -85,9 +85,10 @@ foreach ( $all_terms as $t ) { $max_count = max( $max_count, (int) $t->count ); 
 $page_title = __( 'Find recipes by ingredients', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
-<h1><?php esc_html_e( 'Find recipes by ingredients', 'cookbook' ); ?></h1>
-<p class="subtitle"><?php esc_html_e( 'Click the ingredients you have, then search.', 'cookbook' ); ?></p>
+<?php cookbook_page_head( __( 'Find recipes by ingredients', 'cookbook' ), [
+    'current_section' => 'ingredients',
+    'subtitle'        => __( 'Click the ingredients you have, then search.', 'cookbook' ),
+] ); ?>
 
 <?php if ( ! $all_terms ) : ?>
     <div class="notice"><?php esc_html_e( 'No ingredients yet. Add or import some recipes first — their ingredients will appear here.', 'cookbook' ); ?></div>

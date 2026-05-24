@@ -124,34 +124,34 @@ foreach ( $days as $date => $day ) {
 $page_title = __( 'Week planner', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
-<a class="badge" href="<?php echo esc_url( home_url( '/cookbook/' ) ); ?>"><?php esc_html_e( '← All recipes', 'cookbook' ); ?></a>
-
-<div class="page-head">
-    <div>
-        <h1><?php esc_html_e( 'Week planner', 'cookbook' ); ?></h1>
-        <p class="subtitle"><?php echo esc_html( sprintf(
-            /* translators: %s: formatted date */
-            __( 'Planning week of %s.', 'cookbook' ),
-            wp_date( get_option( 'date_format' ), $start->getTimestamp() )
-        ) ); ?></p>
-    </div>
-    <div class="page-actions">
-        <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/shopping-list' ) ); ?>"><?php esc_html_e( 'Shopping list', 'cookbook' ); ?></a>
-        <?php if ( ! $is_current_week && $plan_id ) : ?>
-            <a class="btn secondary" href="<?php echo esc_url( add_query_arg( [
-                'week'      => $current_week_start,
-                'copy-form' => $week_start,
-            ], home_url( '/cookbook/planner' ) ) ); ?>"><?php esc_html_e( 'Copy to current week', 'cookbook' ); ?></a>
-        <?php endif; ?>
-        <?php if ( $is_current_week && $plan_id ) : ?>
-            <a class="btn secondary" href="<?php echo esc_url( add_query_arg( [
-                'week'      => $next_week,
-                'copy-form' => $week_start,
-            ], home_url( '/cookbook/planner' ) ) ); ?>"><?php esc_html_e( 'Copy to next week', 'cookbook' ); ?></a>
-        <?php endif; ?>
-        <button class="btn fresh" type="submit" form="planner-form"><?php esc_html_e( 'Save week', 'cookbook' ); ?></button>
-    </div>
-</div>
+<?php
+ob_start();
+?>
+<?php if ( ! $is_current_week && $plan_id ) : ?>
+    <a class="btn secondary" href="<?php echo esc_url( add_query_arg( [
+        'week'      => $current_week_start,
+        'copy-form' => $week_start,
+    ], home_url( '/cookbook/planner' ) ) ); ?>"><?php esc_html_e( 'Copy to current week', 'cookbook' ); ?></a>
+<?php endif; ?>
+<?php if ( $is_current_week && $plan_id ) : ?>
+    <a class="btn secondary" href="<?php echo esc_url( add_query_arg( [
+        'week'      => $next_week,
+        'copy-form' => $week_start,
+    ], home_url( '/cookbook/planner' ) ) ); ?>"><?php esc_html_e( 'Copy to next week', 'cookbook' ); ?></a>
+<?php endif; ?>
+<button class="btn fresh" type="submit" form="planner-form"><?php esc_html_e( 'Save week', 'cookbook' ); ?></button>
+<?php
+$planner_actions = ob_get_clean();
+cookbook_page_head( __( 'Week planner', 'cookbook' ), [
+    'current_section' => 'planner',
+    'subtitle'        => sprintf(
+        /* translators: %s: formatted date */
+        __( 'Planning week of %s.', 'cookbook' ),
+        wp_date( get_option( 'date_format' ), $start->getTimestamp() )
+    ),
+    'actions_html'    => $planner_actions,
+] );
+?>
 
 <?php if ( $saved ) : ?>
     <div class="notice success"><?php esc_html_e( 'Week planner saved.', 'cookbook' ); ?></div>

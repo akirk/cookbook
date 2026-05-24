@@ -51,13 +51,6 @@ $categories = get_terms( [
     'hide_empty' => true,
 ] );
 
-$shopping_items_count = 0;
-$shopping_list_id = App::get_current_user_shopping_list_id( false );
-if ( $shopping_list_id ) {
-    $shopping_items_count = count( App::get_shopping_items( $shopping_list_id ) );
-}
-
-$planned_meals_count = 0;
 $todays_plan = [];
 $today_date = wp_date( 'Y-m-d' );
 $today_label = wp_date( get_option( 'date_format' ) );
@@ -65,11 +58,6 @@ $current_week_start = App::normalize_week_start( $today_date );
 $current_plan_id = App::get_user_week_plan_id( $current_week_start, false );
 if ( $current_plan_id ) {
     $current_week_meals = App::get_week_meals( $current_plan_id );
-    foreach ( $current_week_meals as $day_meals ) {
-        if ( is_array( $day_meals ) ) {
-            $planned_meals_count += count( array_filter( $day_meals ) );
-        }
-    }
 
     $todays_meals = isset( $current_week_meals[ $today_date ] ) && is_array( $current_week_meals[ $today_date ] )
         ? $current_week_meals[ $today_date ]
@@ -85,12 +73,6 @@ if ( $current_plan_id ) {
         }
     }
 }
-
-$cooked_entries = App::get_user_cooked_entries();
-$cooked_entries_count = count( $cooked_entries );
-$last_cooked_date = $cooked_entries
-    ? (string) get_post_meta( $cooked_entries[0]->ID, App::META_COOKED_DATE, true )
-    : '';
 
 $recipes_by_letter = [];
 foreach ( $recipes as $recipe ) {
@@ -113,100 +95,34 @@ $page_title = __( 'Cookbook', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
 <style>
-    .recipe-index { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 1rem 0; }
-    .recipe-index a { min-width: 2rem; text-align: center; }
+    .recipe-index-row { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 1rem 0; }
+    .recipe-index { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0; }
+    .recipe-index .badge { min-width: 2rem; box-sizing: border-box; text-align: center; }
+    .recipe-index .badge.muted { background: transparent; color: var(--muted); opacity: 0.45; }
+    .recipe-index-row .btn { margin-left: auto; white-space: nowrap; }
     .recipe-alpha-section { margin-top: 1.4rem; }
     .recipe-alpha-heading { margin: 0 0 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--line); font-size: 1.1rem; }
     .recipe-alpha-list { list-style: none; padding: 0; margin: 0; }
     .recipe-alpha-list li { border-bottom: 1px dashed var(--line); }
-    .recipe-alpha-list a { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.38rem 0; text-decoration: none; color: inherit; }
+    .recipe-alpha-list a { display: grid; gap: 0.12rem; padding: 0.38rem 0; text-decoration: none; color: inherit; }
     .recipe-alpha-list a:hover .recipe-title { color: var(--accent); }
-    .recipe-alpha-list .recipe-title { flex: 1; min-width: 0; }
+    .recipe-alpha-list .recipe-title { min-width: 0; }
     .recipe-alpha-list .meta { font-size: 0.82rem; gap: 0.45rem; }
     .home-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; margin: 1rem 0; }
-    .home-tools { display: grid; grid-template-columns: 1fr; gap: 0.6rem; margin: 0.75rem 0 1.25rem; }
-    .home-tool { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: inherit; text-decoration: none; }
-    .home-tool:hover { border-color: var(--accent); }
-    .home-tool strong { color: var(--fg); }
-    .home-tool span { color: var(--muted); font-size: 0.86rem; white-space: nowrap; }
     .home-today-plan { margin: 1.25rem 0; }
     .home-today-head { display: flex; gap: 0.75rem; align-items: baseline; justify-content: space-between; }
     .home-today-head h2 { margin: 0; }
     .home-today-head a { white-space: nowrap; }
     .home-ingredients[hidden] { display: none; }
-    @media (min-width: 720px) { .home-tools { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); } }
-    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } }
+    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } .recipe-index-row { align-items: stretch; } .recipe-index-row .btn { margin-left: 0; } }
 </style>
-<div class="page-head">
-    <div>
-        <h1><?php esc_html_e( 'Cookbook', 'cookbook' ); ?></h1>
-        <p class="subtitle"><?php esc_html_e( 'Your personal recipes.', 'cookbook' ); ?></p>
-    </div>
-    <div class="page-actions">
-        <a class="btn fresh" href="<?php echo esc_url( home_url( '/cookbook/new' ) ); ?>"><?php esc_html_e( '+ New recipe', 'cookbook' ); ?></a>
-        <a class="btn secondary" id="cookbook-import-link" href="<?php echo esc_url( home_url( '/cookbook/import' ) ); ?>"><?php esc_html_e( 'Import from web', 'cookbook' ); ?></a>
-    </div>
-</div>
+<?php cookbook_page_head( __( 'Cookbook', 'cookbook' ), [ 'current_section' => 'recipes' ] ); ?>
 
 <form method="get" action="" class="home-search">
     <input id="cookbook-search" type="text" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search recipes or paste a URL to import…', 'cookbook' ); ?>">
     <button class="btn" type="submit"><?php esc_html_e( 'Search', 'cookbook' ); ?></button>
 </form>
 <?php if ( ! $is_searching ) : ?>
-    <nav class="home-tools" aria-label="<?php esc_attr_e( 'Cookbook tools', 'cookbook' ); ?>">
-        <a class="home-tool" href="<?php echo esc_url( home_url( '/cookbook/shopping-list' ) ); ?>">
-            <strong><?php esc_html_e( 'Shopping list', 'cookbook' ); ?></strong>
-            <span>
-                <?php
-                echo esc_html( sprintf(
-                    /* translators: %d: number of shopping-list items */
-                    _n( '%d item', '%d items', $shopping_items_count, 'cookbook' ),
-                    $shopping_items_count
-                ) );
-                ?>
-            </span>
-        </a>
-        <a class="home-tool" href="<?php echo esc_url( home_url( '/cookbook/cooked' ) ); ?>">
-            <strong><?php esc_html_e( 'Cooked', 'cookbook' ); ?></strong>
-            <span>
-                <?php
-                if ( $last_cooked_date ) {
-                    echo esc_html( sprintf(
-                        /* translators: %s: last cooked date */
-                        __( 'Last: %s', 'cookbook' ),
-                        App::format_cooked_date( $last_cooked_date )
-                    ) );
-                } else {
-                    echo esc_html( sprintf(
-                        /* translators: %d: saved cooked-history entries */
-                        _n( '%d saved', '%d saved', $cooked_entries_count, 'cookbook' ),
-                        $cooked_entries_count
-                    ) );
-                }
-                ?>
-            </span>
-        </a>
-        <a class="home-tool" href="<?php echo esc_url( home_url( '/cookbook/planner' ) ); ?>">
-            <strong><?php esc_html_e( 'Week planner', 'cookbook' ); ?></strong>
-            <span>
-                <?php
-                echo esc_html( sprintf(
-                    /* translators: %d: number of planned meals */
-                    _n( '%d meal planned', '%d meals planned', $planned_meals_count, 'cookbook' ),
-                    $planned_meals_count
-                ) );
-                ?>
-            </span>
-        </a>
-        <a class="home-tool" href="<?php echo esc_url( home_url( '/cookbook/by-ingredients' ) ); ?>">
-            <strong><?php esc_html_e( 'By ingredients', 'cookbook' ); ?></strong>
-            <span id="home-ingredient-count">
-                <?php
-                esc_html_e( 'Open', 'cookbook' );
-                ?>
-            </span>
-        </a>
-    </nav>
     <?php if ( $todays_plan ) : ?>
         <section class="home-today-plan">
             <div class="home-today-head">
@@ -236,23 +152,6 @@ include __DIR__ . '/_header.php';
         </section>
     <?php endif; ?>
 <?php endif; ?>
-<script>
-(function () {
-    var input = document.getElementById('cookbook-search');
-    var link  = document.getElementById('cookbook-import-link');
-    if ( ! input || ! link ) return;
-    link.addEventListener('click', function (e) {
-        var v = input.value.trim();
-        if ( ! v || ! /^https?:\/\/\S+$/i.test(v) ) return;
-        e.preventDefault();
-        var u = new URL(link.href, window.location.href);
-        u.searchParams.set('source_url', v);
-        u.searchParams.set('autoimport', '1');
-        window.location.href = u.toString();
-    });
-})();
-</script>
-
 <?php if ( ! is_wp_error( $categories ) && $categories ) : ?>
     <div class="toolbar">
         <strong><?php esc_html_e( 'Categories:', 'cookbook' ); ?></strong>
@@ -268,14 +167,24 @@ include __DIR__ . '/_header.php';
     <h2 style="margin-top:1.25rem"><?php esc_html_e( 'Search results', 'cookbook' ); ?></h2>
 <?php endif; ?>
 
-<?php if ( $recipes_by_letter ) : ?>
-    <nav class="recipe-index" aria-label="<?php esc_attr_e( 'Recipe index', 'cookbook' ); ?>">
-        <?php foreach ( array_keys( $recipes_by_letter ) as $letter ) : ?>
-            <?php $letter_id = $letter === '#' ? 'other' : sanitize_title( $letter ); ?>
-            <a class="badge" href="#recipes-<?php echo esc_attr( $letter_id ); ?>"><?php echo esc_html( $letter ); ?></a>
-        <?php endforeach; ?>
-    </nav>
-<?php endif; ?>
+<div class="recipe-index-row">
+    <?php if ( $recipes_by_letter ) : ?>
+        <nav class="recipe-index" aria-label="<?php esc_attr_e( 'Recipe index', 'cookbook' ); ?>">
+            <?php foreach ( range( 'A', 'Z' ) as $letter ) : ?>
+                <?php $letter_id = sanitize_title( $letter ); ?>
+                <?php if ( isset( $recipes_by_letter[ $letter ] ) ) : ?>
+                    <a class="badge" href="#recipes-<?php echo esc_attr( $letter_id ); ?>"><?php echo esc_html( $letter ); ?></a>
+                <?php else : ?>
+                    <span class="badge muted" aria-disabled="true"><?php echo esc_html( $letter ); ?></span>
+                <?php endif; ?>
+            <?php endforeach; ?>
+            <?php if ( isset( $recipes_by_letter['#'] ) ) : ?>
+                <a class="badge" href="#recipes-other">#</a>
+            <?php endif; ?>
+        </nav>
+    <?php endif; ?>
+    <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/new' ) ); ?>"><?php esc_html_e( 'New recipe', 'cookbook' ); ?></a>
+</div>
 
 <?php if ( ! $recipes ) : ?>
     <?php if ( $is_searching ) : ?>
@@ -356,9 +265,7 @@ include __DIR__ . '/_header.php';
         var config = <?php echo wp_json_encode( [
             'endpoint'      => rest_url( 'cookbook/v1/home-ingredients' ),
             'nonce'         => wp_create_nonce( 'wp_rest' ),
-            'fallbackLabel' => __( 'Open', 'cookbook' ),
         ] ); ?>;
-        var countEl = document.getElementById('home-ingredient-count');
         var section = document.getElementById('home-ingredients');
         var cloud = section ? section.querySelector('[data-home-ingredient-cloud]') : null;
 
@@ -374,9 +281,6 @@ include __DIR__ . '/_header.php';
             if ( ! response.ok ) throw new Error('Ingredient request failed');
             return response.json();
         }).then(function (data) {
-            if (countEl) {
-                countEl.textContent = data.count_label || config.fallbackLabel;
-            }
             if ( ! section || ! cloud || ! Array.isArray(data.terms) || ! data.terms.length ) {
                 return;
             }
