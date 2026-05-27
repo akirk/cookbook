@@ -17,10 +17,38 @@ if ( ! function_exists( 'is_wp_error' ) ) {
     function is_wp_error( $thing ) { return false; }
 }
 if ( ! function_exists( 'wp_remote_get' ) ) {
-    function wp_remote_get( $url, $args = [] ) { return [ 'body' => '' ]; }
+    function wp_remote_get( $url, $args = [] ) {
+        $GLOBALS['wp_remote_get_calls'][] = [ $url, $args ];
+        if ( isset( $GLOBALS['wp_remote_get_mock'] ) && is_callable( $GLOBALS['wp_remote_get_mock'] ) ) {
+            return $GLOBALS['wp_remote_get_mock']( $url, $args );
+        }
+        return [ 'body' => '' ];
+    }
 }
 if ( ! function_exists( 'wp_remote_retrieve_body' ) ) {
     function wp_remote_retrieve_body( $r ) { return is_array( $r ) ? ( $r['body'] ?? '' ) : ''; }
+}
+if ( ! function_exists( 'wp_remote_retrieve_response_code' ) ) {
+    function wp_remote_retrieve_response_code( $r ) {
+        if ( ! is_array( $r ) ) return 0;
+        if ( isset( $r['response']['code'] ) ) return (int) $r['response']['code'];
+        if ( isset( $r['code'] ) ) return (int) $r['code'];
+        return 200;
+    }
+}
+if ( ! function_exists( 'wp_remote_retrieve_header' ) ) {
+    function wp_remote_retrieve_header( $r, $name ) {
+        if ( ! is_array( $r ) || empty( $r['headers'] ) || ! is_array( $r['headers'] ) ) {
+            return '';
+        }
+        $name = strtolower( (string) $name );
+        foreach ( $r['headers'] as $header => $value ) {
+            if ( strtolower( (string) $header ) === $name ) {
+                return $value;
+            }
+        }
+        return '';
+    }
 }
 
 require_once dirname( __DIR__ ) . '/src/Units.php';
