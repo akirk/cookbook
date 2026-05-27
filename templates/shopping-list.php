@@ -51,6 +51,8 @@ $shopping_item_detail = function( array $item ): string {
 };
 
 $page_title = __( 'Shopping list', 'cookbook' );
+$has_shopping_list_content = ! empty( $items ) || ! empty( $household_reminders );
+$clear_list_confirm = __( 'Clear the whole shopping list?', 'cookbook' );
 include __DIR__ . '/_header.php';
 ?>
 <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="shopping-list-form">
@@ -68,7 +70,6 @@ include __DIR__ . '/_header.php';
         <a class="btn fresh" href="<?php echo esc_url( home_url( '/cookbook/shopping-list' ) ); ?>"><?php esc_html_e( 'Shop mode', 'cookbook' ); ?></a>
         <button class="btn fresh" type="submit" name="list_command" value="save"><?php esc_html_e( 'Save list', 'cookbook' ); ?></button>
         <button class="btn secondary" type="submit" name="list_command" value="clear_checked"><?php esc_html_e( 'Clear checked', 'cookbook' ); ?></button>
-        <button class="btn danger" type="submit" name="list_command" value="clear_all" onclick="return confirm('<?php echo esc_js( __( 'Clear the whole shopping list?', 'cookbook' ) ); ?>')"><?php esc_html_e( 'Clear list', 'cookbook' ); ?></button>
     <?php endif; ?>
     <?php
     $shopping_actions = ob_get_clean();
@@ -311,7 +312,20 @@ include __DIR__ . '/_header.php';
             </div>
         </div>
     <?php endif; ?>
+
 </form>
+
+<?php if ( $has_shopping_list_content ) : ?>
+    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="toolbar">
+        <?php wp_nonce_field( 'cookbook_update_shopping_list' ); ?>
+        <input type="hidden" name="action" value="cookbook_update_shopping_list">
+        <input type="hidden" name="list_id" value="<?php echo (int) $list_id; ?>">
+        <input type="hidden" name="return_mode" value="<?php echo $is_shop_mode ? 'shop' : 'edit'; ?>">
+        <input type="hidden" name="list_command" value="clear_all">
+        <span class="spacer"></span>
+        <button class="btn danger" type="submit" onclick="return confirm('<?php echo esc_js( $clear_list_confirm ); ?>')"><?php esc_html_e( 'Clear list', 'cookbook' ); ?></button>
+    </form>
+<?php endif; ?>
 
 <script>
 (function () {
