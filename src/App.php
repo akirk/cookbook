@@ -571,7 +571,7 @@ class App extends BaseApp {
             'cookbook/import-recipe',
             [
                 'label'               => __( 'Import Cookbook Recipe', 'cookbook' ),
-                'description'         => __( 'Imports a recipe from a URL or pasted recipe text and publishes it.', 'cookbook' ),
+                'description'         => __( 'Imports a recipe from source_url or pasted recipe text and publishes it.', 'cookbook' ),
                 'category'            => 'cookbook',
                 'input_schema'        => [
                     'type'                 => 'object',
