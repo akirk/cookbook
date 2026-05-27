@@ -2,7 +2,7 @@
 /**
  * PHPUnit bootstrap — stubs the small slice of WordPress that Importer + Units rely on,
  * defines ABSPATH so the plugin's direct-access guards don't exit, and loads the
- * classes under test directly from src/ (no autoloader needed for tests).
+ * classes under test that do not depend on App's autoloaded services.
  */
 
 define( 'ABSPATH', __DIR__ . '/' );

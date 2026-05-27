@@ -78,9 +78,22 @@ Cookbook also registers `ai_assistant_ability_domains` hints for recipe, ingredi
 ```
 cookbook.php          Plugin bootstrap
 src/
-  App.php             BaseApp subclass: CPT, taxonomies, routes, admin-post handlers
-  Importer.php        URL fetch + JSON-LD extraction + text-parse fallback
-  Units.php           Mass/volume conversion, unit aliases, formatting
+  App.php                 BaseApp facade: constants, routes, menu, hook wiring
+  AbilitiesService.php    Abilities API registration, schemas, and callbacks
+  AbstractService.php     Base class for app domain services
+  AccessService.php       Shared owned-post and recipe lookup guards
+  CookedHistoryService.php Cooking history dates, queries, and logging
+  IngredientAdminService.php Ingredient merge, group, and rename handlers
+  ImportService.php       Manual import, refetch, extension import, parse AJAX
+  PlannerService.php      Week planner dates, plan storage, and save handler
+  RecipeService.php       Recipe payloads, persistence, variation, and form saves
+  RegistryService.php     CPT, taxonomy, REST, admin-bar, and activation registration
+  ServiceContainer.php    Service container for the app domain objects
+  ShoppingListService.php Shopping-list storage, normalization, and handlers
+  StaticArchiveService.php Static Archive HTML/Markdown rendering
+  UserPreferencesService.php Unit and household ingredient user preferences
+  Importer.php            URL fetch + JSON-LD extraction + text-parse fallback
+  Units.php               Mass/volume conversion, unit aliases, formatting
 templates/
   index.php           Recipe list
   recipe.php          Recipe view (portion scaling, unit toggle, cooking mode, cooking history)
