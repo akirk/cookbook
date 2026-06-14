@@ -61,7 +61,7 @@ class AbilitiesService extends AbstractService {
             return $instructions;
         }
 
-        if ( in_array( $ability_id, [ 'cookbook/get-recipe', 'cookbook/create-recipe', 'cookbook/import-recipe', 'cookbook/create-recipe-variation' ], true ) ) {
+        if ( in_array( $ability_id, [ 'cookbook/get-recipe', 'cookbook/save-recipe', 'cookbook/import-recipe', 'cookbook/create-recipe-variation' ], true ) ) {
             return __( 'When presenting Cookbook recipes, include the recipe title and link it with view_url when present.', 'cookbook' );
         }
 
@@ -156,18 +156,18 @@ class AbilitiesService extends AbstractService {
         );
 
         wp_register_ability(
-            'cookbook/create-recipe',
+            'cookbook/save-recipe',
             [
-                'label'               => __( 'Create or Update Cookbook Recipe', 'cookbook' ),
+                'label'               => __( 'Save Cookbook Recipe', 'cookbook' ),
                 'description'         => __( 'Creates a structured Cookbook recipe, or updates an existing recipe when an ID is provided.', 'cookbook' ),
                 'category'            => 'cookbook',
                 'input_schema'        => $this->recipe_create_input_schema(),
                 'output_schema'       => $this->recipe_output_schema(),
-                'execute_callback'    => [ $this, 'ability_create_recipe' ],
+                'execute_callback'    => [ $this, 'ability_save_recipe' ],
                 'permission_callback' => [ $this, 'can_edit_abilities' ],
                 'meta'                => [
                     'annotations'  => [
-                        'instructions' => __( 'Use this when the user asks to create a brand-new structured recipe or update fields on a known Cookbook recipe. Pass parts to preserve named ingredient or instruction sections; flat ingredients and instructions remain supported for unsectioned recipes. To add or replace a recipe photo, pass the existing recipe id with image_url. Prefer create-recipe-variation when adapting an existing recipe into a new variation. Link the result using view_url.', 'cookbook' ),
+                        'instructions' => __( 'Use this when the user asks to save, create, or update a structured Cookbook recipe. Pass parts to preserve named ingredient or instruction sections; flat ingredients and instructions remain supported for unsectioned recipes. To add or replace a recipe photo, pass the existing recipe id with image_url. Prefer create-recipe-variation when adapting an existing recipe into a new variation. Link the result using view_url.', 'cookbook' ),
                         'readonly'    => false,
                         'destructive' => false,
                         'idempotent'  => false,
@@ -358,12 +358,12 @@ class AbilitiesService extends AbstractService {
     }
 
     /**
-     * Ability: create one recipe from structured fields.
+     * Ability: save one recipe from structured fields.
      *
      * @param array $input Ability input.
      * @return array|\WP_Error
      */
-    public function ability_create_recipe( $input = [] ) {
+    public function ability_save_recipe( $input = [] ) {
         $input     = is_array( $input ) ? $input : [];
         $id        = isset( $input['id'] ) ? absint( $input['id'] ) : 0;
         if ( $id ) {

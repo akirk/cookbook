@@ -65,7 +65,7 @@ When the WordPress Abilities API is available, Cookbook registers a `cookbook` c
 
 - `cookbook/search-recipes` searches recipes by text, category, tag, ingredient, and limit. When called without parameters, it returns the 10 latest recipes.
 - `cookbook/get-recipe` returns one structured recipe by post ID, including flat ingredients/instructions, optional named `parts` for ingredient or instruction subsections, taxonomy terms, source URL, and `view_url` for linking to the user-facing recipe page.
-- `cookbook/create-recipe` creates a structured recipe from provided fields, or updates an existing recipe when `id` is supplied. Passing `parts` preserves named ingredient or instruction subsections while maintaining flat compatibility fields. Passing `image_url` sideloads it through the same media path used by recipe edit forms.
+- `cookbook/save-recipe` creates a structured recipe from provided fields, or updates an existing recipe when `id` is supplied. Passing `parts` preserves named ingredient or instruction subsections while maintaining flat compatibility fields. Passing `image_url` sideloads it through the same media path used by recipe edit forms.
 - `cookbook/import-recipe` imports from `source_url` or pasted recipe text and optionally sideloads `image_url`.
 - `cookbook/create-recipe-variation` copies an existing recipe into a child variation, allowing supplied fields to replace ingredients, instructions, named `parts`, notes, or other recipe details.
 - `cookbook/get-week-plan` returns the signed-in user's week planner for a normalized week.
