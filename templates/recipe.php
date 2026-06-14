@@ -622,6 +622,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
     const cookStepChecks = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-step-check]')) : [];
     const cookIngredientRows = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-ingredient-index]')) : [];
     const cookIngredientChecks = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-ingredient-check]')) : [];
+    const cookStepIngredientMatches = [];
     const cookStrings = {
         stepOf: <?php echo wp_json_encode( __( 'Step %1$d of %2$d', 'cookbook' ) ); ?>,
         doneCount: <?php echo wp_json_encode( __( '%1$d of %2$d done', 'cookbook' ) ); ?>,
@@ -749,6 +750,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
             const target = cookMode.querySelector('[data-cook-ingredient-index="' + index + '"] .cook-ingredient-amount');
             if (amount && target) target.textContent = amount.textContent;
         });
+        refreshActiveStepIngredients();
     }
 
     function rerender() {
@@ -776,6 +778,91 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
 
     function formatCookString(template, first, second) {
         return template.replace('%1$d', first).replace('%2$d', second);
+    }
+
+    function normalizeCookWords(value) {
+        return (value || '')
+            .toLowerCase()
+            .replace(/ß/g, 'ss')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean);
+    }
+
+    function cookIngredientMatchWords(row) {
+        const name = row.querySelector('.cook-ingredient-name');
+        return normalizeCookWords(name ? name.textContent : '').filter(word => word.length >= 2);
+    }
+
+    function cookStepWords(row) {
+        const full = row.querySelector('.cook-step-full');
+        const text = full ? full.textContent : '';
+        return normalizeCookWords(text);
+    }
+
+    function cookWordMatchesIngredient(stepWord, ingredientWord) {
+        if (!stepWord || !ingredientWord) return false;
+        if (stepWord === ingredientWord) return true;
+        if (ingredientWord.length >= 5 && ingredientWord.indexOf(stepWord) >= 0) return true;
+        if (stepWord.length >= 5 && stepWord.indexOf(ingredientWord) >= 0) return true;
+        return false;
+    }
+
+    function buildCookStepIngredientMatches() {
+        if (!cookMode || !cookStepRows.length || !cookIngredientRows.length) return;
+        const ingredientWords = cookIngredientRows.map(cookIngredientMatchWords);
+        cookStepRows.forEach((row, stepIndex) => {
+            const stepWords = cookStepWords(row);
+            cookStepIngredientMatches[stepIndex] = cookIngredientRows
+                .map((ingredientRow, ingredientIndex) => {
+                    const matched = ingredientWords[ingredientIndex].some(ingredientWord => {
+                        return stepWords.some(stepWord => cookWordMatchesIngredient(stepWord, ingredientWord));
+                    });
+                    return matched ? ingredientIndex : null;
+                })
+                .filter(index => index !== null);
+        });
+    }
+
+    function renderActiveStepIngredients() {
+        const indexes = cookStepIngredientMatches[activeCookStep] || [];
+        if (!indexes.length) return null;
+        const panel = document.createElement('div');
+        panel.className = 'cook-active-ingredients';
+
+        const title = document.createElement('strong');
+        title.textContent = <?php echo wp_json_encode( __( 'For this step', 'cookbook' ) ); ?>;
+        panel.appendChild(title);
+
+        const list = document.createElement('ul');
+        indexes.forEach(index => {
+            const row = cookIngredientRows[index];
+            if (!row) return;
+            const amount = row.querySelector('.cook-ingredient-amount');
+            const name = row.querySelector('.cook-ingredient-name');
+            const item = document.createElement('li');
+            const itemAmount = document.createElement('span');
+            itemAmount.className = 'cook-active-ingredient-amount';
+            itemAmount.textContent = amount ? amount.textContent.trim() : '';
+            const itemName = document.createElement('span');
+            itemName.textContent = name ? name.textContent.trim() : '';
+            item.appendChild(itemAmount);
+            item.appendChild(itemName);
+            list.appendChild(item);
+        });
+        panel.appendChild(list);
+        return list.children.length ? panel : null;
+    }
+
+    function refreshActiveStepIngredients() {
+        if (!cookActiveStep) return;
+        const existing = cookActiveStep.querySelector('.cook-active-ingredients');
+        if (existing) existing.remove();
+        const panel = renderActiveStepIngredients();
+        if (panel) cookActiveStep.appendChild(panel);
     }
 
     function isCookModeOpen() {
@@ -864,7 +951,12 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
         activeCookStep = Math.max(0, Math.min(cookStepRows.length - 1, index));
         const text = cookStepRows[activeCookStep].querySelector('.cook-step-full');
         if (cookActiveStep && text) {
-            cookActiveStep.innerHTML = text.innerHTML;
+            cookActiveStep.innerHTML = '';
+            const stepText = document.createElement('div');
+            stepText.className = 'cook-active-step-text';
+            stepText.innerHTML = text.innerHTML;
+            cookActiveStep.appendChild(stepText);
+            refreshActiveStepIngredients();
             if (focusStep) cookActiveStep.focus({ preventScroll: true });
         }
         updateCookState();
@@ -897,6 +989,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
     function openCookMode() {
         if (!cookMode) return;
         loadCookState();
+        buildCookStepIngredientMatches();
         syncCookIngredientAmounts();
         cookMode.hidden = false;
         document.body.classList.add('cook-mode-active');
