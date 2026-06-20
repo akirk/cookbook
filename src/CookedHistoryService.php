@@ -91,7 +91,10 @@ class CookedHistoryService extends AbstractService {
         $date      = isset( $_POST['cooked_date'] )
             ? $this->sanitize_cooked_date( sanitize_text_field( wp_unslash( $_POST['cooked_date'] ) ) )
             : $this->sanitize_cooked_date();
-        $result    = $this->record_cooked_recipe( $recipe, $date );
+        $note      = isset( $_POST['cooked_note'] )
+            ? sanitize_textarea_field( wp_unslash( $_POST['cooked_note'] ) )
+            : '';
+        $result    = $this->record_cooked_recipe( $recipe, $date, 0, $note );
 
         if ( is_wp_error( $result ) ) {
             wp_die( esc_html( $result->get_error_message() ) );
@@ -109,7 +112,57 @@ class CookedHistoryService extends AbstractService {
         exit;
     }
 
-    private function record_cooked_recipe( \WP_Post $recipe, string $date, int $user_id = 0 ) {
+    public function handle_update_cooked(): void {
+        if ( ! is_user_logged_in() ) {
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
+        }
+        check_admin_referer( 'cookbook_update_cooked' );
+
+        $entry_id = isset( $_POST['entry_id'] ) ? absint( $_POST['entry_id'] ) : 0;
+        $entry    = $entry_id ? get_post( $entry_id ) : null;
+        if ( ! $entry || $entry->post_type !== App::COOKED_ENTRY_POST_TYPE || (int) $entry->post_author !== get_current_user_id() ) {
+            wp_die( esc_html__( 'Not allowed.', 'cookbook' ), 403 );
+        }
+
+        $recipe_id = (int) get_post_meta( $entry_id, App::META_COOKED_RECIPE_ID, true );
+        $recipe    = $this->services->access()->get_recipe_or_die( $recipe_id );
+        $date      = isset( $_POST['cooked_date'] )
+            ? $this->sanitize_cooked_date( sanitize_text_field( wp_unslash( $_POST['cooked_date'] ) ) )
+            : $this->sanitize_cooked_date();
+        $note      = isset( $_POST['cooked_note'] )
+            ? sanitize_textarea_field( wp_unslash( $_POST['cooked_note'] ) )
+            : '';
+
+        $existing_id = $this->find_cooked_entry_id( (int) $recipe->ID, $date, get_current_user_id() );
+        if ( $existing_id && $existing_id !== $entry_id ) {
+            wp_die( esc_html__( 'You already have a cooked entry for this recipe on that date.', 'cookbook' ) );
+        }
+
+        update_post_meta( $entry_id, App::META_COOKED_DATE, $date );
+        update_post_meta( $entry_id, App::META_COOKED_NOTE, $note );
+        wp_update_post( [
+            'ID'         => $entry_id,
+            'post_title' => sprintf(
+                /* translators: 1: recipe title, 2: cooked date */
+                __( '%1$s on %2$s', 'cookbook' ),
+                get_the_title( $recipe ),
+                $this->format_cooked_date( $date )
+            ),
+        ] );
+
+        $fallback = home_url( '/' . $this->get_url_path() . '/recipe/' . $recipe->ID . '#cooked-history' );
+        $redirect = isset( $_POST['redirect_to'] ) ? esc_url_raw( wp_unslash( $_POST['redirect_to'] ) ) : '';
+        $redirect = wp_validate_redirect( $redirect, $fallback );
+        $redirect = add_query_arg( [
+            'cooked'      => 'updated',
+            'cooked_date' => $date,
+        ], $redirect );
+
+        wp_safe_redirect( $redirect );
+        exit;
+    }
+
+    private function record_cooked_recipe( \WP_Post $recipe, string $date, int $user_id = 0, string $note = '' ) {
         if ( $recipe->post_type !== App::POST_TYPE ) {
             return new \WP_Error( 'cookbook_recipe_not_found', __( 'Recipe not found.', 'cookbook' ) );
         }
@@ -122,6 +175,10 @@ class CookedHistoryService extends AbstractService {
         $date        = $this->sanitize_cooked_date( $date );
         $existing_id = $this->find_cooked_entry_id( (int) $recipe->ID, $date, $user_id );
         if ( $existing_id ) {
+            if ( $note !== '' ) {
+                update_post_meta( $existing_id, App::META_COOKED_NOTE, $note );
+            }
+
             return [
                 'id'      => $existing_id,
                 'date'    => $date,
@@ -146,6 +203,7 @@ class CookedHistoryService extends AbstractService {
 
         update_post_meta( (int) $post_id, App::META_COOKED_RECIPE_ID, (int) $recipe->ID );
         update_post_meta( (int) $post_id, App::META_COOKED_DATE, $date );
+        update_post_meta( (int) $post_id, App::META_COOKED_NOTE, $note );
 
         return [
             'id'      => (int) $post_id,

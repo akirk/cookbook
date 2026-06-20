@@ -137,6 +137,10 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
         .btn.household { background: var(--household); color: var(--household-fg); }
         .meta { display: flex; gap: 1rem; color: var(--muted); font-size: 0.9rem; flex-wrap: wrap; }
         .badge { display: inline-block; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.85rem; color: var(--muted); margin-right: 0.25rem; text-decoration: none; }
+        .section-heading-with-action { display: flex; gap: 0.6rem; align-items: baseline; justify-content: space-between; }
+        .section-heading-with-action a { color: var(--accent); font-size: 0.9rem; font-weight: 600; text-decoration: none; }
+        .section-heading-with-action a:hover,
+        .section-heading-with-action a:focus { color: var(--accent-hover); text-decoration: underline; }
         .recipe-toolbar { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 1rem 0 1.25rem; padding: 0.55rem; border: 1px solid var(--line); border-radius: 6px; background: color-mix(in srgb, var(--card) 82%, var(--bg)); }
         .recipe-toolbar-settings,
         .recipe-primary-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; min-width: 0; }
@@ -164,7 +168,6 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
         .recipe-menu-form label { margin: 0; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
         .recipe-menu-form input[type="date"] { width: 100%; min-width: 0; }
         .recipe-menu-form .btn { justify-self: start; }
-        .recipe-action-menu .cooked-log-form { display: grid; align-items: stretch; }
         .recipe-card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1rem 1.25rem; margin: 0.75rem 0; display: block; text-decoration: none; color: inherit; }
         .recipe-card h3 { margin: 0 0 0.25rem; }
         .recipe-card .meta { font-size: 0.85rem; }
@@ -303,12 +306,12 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
         .cook-finish[hidden] { display: none; }
         .cook-finish strong { font-size: 1.05rem; }
         .cook-finish p { margin: 0; }
-        .cook-finish form,
-        .cooked-log-form { display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-        .cook-finish label,
-        .cooked-log-form label { margin: 0; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
-        .cook-finish input[type="date"],
-        .cooked-log-form input[type="date"] { width: auto; min-width: 9.5rem; }
+        .cook-finish form { display: grid; grid-template-columns: auto minmax(9.5rem, 14rem) minmax(0, 1fr) auto auto; gap: 0.5rem; align-items: center; }
+        .cook-finish label { margin: 0; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+        .cook-finish input[type="date"] { width: auto; min-width: 9.5rem; }
+        .cook-finish textarea { min-height: 4.5rem; resize: vertical; }
+        .cook-finish label[for="cook-finish-note"],
+        .cook-finish textarea { grid-column: 1 / -1; }
         .cook-step-row { border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
         .cook-step-row.is-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
         .cook-step-list-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.65rem; align-items: start; margin: 0; padding: 0.65rem; }
@@ -407,11 +410,37 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
         .cooked-history-list,
         .cooked-day-list { list-style: none; padding: 0; margin: 0.75rem 0; display: grid; gap: 0.4rem; }
         .cooked-history-list li,
-        .cooked-day-list li { display: flex; gap: 0.6rem; align-items: baseline; justify-content: space-between; border-bottom: 1px dashed var(--line); padding: 0.4rem 0; }
+        .cooked-day-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem; align-items: baseline; border-bottom: 1px dashed var(--line); padding: 0.4rem 0; }
         .cooked-history-list li:last-child,
         .cooked-day-list li:last-child { border-bottom: 0; }
         .cooked-history-list time,
         .cooked-day-list time { color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
+        .cooked-history-entry { display: flex; gap: 0.35rem; align-items: baseline; flex-wrap: wrap; min-width: 0; }
+        .cooked-history-entry > a,
+        .cooked-history-entry > span:not(.cooked-edit) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cooked-note { color: var(--muted); font-size: 0.9rem; }
+        .cooked-edit { grid-column: 1 / -1; margin: 0; }
+        .cooked-edit[hidden] { display: none; }
+        .cooked-edit-toggle { flex: 0 0 auto; width: max-content; border: 0; background: transparent; color: var(--accent); cursor: pointer; font: inherit; font-size: 0.82rem; font-weight: 600; padding: 0; text-decoration: underline; opacity: 0; transition: opacity 0.12s ease; }
+        .cooked-history-list li:hover .cooked-edit-toggle,
+        .cooked-history-list li:focus-within .cooked-edit-toggle,
+        .cooked-day-list li:hover .cooked-edit-toggle,
+        .cooked-day-list li:focus-within .cooked-edit-toggle,
+        .cooked-edit-toggle[aria-expanded="true"] { opacity: 1; }
+        .cooked-edit-toggle:hover,
+        .cooked-edit-toggle:focus { color: var(--accent-hover); }
+        .cooked-history-list li.is-editing > time,
+        .cooked-day-list li.is-editing > time,
+        .cooked-history-list li.is-editing .cooked-history-entry > a,
+        .cooked-history-list li.is-editing .cooked-history-entry > span:not(.cooked-edit),
+        .cooked-history-list li.is-editing .cooked-edit-toggle,
+        .cooked-day-list li.is-editing .cooked-history-entry > a,
+        .cooked-day-list li.is-editing .cooked-history-entry > span:not(.cooked-edit),
+        .cooked-day-list li.is-editing .cooked-edit-toggle { display: none; }
+        .cooked-edit form { display: grid; grid-template-columns: minmax(12rem, 1fr) auto auto auto; gap: 0.45rem; align-items: start; width: 100%; }
+        .cooked-edit input[type="date"] { width: auto; min-width: 9.5rem; }
+        .cooked-edit textarea { min-height: 2.4rem; resize: vertical; }
+        .cooked-edit .btn { justify-self: start; }
         .cooked-day-list a { min-width: 0; overflow-wrap: anywhere; }
         .cooked-count { color: var(--muted); font-size: 0.9rem; }
         @media (min-width: 680px) {
@@ -461,14 +490,16 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
             .cook-mode-nav { align-items: stretch; flex-direction: column; }
             .cook-mode-nav-group { width: 100%; }
             .cook-mode-nav-group .btn { flex: 1; text-align: center; }
-            .cook-finish form,
-            .cooked-log-form { align-items: stretch; flex-direction: column; }
+            .cook-finish form { grid-template-columns: 1fr; align-items: stretch; }
+            .cook-finish label[for="cook-finish-note"],
+            .cook-finish textarea { grid-column: auto; }
             .cook-finish input[type="date"],
-            .cooked-log-form input[type="date"],
-            .cook-finish .btn,
-            .cooked-log-form .btn { width: 100%; }
+            .cook-finish .btn { width: 100%; }
             .cooked-history-list li,
-            .cooked-day-list li { align-items: flex-start; flex-direction: column; gap: 0.2rem; }
+            .cooked-day-list li { grid-template-columns: 1fr; align-items: flex-start; gap: 0.2rem; }
+            .cooked-edit form { grid-template-columns: 1fr; }
+            .cooked-edit input[type="date"],
+            .cooked-edit .btn { width: 100%; }
         }
     </style>
 </head>
