@@ -77,7 +77,7 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
  */
 ?>
 <!DOCTYPE html>
-<html <?php wp_app_language_attributes(); ?>>
+<html <?php echo wp_app_language_attributes( false ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- language attributes are escaped by WordPress. ?>>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

@@ -21,6 +21,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once __DIR__ . '/vendor/autoload.php';
 
+add_action( 'init', function() {
+    if ( function_exists( 'wp_app_switch_to_user_locale_for_request' ) ) {
+        wp_app_switch_to_user_locale_for_request( 'cookbook' );
+    }
+
+    load_plugin_textdomain( 'cookbook', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+} );
 
 // Autoloader for plugin classes.
 spl_autoload_register( function( $class ) {

@@ -26,12 +26,13 @@ $mode = isset( $_GET['mode'] ) ? sanitize_key( wp_unslash( $_GET['mode'] ) ) : '
 // phpcs:enable WordPress.Security.NonceVerification.Recommended
 $is_shop_mode = $mode !== 'edit';
 $multiple_recipes_label = __( 'Multiple recipes', 'cookbook' );
-$is_multiple_recipes_label = function( string $title ) use ( $multiple_recipes_label ): bool {
+$multiple_recipes_labels = array_unique( [ 'Multiple recipes', $multiple_recipes_label ] );
+$is_multiple_recipes_label = function( string $title ) use ( $multiple_recipes_labels ): bool {
     $title = trim( $title );
     if ( $title === '' ) {
         return false;
     }
-    return in_array( $title, array_unique( [ 'Multiple recipes', $multiple_recipes_label ] ), true );
+    return in_array( $title, $multiple_recipes_labels, true );
 };
 $shopping_item_source_titles = function( array $item ) use ( $is_multiple_recipes_label ): array {
     $titles = [];
@@ -156,7 +157,13 @@ include __DIR__ . '/_header.php';
                                 </small>
                             <?php endif; ?>
                             <?php if ( $source_titles ) : ?>
-                                <small class="shop-source"><?php echo esc_html( sprintf( __( 'For %s', 'cookbook' ), implode( ', ', $source_titles ) ) ); ?></small>
+                                <small class="shop-source"><?php
+                                echo esc_html( sprintf(
+                                    /* translators: %s: comma-separated recipe titles */
+                                    __( 'For %s', 'cookbook' ),
+                                    implode( ', ', $source_titles )
+                                ) );
+                                ?></small>
                             <?php endif; ?>
                         </span>
                     </label>
@@ -178,10 +185,16 @@ include __DIR__ . '/_header.php';
                                 <strong><?php echo esc_html( $reminder['name'] ); ?></strong>
                                 <?php if ( $detail ) : ?>
                                     <small><?php echo esc_html( $detail ); ?></small>
-                                <?php endif; ?>
-                                <?php if ( $source_titles ) : ?>
-                                    <small class="shop-source"><?php echo esc_html( sprintf( __( 'For %s', 'cookbook' ), implode( ', ', $source_titles ) ) ); ?></small>
-                                <?php endif; ?>
+                            <?php endif; ?>
+                            <?php if ( $source_titles ) : ?>
+                                <small class="shop-source"><?php
+                                echo esc_html( sprintf(
+                                    /* translators: %s: comma-separated recipe titles */
+                                    __( 'For %s', 'cookbook' ),
+                                    implode( ', ', $source_titles )
+                                ) );
+                                ?></small>
+                            <?php endif; ?>
                             </span>
                         </li>
                     <?php endforeach; ?>
@@ -284,7 +297,13 @@ include __DIR__ . '/_header.php';
                                     <small><?php echo esc_html( $detail ); ?></small>
                                 <?php endif; ?>
                                 <?php if ( $source_titles ) : ?>
-                                    <small class="shop-source"><?php echo esc_html( sprintf( __( 'For %s', 'cookbook' ), implode( ', ', $source_titles ) ) ); ?></small>
+                                    <small class="shop-source"><?php
+                                    echo esc_html( sprintf(
+                                        /* translators: %s: comma-separated recipe titles */
+                                        __( 'For %s', 'cookbook' ),
+                                        implode( ', ', $source_titles )
+                                    ) );
+                                    ?></small>
                                 <?php endif; ?>
                             </span>
                             <button class="btn secondary" type="submit" name="list_command" value="restore_household:<?php echo (int) $reminder_index; ?>"><?php esc_html_e( 'Need to buy', 'cookbook' ); ?></button>
@@ -392,7 +411,7 @@ include __DIR__ . '/_header.php';
     const bulkName = document.getElementById('bulk-item-name');
     const bulkMerge = document.getElementById('bulk-merge-selected');
     const bulkRemove = document.getElementById('bulk-remove-selected');
-    const multipleRecipesLabel = <?php echo wp_json_encode( $multiple_recipes_label ); ?>;
+    const multipleRecipesLabels = <?php echo wp_json_encode( array_values( $multiple_recipes_labels ) ); ?>;
 
     function shoppingRows() {
         return shoppingList ? Array.from(shoppingList.querySelectorAll('.shopping-row')) : [];
@@ -433,7 +452,7 @@ include __DIR__ . '/_header.php';
 
     function isMultipleRecipesLabel(value) {
         const title = String(value || '').trim();
-        return title === 'Multiple recipes' || title === multipleRecipesLabel;
+        return multipleRecipesLabels.includes(title);
     }
 
     function setInputValue(row, field, value) {

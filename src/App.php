@@ -56,7 +56,7 @@ class App extends BaseApp {
         $this->services = $services ?: ServiceContainer::default();
         $this->app = new WpApp( $this->get_template_dir(), $this->get_url_path(), [
             'require_login' => true,
-            'app_name'      => __( 'Cookbook', 'cookbook' ),
+            'app_name'      => 'Cookbook',
         ] );
     }
 
