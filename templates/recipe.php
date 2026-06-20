@@ -221,7 +221,7 @@ include __DIR__ . '/_header.php';
 
     <div class="recipe-primary-actions">
         <?php if ( $clean_instructions ) : ?>
-            <button class="btn" type="button" id="cook-mode-open"><?php esc_html_e( 'Cook mode', 'cookbook' ); ?></button>
+            <button class="btn" type="button" id="cook-mode-open"><?php esc_html_e( 'Cook this', 'cookbook' ); ?></button>
         <?php endif; ?>
         <?php if ( $ingredients ) : ?>
             <form class="recipe-inline-action" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -239,16 +239,6 @@ include __DIR__ . '/_header.php';
                 <?php if ( $ingredients ) : ?>
                     <a class="recipe-menu-action" href="<?php echo esc_url( add_query_arg( 'recipe_id', $id, home_url( '/cookbook/planner' ) ) ); ?>"><?php esc_html_e( 'Plan recipe', 'cookbook' ); ?></a>
                 <?php endif; ?>
-
-                <form class="recipe-menu-form cooked-log-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-                    <?php wp_nonce_field( 'cookbook_log_cooked' ); ?>
-                    <input type="hidden" name="action" value="cookbook_log_cooked">
-                    <input type="hidden" name="recipe_id" value="<?php echo (int) $id; ?>">
-                    <input type="hidden" name="redirect_to" value="<?php echo esc_url( $recipe_url ); ?>">
-                    <label for="recipe-cooked-date"><?php esc_html_e( 'Cooked on', 'cookbook' ); ?></label>
-                    <input id="recipe-cooked-date" type="date" name="cooked_date" value="<?php echo esc_attr( $today_date ); ?>" max="<?php echo esc_attr( $today_date ); ?>">
-                    <button class="btn secondary" type="submit"><?php esc_html_e( 'Log cooked date', 'cookbook' ); ?></button>
-                </form>
 
                 <?php if ( $source_url ) : ?>
                     <form class="recipe-menu-action-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Re-fetch this recipe from its source URL? Ingredients, instructions, times and image will be replaced with the latest parsed data. Notes and tags are kept.', 'cookbook' ) ); ?>')">
@@ -313,6 +303,16 @@ include __DIR__ . '/_header.php';
         echo esc_html( sprintf(
             /* translators: %s: cooked date */
             __( 'This recipe was already saved for %s.', 'cookbook' ),
+            App::format_cooked_date( $cooked_flash_date )
+        ) );
+        ?>
+    </div>
+<?php elseif ( $cooked_status === 'updated' && $cooked_flash_date ) : ?>
+    <div class="notice success">
+        <?php
+        echo esc_html( sprintf(
+            /* translators: %s: cooked date */
+            __( 'Updated your cooked entry for %s.', 'cookbook' ),
             App::format_cooked_date( $cooked_flash_date )
         ) );
         ?>
@@ -451,7 +451,10 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
 <?php endif; ?>
 
 <?php if ( $cooked_entries ) : ?>
-    <h2 id="cooked-history"><?php esc_html_e( 'Cooking history', 'cookbook' ); ?></h2>
+    <h2 id="cooked-history" class="section-heading-with-action">
+        <span><?php esc_html_e( 'Cooking history', 'cookbook' ); ?></span>
+        <a href="<?php echo esc_url( home_url( '/cookbook/cooked' ) ); ?>"><?php esc_html_e( 'All', 'cookbook' ); ?></a>
+    </h2>
     <p class="subtitle">
         <?php
         echo esc_html( sprintf(
@@ -465,16 +468,33 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
     <ul class="cooked-history-list">
         <?php foreach ( $recent_cooked_entries as $entry ) :
             $entry_date = (string) get_post_meta( $entry->ID, App::META_COOKED_DATE, true );
+            $entry_note = (string) get_post_meta( $entry->ID, App::META_COOKED_NOTE, true );
             ?>
             <li>
-                <span><?php esc_html_e( 'Cooked', 'cookbook' ); ?></span>
+                <span class="cooked-history-entry">
+                    <?php if ( $entry_note !== '' ) : ?>
+                        <span class="cooked-note"><?php echo esc_html( $entry_note ); ?></span>
+                    <?php else : ?>
+                        <span><?php esc_html_e( 'Cooked', 'cookbook' ); ?></span>
+                    <?php endif; ?>
+                    <button class="cooked-edit-toggle" type="button" aria-expanded="false" aria-controls="cooked-edit-<?php echo (int) $entry->ID; ?>"><?php esc_html_e( 'Edit', 'cookbook' ); ?></button>
+                </span>
                 <time datetime="<?php echo esc_attr( $entry_date ); ?>"><?php echo esc_html( App::format_cooked_date( $entry_date ) ); ?></time>
+                <div class="cooked-edit" id="cooked-edit-<?php echo (int) $entry->ID; ?>" hidden>
+                    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                        <?php wp_nonce_field( 'cookbook_update_cooked' ); ?>
+                        <input type="hidden" name="action" value="cookbook_update_cooked">
+                        <input type="hidden" name="entry_id" value="<?php echo (int) $entry->ID; ?>">
+                        <input type="hidden" name="redirect_to" value="<?php echo esc_url( $recipe_url . '#cooked-history' ); ?>">
+                        <textarea name="cooked_note" rows="1" aria-label="<?php esc_attr_e( 'Notes', 'cookbook' ); ?>"><?php echo esc_textarea( $entry_note ); ?></textarea>
+                        <input type="date" name="cooked_date" value="<?php echo esc_attr( $entry_date ); ?>" max="<?php echo esc_attr( $today_date ); ?>" aria-label="<?php esc_attr_e( 'Cooked on', 'cookbook' ); ?>">
+                        <button class="btn secondary" type="submit"><?php esc_html_e( 'Save', 'cookbook' ); ?></button>
+                        <button class="btn secondary cooked-edit-cancel" type="button"><?php esc_html_e( 'Cancel', 'cookbook' ); ?></button>
+                    </form>
+                </div>
             </li>
         <?php endforeach; ?>
     </ul>
-    <p>
-        <a class="badge" href="<?php echo esc_url( home_url( '/cookbook/cooked' ) ); ?>"><?php esc_html_e( 'Cooking history', 'cookbook' ); ?></a>
-    </p>
 <?php endif; ?>
 
 <?php if ( $clean_instructions ) : ?>
@@ -539,16 +559,18 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
                 </div>
 
                 <div class="cook-mode-panel cook-finish" id="cook-finish" hidden>
-                    <strong><?php esc_html_e( 'Save that you cooked this?', 'cookbook' ); ?></strong>
-                    <p class="help"><?php esc_html_e( 'Add it to your cooking history.', 'cookbook' ); ?></p>
-                    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                    <strong><?php esc_html_e( 'Log this cook', 'cookbook' ); ?></strong>
+                    <p class="help"><?php esc_html_e( 'Save the date and any notes from this cook session.', 'cookbook' ); ?></p>
+                    <form id="cook-finish-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                         <?php wp_nonce_field( 'cookbook_log_cooked' ); ?>
                         <input type="hidden" name="action" value="cookbook_log_cooked">
                         <input type="hidden" name="recipe_id" value="<?php echo (int) $id; ?>">
                         <input type="hidden" name="redirect_to" value="<?php echo esc_url( $recipe_url . '#cooked-history' ); ?>">
                         <label for="cook-finish-date"><?php esc_html_e( 'Cooked on', 'cookbook' ); ?></label>
                         <input id="cook-finish-date" type="date" name="cooked_date" value="<?php echo esc_attr( $today_date ); ?>" max="<?php echo esc_attr( $today_date ); ?>">
-                        <button class="btn fresh" type="submit"><?php esc_html_e( 'Save cooked date', 'cookbook' ); ?></button>
+                        <label for="cook-finish-note"><?php esc_html_e( 'Notes', 'cookbook' ); ?></label>
+                        <textarea id="cook-finish-note" name="cooked_note" rows="3" placeholder="<?php esc_attr_e( 'Tweaks, timing, reactions', 'cookbook' ); ?>"></textarea>
+                        <button class="btn fresh" type="submit"><?php esc_html_e( 'Save to history', 'cookbook' ); ?></button>
                         <button class="btn secondary" type="button" id="cook-finish-dismiss"><?php esc_html_e( 'Not now', 'cookbook' ); ?></button>
                     </form>
                 </div>
@@ -617,6 +639,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
     const cookStepCount = document.getElementById('cook-step-count');
     const cookDoneCount = document.getElementById('cook-step-done-count');
     const cookFinish = document.getElementById('cook-finish');
+    const cookFinishForm = document.getElementById('cook-finish-form');
     const cookFinishDismiss = document.getElementById('cook-finish-dismiss');
     const cookStepRows = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-step-index]')) : [];
     const cookStepChecks = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-step-check]')) : [];
@@ -1028,6 +1051,13 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
         cookFinishDismiss.addEventListener('click', () => {
             cookFinishDismissed = true;
             updateCookState();
+        });
+    }
+    if (cookFinishForm) {
+        cookFinishForm.addEventListener('submit', () => {
+            try {
+                window.localStorage.removeItem(cookStateKey);
+            } catch (e) {}
         });
     }
     if (cookActiveCheck) {

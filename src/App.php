@@ -42,6 +42,7 @@ class App extends BaseApp {
     const META_WEEK_MEALS     = '_cookbook_week_meals';
     const META_COOKED_RECIPE_ID = '_cookbook_cooked_recipe_id';
     const META_COOKED_DATE      = '_cookbook_cooked_date';
+    const META_COOKED_NOTE      = '_cookbook_cooked_note';
 
     const USER_PREF_UNITS = 'cookbook_unit_preference';
     const USER_HOUSEHOLD_INGREDIENTS = 'cookbook_household_ingredient_ids';
@@ -95,6 +96,7 @@ class App extends BaseApp {
         add_action( 'admin_post_cookbook_save_planner', [ $planner, 'handle_save_planner' ] );
         add_action( 'admin_post_cookbook_add_planner_to_shopping_list', [ $shopping_list, 'handle_add_planner_to_shopping_list' ] );
         add_action( 'admin_post_cookbook_log_cooked', [ $cooked_history, 'handle_log_cooked' ] );
+        add_action( 'admin_post_cookbook_update_cooked', [ $cooked_history, 'handle_update_cooked' ] );
         add_action( 'admin_post_cookbook_merge_ingredients', [ $ingredient_admin, 'handle_merge_ingredients' ] );
         add_action( 'admin_post_cookbook_group_ingredients', [ $ingredient_admin, 'handle_group_ingredients' ] );
         add_action( 'admin_post_cookbook_rename_ingredient', [ $ingredient_admin, 'handle_rename_ingredient' ] );
