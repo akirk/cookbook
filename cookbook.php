@@ -4,6 +4,7 @@
  * Description: A personal cookbook: store, categorize, scale and import recipes from the web.
  * Version: 1.0.0
  * Author: Alex Kirk
+ * Author URI: https://alex.kirk.at/
  * Text Domain: cookbook
  * Domain Path: /languages
  * Requires PHP: 7.4
