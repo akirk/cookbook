@@ -135,6 +135,7 @@ class RegistryService extends AbstractService {
             'exclude_from_search'       => true,
             'show_in_admin_all_list'    => true,
             'show_in_admin_status_list' => true,
+            /* translators: %s: number of checked shopping-list items */
             'label_count'               => _n_noop( 'Checked <span class="count">(%s)</span>', 'Checked <span class="count">(%s)</span>', 'cookbook' ),
         ] );
 

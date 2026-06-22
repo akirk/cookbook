@@ -647,7 +647,9 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
     const cookIngredientChecks = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-ingredient-check]')) : [];
     const cookStepIngredientMatches = [];
     const cookStrings = {
+        <?php /* translators: 1: current step number, 2: total number of steps */ ?>
         stepOf: <?php echo wp_json_encode( __( 'Step %1$d of %2$d', 'cookbook' ) ); ?>,
+        <?php /* translators: 1: number of completed steps, 2: total number of steps */ ?>
         doneCount: <?php echo wp_json_encode( __( '%1$d of %2$d done', 'cookbook' ) ); ?>,
         next: <?php echo wp_json_encode( __( 'Next', 'cookbook' ) ); ?>,
         finish: <?php echo wp_json_encode( __( 'Finish', 'cookbook' ) ); ?>
