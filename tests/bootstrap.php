@@ -16,6 +16,17 @@ if ( ! function_exists( 'wp_strip_all_tags' ) ) {
 if ( ! function_exists( 'is_wp_error' ) ) {
     function is_wp_error( $thing ) { return false; }
 }
+if ( ! function_exists( 'absint' ) ) {
+    function absint( $value ) { return abs( (int) $value ); }
+}
+if ( ! function_exists( 'sanitize_text_field' ) ) {
+    function sanitize_text_field( $text ) {
+        return trim( wp_strip_all_tags( (string) $text ) );
+    }
+}
+if ( ! function_exists( 'wp_kses_post' ) ) {
+    function wp_kses_post( $text ) { return (string) $text; }
+}
 if ( ! function_exists( 'wp_remote_get' ) ) {
     function wp_remote_get( $url, $args = [] ) { return [ 'body' => '' ]; }
 }
@@ -25,3 +36,5 @@ if ( ! function_exists( 'wp_remote_retrieve_body' ) ) {
 
 require_once dirname( __DIR__ ) . '/src/Units.php';
 require_once dirname( __DIR__ ) . '/src/Importer.php';
+require_once dirname( __DIR__ ) . '/src/AbstractService.php';
+require_once dirname( __DIR__ ) . '/src/RecipeService.php';

@@ -411,7 +411,7 @@ class RecipeService extends AbstractService {
                 ? $this->sanitize_recipe_ingredient_rows( $part['ingredients'] )
                 : [];
 
-            if ( $title !== '' || $ingredients ) {
+            if ( $ingredients ) {
                 $clean[] = [
                     'title'        => $title,
                     'ingredients'  => $ingredients,
@@ -437,7 +437,7 @@ class RecipeService extends AbstractService {
                 ? $this->sanitize_recipe_instruction_rows( $part['instructions'] )
                 : [];
 
-            if ( $title !== '' || $instructions ) {
+            if ( $instructions ) {
                 $clean[] = [
                     'title'        => $title,
                     'ingredients'  => [],
@@ -1010,7 +1010,7 @@ class RecipeService extends AbstractService {
                 }
             }
 
-            if ( $title !== '' || $ingredients || $instructions ) {
+            if ( $ingredients || $instructions ) {
                 $clean[] = [
                     'title'        => $title,
                     'ingredients'  => $ingredients,
