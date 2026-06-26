@@ -134,6 +134,9 @@ if ( $search !== '' ) {
 $images_view_url = add_query_arg( array_merge( $view_query_args, [ 'view' => 'images' ] ), home_url( '/cookbook/' ) );
 $compact_view_url = add_query_arg( array_merge( $view_query_args, [ 'view' => 'compact' ] ), home_url( '/cookbook/' ) );
 $recent_view_url = add_query_arg( array_merge( $view_query_args, [ 'view' => 'recent' ] ), home_url( '/cookbook/' ) );
+$new_recipe_url = $search !== ''
+    ? add_query_arg( 'title', $search, home_url( '/cookbook/new' ) )
+    : home_url( '/cookbook/new' );
 
 $page_title = __( 'Cookbook', 'cookbook' );
 include __DIR__ . '/_header.php';
@@ -281,7 +284,16 @@ include __DIR__ . '/_header.php';
 
 <?php if ( ! $recipes ) : ?>
     <?php if ( $is_searching ) : ?>
-        <div class="notice"><?php esc_html_e( 'No recipes match your search.', 'cookbook' ); ?></div>
+        <div class="notice">
+            <?php
+            printf(
+                /* translators: 1: search text, 2: link to create a new recipe */
+                esc_html__( 'No recipes match "%1$s". %2$s', 'cookbook' ),
+                esc_html( $search ),
+                '<a href="' . esc_url( $new_recipe_url ) . '">' . esc_html__( 'Create a new recipe with that title.', 'cookbook' ) . '</a>'
+            );
+            ?>
+        </div>
     <?php else : ?>
         <div class="notice">
             <?php

@@ -19,6 +19,8 @@ $cancel_url = home_url( '/cookbook/' );
 
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only prefill source.
 $requested_variation_source = isset( $_GET['variation_of'] ) ? absint( $_GET['variation_of'] ) : 0;
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only prefill source.
+$requested_title = isset( $_GET['title'] ) ? sanitize_text_field( wp_unslash( $_GET['title'] ) ) : '';
 if ( $requested_variation_source ) {
     $source = get_post( $requested_variation_source );
     if ( $source && $source->post_type === App::POST_TYPE ) {
@@ -32,6 +34,8 @@ if ( $requested_variation_source ) {
         );
         $cancel_url = home_url( '/cookbook/recipe/' . $source->ID );
     }
+} elseif ( $requested_title !== '' ) {
+    $title_override = $requested_title;
 }
 
 $page_title = $variation_source_id ? __( 'New variation', 'cookbook' ) : __( 'New recipe', 'cookbook' );
