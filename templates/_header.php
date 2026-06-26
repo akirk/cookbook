@@ -192,8 +192,6 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
         .recipe-form-section { border-left: 3px solid var(--line); padding-left: 0.85rem; }
         .recipe-form-section-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
         .recipe-form-section-rows { display: grid; gap: 0.4rem; }
-        .recipe-form-section .add-ingredient-row,
-        .recipe-form-section .add-instruction-row { margin-top: 0.15rem; }
         #ingredient-sections { gap: 0; }
         #ingredient-sections .recipe-form-section { border-left: 0; padding-left: 0; }
         #ingredient-sections .recipe-form-section-header { display: none; grid-template-columns: minmax(0, 1fr) auto; gap: 0.35rem; align-items: center; margin: 0.65rem 0 0.3rem; }
@@ -215,7 +213,7 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
             border-bottom-color: var(--accent);
             outline: none;
         }
-        #ingredient-sections .recipe-section-remove {
+        .recipe-section-remove {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -229,9 +227,8 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
             font-size: 1.1rem;
             line-height: 1;
         }
-        #ingredient-sections .recipe-section-remove:hover,
-        #ingredient-sections .recipe-section-remove:focus { background: var(--error-bg); color: #b32d2e; }
-        #ingredient-sections .add-ingredient-row { display: none; }
+        .recipe-section-remove:hover,
+        .recipe-section-remove:focus { background: var(--error-bg); color: #b32d2e; }
         .recipe-row-inserter { position: relative; display: flex; align-items: center; justify-content: center; min-height: 0.9rem; margin: -0.25rem 0; opacity: 0; transition: opacity 0.12s ease; }
         .recipe-row-inserter:hover,
         .recipe-row-inserter:focus-within { opacity: 1; }
