@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-06-20T08:25:40+00:00\n"
+"POT-Creation-Date: 2026-06-26T14:13:42+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: cookbook\n"
@@ -17,9 +17,8 @@ msgstr ""
 #. Plugin Name of the plugin
 #: cookbook.php
 #: src/AbilitiesService.php:90
-#: src/App.php:59
-#: templates/index.php:109
-#: templates/index.php:147
+#: templates/index.php:138
+#: templates/index.php:182
 msgid "Cookbook"
 msgstr ""
 
@@ -368,11 +367,11 @@ msgstr ""
 msgid "Shopping list not found."
 msgstr ""
 
-#: src/App.php:150
+#: src/App.php:151
 msgid "All recipes"
 msgstr ""
 
-#: src/App.php:151
+#: src/App.php:152
 #: templates/cooked.php:33
 #: templates/cooked.php:36
 #: templates/recipe.php:455
@@ -380,7 +379,7 @@ msgstr ""
 msgid "Cooking history"
 msgstr ""
 
-#: src/App.php:152
+#: src/App.php:153
 #: src/RegistryService.php:145
 #: src/ShoppingListService.php:40
 #: templates/shopping-list.php:54
@@ -388,35 +387,35 @@ msgstr ""
 msgid "Shopping list"
 msgstr ""
 
-#: src/App.php:153
+#: src/App.php:154
 #: templates/planner.php:124
 #: templates/planner.php:145
 msgid "Week planner"
 msgstr ""
 
-#: src/App.php:154
+#: src/App.php:155
 msgid "By ingredients"
 msgstr ""
 
-#: src/App.php:155
+#: src/App.php:156
 #: templates/manage-ingredients.php:38
 #: templates/manage-ingredients.php:63
 msgid "Manage ingredients"
 msgstr ""
 
-#: src/App.php:156
+#: src/App.php:157
 #: src/RegistryService.php:44
-#: templates/index.php:236
+#: templates/index.php:279
 #: templates/new.php:37
 #: templates/new.php:40
 msgid "New recipe"
 msgstr ""
 
-#: src/App.php:157
+#: src/App.php:158
 msgid "Import from web"
 msgstr ""
 
-#: src/App.php:158
+#: src/App.php:159
 #: templates/settings.php:16
 #: templates/settings.php:19
 msgid "Settings"
@@ -1023,73 +1022,89 @@ msgstr ""
 msgid "Importing from %s…"
 msgstr ""
 
-#: templates/index.php:150
+#: templates/index.php:185
 msgid "Search recipes or paste a URL to import…"
 msgstr ""
 
-#: templates/index.php:152
+#: templates/index.php:187
 msgid "Search"
 msgstr ""
 
-#: templates/index.php:159
+#: templates/index.php:194
 msgid "Today's plan"
 msgstr ""
 
-#: templates/index.php:162
+#: templates/index.php:197
 msgid "Open week planner"
 msgstr ""
 
-#: templates/index.php:186
+#: templates/index.php:221
 msgid "Categories:"
 msgstr ""
 
-#: templates/index.php:196
+#: templates/index.php:231
 msgid "Search results"
 msgstr ""
 
-#: templates/index.php:201
+#: templates/index.php:236
 msgid "Recipe index"
 msgstr ""
 
-#: templates/index.php:215
+#: templates/index.php:250
 msgid "Recipe view"
 msgstr ""
 
-#: templates/index.php:222
+#: templates/index.php:257
 msgid "Photos"
 msgstr ""
 
-#: templates/index.php:233
+#: templates/index.php:268
 msgid "Compact"
 msgstr ""
 
-#: templates/index.php:241
+#: templates/index.php:276
+msgid "Recent"
+msgstr ""
+
+#: templates/index.php:284
 msgid "No recipes match your search."
 msgstr ""
 
 #. translators: 1: link to /cookbook/new, 2: link to /cookbook/import
-#: templates/index.php:247
+#: templates/index.php:290
 #, php-format
 msgid "No recipes yet. %1$s or %2$s."
 msgstr ""
 
-#: templates/index.php:248
+#: templates/index.php:291
 msgid "Create one"
 msgstr ""
 
-#: templates/index.php:249
+#: templates/index.php:292
 msgid "import from a URL"
 msgstr ""
 
-#: templates/index.php:260
+#: templates/index.php:303
 msgid "No recipes with photos match your search."
 msgstr ""
 
-#: templates/index.php:261
+#: templates/index.php:304
 msgid "No recipes with photos yet."
 msgstr ""
 
-#: templates/index.php:297
+#. translators: %s: cooked date
+#: templates/index.php:326
+#, php-format
+msgid "Cooked %s"
+msgstr ""
+
+#. translators: %s: recipe published date
+#: templates/index.php:331
+#, php-format
+msgid "Added %s"
+msgstr ""
+
+#: templates/index.php:366
 msgid "Browse by ingredient"
 msgstr ""
 

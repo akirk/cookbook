@@ -9,7 +9,7 @@ use Cookbook\App;
 $search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- idempotent read-only display preference.
 $view = isset( $_GET['view'] ) ? sanitize_key( wp_unslash( $_GET['view'] ) ) : 'compact';
-if ( ! in_array( $view, [ 'images', 'compact' ], true ) ) {
+if ( ! in_array( $view, [ 'images', 'compact', 'recent' ], true ) ) {
     $view = 'compact';
 }
 
@@ -53,6 +53,34 @@ if ( $is_searching ) {
 $image_recipes = array_values( array_filter( $recipes, function( $recipe ) {
     return has_post_thumbnail( $recipe->ID );
 } ) );
+
+$last_cooked_by_recipe = [];
+if ( $view === 'recent' && $recipes ) {
+    $recipe_ids = array_fill_keys( array_map( 'intval', wp_list_pluck( $recipes, 'ID' ) ), true );
+    foreach ( App::get_user_cooked_entries() as $entry ) {
+        $recipe_id = (int) get_post_meta( $entry->ID, App::META_COOKED_RECIPE_ID, true );
+        if ( ! $recipe_id || ! isset( $recipe_ids[ $recipe_id ] ) || isset( $last_cooked_by_recipe[ $recipe_id ] ) ) {
+            continue;
+        }
+
+        $last_cooked_by_recipe[ $recipe_id ] = (string) get_post_meta( $entry->ID, App::META_COOKED_DATE, true );
+    }
+}
+
+$recent_recipes = [];
+if ( $view === 'recent' ) {
+    $recent_recipes = $recipes;
+    usort( $recent_recipes, function( $a, $b ) use ( $last_cooked_by_recipe ) {
+        $a_time = ! empty( $last_cooked_by_recipe[ $a->ID ] ) ? strtotime( $last_cooked_by_recipe[ $a->ID ] ) : strtotime( $a->post_date_gmt ?: $a->post_date );
+        $b_time = ! empty( $last_cooked_by_recipe[ $b->ID ] ) ? strtotime( $last_cooked_by_recipe[ $b->ID ] ) : strtotime( $b->post_date_gmt ?: $b->post_date );
+
+        if ( $a_time === $b_time ) {
+            return strcasecmp( get_the_title( $a ), get_the_title( $b ) );
+        }
+
+        return $b_time <=> $a_time;
+    } );
+}
 
 $categories = get_terms( [
     'taxonomy'   => App::TAX_CATEGORY,
@@ -105,6 +133,7 @@ if ( $search !== '' ) {
 }
 $images_view_url = add_query_arg( array_merge( $view_query_args, [ 'view' => 'images' ] ), home_url( '/cookbook/' ) );
 $compact_view_url = add_query_arg( array_merge( $view_query_args, [ 'view' => 'compact' ] ), home_url( '/cookbook/' ) );
+$recent_view_url = add_query_arg( array_merge( $view_query_args, [ 'view' => 'recent' ] ), home_url( '/cookbook/' ) );
 
 $page_title = __( 'Cookbook', 'cookbook' );
 include __DIR__ . '/_header.php';
@@ -130,6 +159,12 @@ include __DIR__ . '/_header.php';
     .recipe-alpha-list a { display: grid; gap: 0.12rem; padding: 0.38rem 0; text-decoration: none; color: inherit; }
     .recipe-alpha-list a:hover .recipe-title { color: var(--accent); }
     .recipe-alpha-list .recipe-title { min-width: 0; }
+    .recipe-recent-list { list-style: none; padding: 0; margin: 1rem 0; }
+    .recipe-recent-list li { border-bottom: 1px dashed var(--line); }
+    .recipe-recent-list a { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.75rem; align-items: baseline; padding: 0.5rem 0; color: inherit; text-decoration: none; }
+    .recipe-recent-list a:hover .recipe-title { color: var(--accent); }
+    .recipe-recent-list .recipe-title { min-width: 0; overflow-wrap: anywhere; }
+    .recipe-recent-list time { color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
     .recipe-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0.75rem; margin: 1rem 0; }
     .recipe-photo-card { position: relative; display: block; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: var(--secondary-bg); color: #fff; text-decoration: none; }
     .recipe-photo-card img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.12s ease; }
@@ -142,7 +177,7 @@ include __DIR__ . '/_header.php';
     .home-today-head h2 { margin: 0; }
     .home-today-head a { white-space: nowrap; }
     .home-ingredients[hidden] { display: none; }
-    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } .recipe-index-row { align-items: stretch; } .recipe-index-row .btn { margin-left: 0; } .recipe-view-switch { width: 100%; } .recipe-view-switch a { flex: 1; } }
+    @media (max-width: 520px) { .home-search { grid-template-columns: 1fr; } .home-today-head { display: block; } .recipe-index-row { align-items: stretch; } .recipe-index-row .btn { margin-left: 0; } .recipe-view-switch { width: 100%; } .recipe-view-switch a { flex: 1; } .recipe-recent-list a { grid-template-columns: 1fr; gap: 0.1rem; } }
 </style>
 <?php cookbook_page_head( __( 'Cookbook', 'cookbook' ), [ 'current_section' => 'recipes' ] ); ?>
 
@@ -232,6 +267,14 @@ include __DIR__ . '/_header.php';
             </svg>
             <?php esc_html_e( 'Compact', 'cookbook' ); ?>
         </a>
+        <a class="<?php echo $view === 'recent' ? 'is-active' : ''; ?>" href="<?php echo esc_url( $recent_view_url ); ?>"<?php echo $view === 'recent' ? ' aria-current="true"' : ''; ?>>
+            <svg class="recipe-view-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M12 8v5l3 2"></path>
+                <path d="M3.05 11a9 9 0 1 1 .5 4"></path>
+                <path d="M3 5v6h6"></path>
+            </svg>
+            <?php esc_html_e( 'Recent', 'cookbook' ); ?>
+        </a>
     </nav>
     <a class="btn secondary" href="<?php echo esc_url( home_url( '/cookbook/new' ) ); ?>"><?php esc_html_e( 'New recipe', 'cookbook' ); ?></a>
 </div>
@@ -272,6 +315,32 @@ include __DIR__ . '/_header.php';
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
+    <?php elseif ( $view === 'recent' ) : ?>
+        <ul class="recipe-recent-list">
+            <?php foreach ( $recent_recipes as $r ) : ?>
+                <?php
+                $last_cooked = isset( $last_cooked_by_recipe[ $r->ID ] ) ? $last_cooked_by_recipe[ $r->ID ] : '';
+                $date_label  = $last_cooked
+                    ? sprintf(
+                        /* translators: %s: cooked date */
+                        __( 'Cooked %s', 'cookbook' ),
+                        App::format_cooked_date( $last_cooked )
+                    )
+                    : sprintf(
+                        /* translators: %s: recipe published date */
+                        __( 'Added %s', 'cookbook' ),
+                        get_the_date( '', $r )
+                    );
+                $datetime    = $last_cooked ? $last_cooked : get_the_date( 'Y-m-d', $r );
+                ?>
+                <li>
+                    <a href="<?php echo esc_url( home_url( '/cookbook/recipe/' . $r->ID ) ); ?>">
+                        <span class="recipe-title"><?php echo esc_html( get_the_title( $r ) ); ?></span>
+                        <time datetime="<?php echo esc_attr( $datetime ); ?>"><?php echo esc_html( $date_label ); ?></time>
+                    </a>
+                </li>
+            <?php endforeach; ?>
+        </ul>
     <?php else :
         foreach ( $recipes_by_letter as $letter => $group ) : ?>
             <?php $letter_id = $letter === '#' ? 'other' : sanitize_title( $letter ); ?>
