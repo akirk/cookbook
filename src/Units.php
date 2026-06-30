@@ -115,6 +115,14 @@ class Units {
         $v = trim( $value );
         if ( $v === '' ) return null;
 
+        if ( self::parse_amount_range( $v ) !== null ) {
+            return null;
+        }
+
+        return self::parse_single_amount( $v, true );
+    }
+
+    private static function parse_single_amount( string $v, bool $allow_leading_number ): ?float {
         $fractions = [
             '½' => 0.5,    '⅓' => 1.0 / 3.0, '⅔' => 2.0 / 3.0, '¼' => 0.25, '¾' => 0.75,
             '⅕' => 0.2,    '⅖' => 0.4,       '⅗' => 0.6,       '⅘' => 0.8,
@@ -142,10 +150,41 @@ class Units {
         $decimal = str_replace( ',', '.', $v );
         if ( is_numeric( $decimal ) ) return (float) $decimal;
         // Leading number, e.g. "1.5 something".
-        if ( preg_match( '/^[\d\.]+/', $v, $m ) ) {
-            return (float) $m[0];
+        if ( $allow_leading_number && preg_match( '/^\d+(?:[.,]\d+)?/', $v, $m ) ) {
+            return (float) str_replace( ',', '.', $m[0] );
         }
         return null;
+    }
+
+    private static function amount_pattern(): string {
+        return '(?:\d+(?:[.,]\d+)?\s+\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?|[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]|\d+\s*[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])';
+    }
+
+    private static function parse_amount_range( $value ): ?array {
+        if ( ! is_string( $value ) ) {
+            return null;
+        }
+
+        $v = trim( $value );
+        if ( $v === '' ) {
+            return null;
+        }
+
+        if ( ! preg_match( '#^(' . self::amount_pattern() . ')\s*(?:-|–|—|to)\s*(' . self::amount_pattern() . ')$#iu', $v, $m ) ) {
+            return null;
+        }
+
+        $low = self::parse_single_amount( trim( $m[1] ), false );
+        $high = self::parse_single_amount( trim( $m[2] ), false );
+        if ( $low === null || $high === null ) {
+            return null;
+        }
+
+        if ( $low > $high ) {
+            return [ $high, $low ];
+        }
+
+        return [ $low, $high ];
     }
 
     /**
@@ -156,6 +195,24 @@ class Units {
         $original = [ 'amount' => $amount, 'unit' => $unit ];
         $kind = self::unit_kind( $unit );
         if ( $kind === null ) return $original;
+
+        $range = self::parse_amount_range( $amount );
+        if ( $range !== null ) {
+            $unit = self::normalize_unit( $unit );
+            $current_system = self::system_of( $unit );
+            if ( $current_system === $preference ) {
+                return self::pretty_range_in_system( $range[0], $range[1], $unit, $kind, $preference );
+            }
+
+            $canonical_low = ( $kind === 'mass' )
+                ? $range[0] * self::MASS[ $unit ]
+                : $range[0] * self::VOLUME[ $unit ];
+            $canonical_high = ( $kind === 'mass' )
+                ? $range[1] * self::MASS[ $unit ]
+                : $range[1] * self::VOLUME[ $unit ];
+
+            return self::from_canonical_range( $canonical_low, $canonical_high, $kind, $preference );
+        }
 
         $value = self::parse_amount( $amount );
         if ( $value === null ) return $original;
@@ -211,6 +268,44 @@ class Units {
         return [ 'amount' => self::format_number( $canonical / self::VOLUME['tsp'], 1 ), 'unit' => 'tsp' ];
     }
 
+    private static function from_canonical_range( float $low, float $high, string $kind, string $preference ): array {
+        if ( $kind === 'mass' ) {
+            if ( $preference === 'metric' ) {
+                return $high >= 1000
+                    ? [ 'amount' => self::format_range( $low / 1000, $high / 1000, 2 ), 'unit' => 'kg' ]
+                    : [ 'amount' => self::format_range( $low, $high, 0 ), 'unit' => 'g' ];
+            }
+            $low_oz = $low / self::MASS['oz'];
+            $high_oz = $high / self::MASS['oz'];
+            return $high_oz >= 16
+                ? [ 'amount' => self::format_range( $low / self::MASS['lb'], $high / self::MASS['lb'], 2 ), 'unit' => 'lb' ]
+                : [ 'amount' => self::format_range( $low_oz, $high_oz, 1 ), 'unit' => 'oz' ];
+        }
+
+        if ( $preference === 'metric' ) {
+            return $high >= 1000
+                ? [ 'amount' => self::format_range( $low / 1000, $high / 1000, 2 ), 'unit' => 'l' ]
+                : [ 'amount' => self::format_range( $low, $high, 0 ), 'unit' => 'ml' ];
+        }
+
+        $low_cups = $low / self::VOLUME['cup'];
+        $high_cups = $high / self::VOLUME['cup'];
+        if ( $high_cups >= 0.25 ) {
+            return [ 'amount' => self::format_range( $low_cups, $high_cups, 2 ), 'unit' => 'cup' ];
+        }
+
+        $low_tbsp = $low / self::VOLUME['tbsp'];
+        $high_tbsp = $high / self::VOLUME['tbsp'];
+        if ( $high_tbsp >= 1 ) {
+            return [ 'amount' => self::format_range( $low_tbsp, $high_tbsp, 1 ), 'unit' => 'tbsp' ];
+        }
+
+        return [
+            'amount' => self::format_range( $low / self::VOLUME['tsp'], $high / self::VOLUME['tsp'], 1 ),
+            'unit'   => 'tsp',
+        ];
+    }
+
     private static function pretty_in_system( float $value, string $unit, string $kind, string $system ): array {
         // Promote g->kg or ml->l when large; otherwise leave as-is.
         if ( $system === 'metric' ) {
@@ -224,12 +319,73 @@ class Units {
         return [ 'amount' => self::format_number( $value, $value < 10 ? 2 : 0 ), 'unit' => $unit ];
     }
 
-    public static function format_number( float $n, int $max_decimals = 2 ): string {
-        if ( abs( $n - round( $n ) ) < 0.05 ) {
-            return (string) (int) round( $n );
+    private static function pretty_range_in_system( float $low, float $high, string $unit, string $kind, string $system ): array {
+        if ( $system === 'metric' ) {
+            if ( $unit === 'g' && $high >= 1000 ) {
+                return [ 'amount' => self::format_range( $low / 1000, $high / 1000, 2 ), 'unit' => 'kg' ];
+            }
+            if ( $unit === 'ml' && $high >= 1000 ) {
+                return [ 'amount' => self::format_range( $low / 1000, $high / 1000, 2 ), 'unit' => 'l' ];
+            }
         }
+        return [ 'amount' => self::format_range( $low, $high, $high < 10 ? 2 : 0 ), 'unit' => $unit ];
+    }
+
+    public static function format_number( float $n, int $max_decimals = 2 ): string {
+        $rounded = round( $n );
+        if ( abs( $n - $rounded ) < 0.05 && ( (int) $rounded !== 0 || abs( $n ) < 0.00001 ) ) {
+            return (string) (int) $rounded;
+        }
+
+        if ( $max_decimals > 0 ) {
+            $fraction = self::format_fraction( $n );
+            if ( $fraction !== null ) {
+                return $fraction;
+            }
+        }
+
         $s = number_format( $n, $max_decimals, '.', '' );
+        if ( $max_decimals <= 0 ) {
+            return $s;
+        }
         return rtrim( rtrim( $s, '0' ), '.' );
+    }
+
+    private static function format_range( float $low, float $high, int $max_decimals ): string {
+        if ( abs( $low - $high ) < 0.00001 ) {
+            return self::format_number( $low, $max_decimals );
+        }
+        return self::format_number( $low, $max_decimals ) . '–' . self::format_number( $high, $max_decimals );
+    }
+
+    private static function format_fraction( float $n ): ?string {
+        $sign = $n < 0 ? '-' : '';
+        $absolute = abs( $n );
+        $whole = (int) floor( $absolute );
+        $remainder = $absolute - $whole;
+        $fractions = [
+            '⅛' => 1.0 / 8.0,
+            '⅙' => 1.0 / 6.0,
+            '⅕' => 1.0 / 5.0,
+            '¼' => 1.0 / 4.0,
+            '⅓' => 1.0 / 3.0,
+            '⅖' => 2.0 / 5.0,
+            '½' => 1.0 / 2.0,
+            '⅗' => 3.0 / 5.0,
+            '⅔' => 2.0 / 3.0,
+            '¾' => 3.0 / 4.0,
+            '⅘' => 4.0 / 5.0,
+            '⅚' => 5.0 / 6.0,
+            '⅞' => 7.0 / 8.0,
+        ];
+
+        foreach ( $fractions as $glyph => $value ) {
+            if ( abs( $remainder - $value ) < 0.015 ) {
+                return $sign . ( $whole > 0 ? (string) $whole : '' ) . $glyph;
+            }
+        }
+
+        return null;
     }
 
     public static function display_unit( string $unit ): string {
@@ -262,7 +418,8 @@ class Units {
         $notes      = $ingredient['notes']  ?? '';
 
         $value = self::parse_amount( $amount_raw );
-        if ( $value === null ) {
+        $range = self::parse_amount_range( $amount_raw );
+        if ( $value === null && $range === null ) {
             return [
                 'amount' => $amount_raw,
                 'unit'   => self::display_unit( $unit ),
@@ -271,8 +428,10 @@ class Units {
             ];
         }
 
-        $scaled = $value * $scale;
-        $converted = self::to_preference( $scaled, $unit, $preference );
+        $scaled_amount = $range !== null
+            ? self::format_range( $range[0] * $scale, $range[1] * $scale, $range[1] * $scale < 10 ? 2 : 0 )
+            : $value * $scale;
+        $converted = self::to_preference( $scaled_amount, $unit, $preference );
         return [
             'amount' => $converted['amount'],
             'unit'   => self::display_unit( $converted['unit'] ),
