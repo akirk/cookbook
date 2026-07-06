@@ -55,6 +55,55 @@ class RecipeServiceTest extends TestCase {
         $this->assertSame( [ 'Mix everything' ], $parts[0]['instructions'] );
     }
 
+    public function test_apply_recipe_part_template_preserves_sections_for_flat_translated_ingredients(): void {
+        $parts = $this->invoke( 'apply_recipe_part_template', [
+            [
+                'title'       => 'Sauce',
+                'ingredients' => [
+                    [ 'amount' => '1', 'unit' => 'tbsp', 'name' => 'mustard', 'notes' => '' ],
+                ],
+            ],
+            [
+                'title'       => 'Fish',
+                'ingredients' => [
+                    [ 'amount' => '2', 'unit' => '', 'name' => 'salmon', 'notes' => '' ],
+                    [ 'amount' => '1', 'unit' => '', 'name' => 'lemon', 'notes' => '' ],
+                ],
+            ],
+        ], [
+            [ 'amount' => '1', 'unit' => 'EL', 'name' => 'Senf', 'notes' => '' ],
+            [ 'amount' => '2', 'unit' => '', 'name' => 'Lachs', 'notes' => '' ],
+            [ 'amount' => '1', 'unit' => '', 'name' => 'Zitrone', 'notes' => '' ],
+        ], [] );
+
+        $this->assertCount( 2, $parts );
+        $this->assertSame( 'Sauce', $parts[0]['title'] );
+        $this->assertSame( 'Senf', $parts[0]['ingredients'][0]['name'] );
+        $this->assertSame( 'Fish', $parts[1]['title'] );
+        $this->assertSame( [ 'Lachs', 'Zitrone' ], array_column( $parts[1]['ingredients'], 'name' ) );
+    }
+
+    public function test_apply_recipe_part_template_returns_empty_when_counts_do_not_match(): void {
+        $parts = $this->invoke( 'apply_recipe_part_template', [
+            [
+                'title'       => 'Sauce',
+                'ingredients' => [
+                    [ 'amount' => '1', 'unit' => 'tbsp', 'name' => 'mustard', 'notes' => '' ],
+                ],
+            ],
+            [
+                'title'       => 'Fish',
+                'ingredients' => [
+                    [ 'amount' => '2', 'unit' => '', 'name' => 'salmon', 'notes' => '' ],
+                ],
+            ],
+        ], [
+            [ 'amount' => '1', 'unit' => 'EL', 'name' => 'Senf', 'notes' => '' ],
+        ], [] );
+
+        $this->assertSame( [], $parts );
+    }
+
     private function invoke( string $method, ...$args ) {
         $reflection = new ReflectionMethod( RecipeService::class, $method );
         $reflection->setAccessible( true );

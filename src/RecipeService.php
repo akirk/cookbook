@@ -202,8 +202,13 @@ class RecipeService extends AbstractService {
             $instructions = $source_id ? (array) get_post_meta( $source_id, App::META_INSTRUCTIONS, true ) : [];
         }
 
-        if ( ! $has_parts_input && $source_id && ! array_key_exists( 'ingredients', $input ) && ! array_key_exists( 'instructions', $input ) ) {
-            $parts = (array) get_post_meta( $source_id, App::META_PARTS, true );
+        if ( ! $has_parts_input && $source_id ) {
+            $source_parts = (array) get_post_meta( $source_id, App::META_PARTS, true );
+            if ( ! array_key_exists( 'ingredients', $input ) && ! array_key_exists( 'instructions', $input ) ) {
+                $parts = $source_parts;
+            } else {
+                $parts = $this->apply_recipe_part_template( $source_parts, $ingredients, $instructions );
+            }
         }
 
         $post_id = wp_insert_post( [
@@ -304,13 +309,30 @@ class RecipeService extends AbstractService {
 
             $this->persist_recipe_parts( $id, $parts );
         } else {
-            if ( array_key_exists( 'ingredients', $input ) && is_array( $input['ingredients'] ) ) {
-                $this->persist_ingredients( $id, $this->sanitize_recipe_ingredient_rows( $input['ingredients'] ) );
-                delete_post_meta( $id, App::META_PARTS );
-            }
-            if ( array_key_exists( 'instructions', $input ) && is_array( $input['instructions'] ) ) {
-                update_post_meta( $id, App::META_INSTRUCTIONS, $this->sanitize_recipe_instruction_rows( $input['instructions'] ) );
-                delete_post_meta( $id, App::META_PARTS );
+            $has_ingredients_input  = array_key_exists( 'ingredients', $input ) && is_array( $input['ingredients'] );
+            $has_instructions_input = array_key_exists( 'instructions', $input ) && is_array( $input['instructions'] );
+
+            if ( $has_ingredients_input || $has_instructions_input ) {
+                $ingredients = $has_ingredients_input
+                    ? $this->sanitize_recipe_ingredient_rows( $input['ingredients'] )
+                    : (array) get_post_meta( $id, App::META_INGREDIENTS, true );
+                $instructions = $has_instructions_input
+                    ? $this->sanitize_recipe_instruction_rows( $input['instructions'] )
+                    : (array) get_post_meta( $id, App::META_INSTRUCTIONS, true );
+
+                if ( $has_ingredients_input ) {
+                    $this->persist_ingredients( $id, $ingredients );
+                }
+                if ( $has_instructions_input ) {
+                    update_post_meta( $id, App::META_INSTRUCTIONS, $instructions );
+                }
+
+                $parts = $this->apply_recipe_part_template( $this->get_recipe_parts( $id ), $ingredients, $instructions );
+                if ( $parts ) {
+                    $this->persist_recipe_parts( $id, $parts );
+                } else {
+                    delete_post_meta( $id, App::META_PARTS );
+                }
             }
         }
         if ( array_key_exists( 'source_url', $input ) ) {
@@ -508,6 +530,45 @@ class RecipeService extends AbstractService {
             foreach ( $instruction_parts as $part ) {
                 $add_part( $part );
             }
+        }
+
+        return $parts;
+    }
+
+    private function apply_recipe_part_template( array $template_parts, array $ingredients, array $instructions ): array {
+        $template_parts = $this->normalize_recipe_parts_array( $template_parts, false );
+        if ( ! $template_parts ) {
+            return [];
+        }
+
+        $template_ingredient_count = count( $this->flatten_recipe_part_ingredients( $template_parts ) );
+        $template_instruction_count = count( $this->flatten_recipe_part_instructions( $template_parts ) );
+        $use_ingredients = $template_ingredient_count > 0 && $template_ingredient_count === count( $ingredients );
+        $use_instructions = $template_instruction_count > 0 && $template_instruction_count === count( $instructions );
+
+        if ( ! $use_ingredients && ! $use_instructions ) {
+            return [];
+        }
+
+        $parts = [];
+        $ingredient_offset = 0;
+        $instruction_offset = 0;
+        foreach ( $template_parts as $part ) {
+            $ingredient_count = isset( $part['ingredients'] ) && is_array( $part['ingredients'] )
+                ? count( $part['ingredients'] )
+                : 0;
+            $instruction_count = isset( $part['instructions'] ) && is_array( $part['instructions'] )
+                ? count( $part['instructions'] )
+                : 0;
+
+            $parts[] = [
+                'title'        => isset( $part['title'] ) ? (string) $part['title'] : '',
+                'ingredients'  => $use_ingredients ? array_slice( $ingredients, $ingredient_offset, $ingredient_count ) : [],
+                'instructions' => $use_instructions ? array_slice( $instructions, $instruction_offset, $instruction_count ) : [],
+            ];
+
+            $ingredient_offset += $ingredient_count;
+            $instruction_offset += $instruction_count;
         }
 
         return $parts;
