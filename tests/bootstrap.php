@@ -27,6 +27,24 @@ if ( ! function_exists( 'sanitize_text_field' ) ) {
 if ( ! function_exists( 'wp_kses_post' ) ) {
     function wp_kses_post( $text ) { return (string) $text; }
 }
+if ( ! function_exists( '__' ) ) {
+    function __( $text, $domain = 'default' ) { return $text; }
+}
+if ( ! function_exists( 'esc_html__' ) ) {
+    function esc_html__( $text, $domain = 'default' ) { return htmlspecialchars( $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' ); }
+}
+if ( ! function_exists( '_n' ) ) {
+    function _n( $single, $plural, $number, $domain = 'default' ) { return (int) $number === 1 ? $single : $plural; }
+}
+if ( ! function_exists( 'esc_html' ) ) {
+    function esc_html( $text ) { return htmlspecialchars( (string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' ); }
+}
+if ( ! function_exists( 'esc_url' ) ) {
+    function esc_url( $url ) { return (string) $url; }
+}
+if ( ! function_exists( 'esc_url_raw' ) ) {
+    function esc_url_raw( $url ) { return (string) $url; }
+}
 if ( ! function_exists( 'wp_remote_get' ) ) {
     function wp_remote_get( $url, $args = [] ) { return [ 'body' => '' ]; }
 }
@@ -34,7 +52,10 @@ if ( ! function_exists( 'wp_remote_retrieve_body' ) ) {
     function wp_remote_retrieve_body( $r ) { return is_array( $r ) ? ( $r['body'] ?? '' ) : ''; }
 }
 
+require_once dirname( __DIR__ ) . '/vendor/autoload.php';
+require_once dirname( __DIR__ ) . '/src/App.php';
 require_once dirname( __DIR__ ) . '/src/Units.php';
 require_once dirname( __DIR__ ) . '/src/Importer.php';
 require_once dirname( __DIR__ ) . '/src/AbstractService.php';
 require_once dirname( __DIR__ ) . '/src/RecipeService.php';
+require_once dirname( __DIR__ ) . '/src/StaticArchiveService.php';

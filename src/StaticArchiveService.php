@@ -51,6 +51,7 @@ class StaticArchiveService extends AbstractService {
         $source_url   = (string) get_post_meta( $id, App::META_SOURCE_URL, true );
         $ingredients  = (array) get_post_meta( $id, App::META_INGREDIENTS, true );
         $instructions = $this->clean_static_archive_instructions( (array) get_post_meta( $id, App::META_INSTRUCTIONS, true ) );
+        $parts        = $this->clean_static_archive_parts( (array) get_post_meta( $id, App::META_PARTS, true ) );
         $notes        = (string) get_post_meta( $id, App::META_NOTES, true );
 
         $html = '';
@@ -122,25 +123,19 @@ class StaticArchiveService extends AbstractService {
         }
 
         $html .= '<h2>' . esc_html__( 'Ingredients', 'cookbook' ) . '</h2>';
-        if ( $ingredients ) {
-            $items = [];
-            foreach ( $ingredients as $ingredient ) {
-                if ( ! is_array( $ingredient ) ) {
-                    continue;
-                }
-                $line = $this->static_archive_ingredient_text( $ingredient );
-                if ( $line !== '' ) {
-                    $items[] = '<li>' . esc_html( $line ) . '</li>';
-                }
-            }
-            $html .= $items ? '<ul>' . implode( '', $items ) . '</ul>' : '<p>' . esc_html__( 'No ingredients yet.', 'cookbook' ) . '</p>';
+        if ( $this->parts_have_ingredients( $parts ) ) {
+            $html .= $this->render_static_archive_ingredient_parts_html( $parts );
+        } elseif ( $ingredients ) {
+            $html .= $this->render_static_archive_ingredients_html( $ingredients );
         } else {
             $html .= '<p>' . esc_html__( 'No ingredients yet.', 'cookbook' ) . '</p>';
         }
 
         $html .= '<h2>' . esc_html__( 'Instructions', 'cookbook' ) . '</h2>';
-        if ( $instructions ) {
-            $html .= '<ol><li>' . implode( '</li><li>', array_map( 'wp_kses_post', $instructions ) ) . '</li></ol>';
+        if ( $this->parts_have_instructions( $parts ) ) {
+            $html .= $this->render_static_archive_instruction_parts_html( $parts );
+        } elseif ( $instructions ) {
+            $html .= $this->render_static_archive_instructions_html( $instructions );
         } else {
             $html .= '<p>' . esc_html__( 'No instructions yet.', 'cookbook' ) . '</p>';
         }
@@ -161,6 +156,7 @@ class StaticArchiveService extends AbstractService {
         $source_url   = (string) get_post_meta( $id, App::META_SOURCE_URL, true );
         $ingredients  = (array) get_post_meta( $id, App::META_INGREDIENTS, true );
         $instructions = $this->clean_static_archive_instructions( (array) get_post_meta( $id, App::META_INSTRUCTIONS, true ) );
+        $parts        = $this->clean_static_archive_parts( (array) get_post_meta( $id, App::META_PARTS, true ) );
         $notes        = (string) get_post_meta( $id, App::META_NOTES, true );
 
         $sections = [];
@@ -204,26 +200,15 @@ class StaticArchiveService extends AbstractService {
             $sections[] = $description;
         }
 
-        $ingredient_lines = [];
-        foreach ( $ingredients as $ingredient ) {
-            if ( ! is_array( $ingredient ) ) {
-                continue;
-            }
-            $line = $this->static_archive_ingredient_text( $ingredient );
-            if ( $line !== '' ) {
-                $ingredient_lines[] = '- ' . $this->static_archive_markdown_text( $line );
-            }
-        }
-        $sections[] = "## " . __( 'Ingredients', 'cookbook' ) . "\n\n" . ( $ingredient_lines ? implode( "\n", $ingredient_lines ) : __( 'No ingredients yet.', 'cookbook' ) );
+        $ingredient_markdown = $this->parts_have_ingredients( $parts )
+            ? $this->render_static_archive_ingredient_parts_markdown( $parts )
+            : $this->render_static_archive_ingredients_markdown( $ingredients );
+        $sections[] = "## " . __( 'Ingredients', 'cookbook' ) . "\n\n" . ( $ingredient_markdown !== '' ? $ingredient_markdown : __( 'No ingredients yet.', 'cookbook' ) );
 
-        $instruction_lines = [];
-        foreach ( $instructions as $index => $step ) {
-            $text = $this->static_archive_markdown_text( $step );
-            if ( $text !== '' ) {
-                $instruction_lines[] = ( $index + 1 ) . '. ' . $text;
-            }
-        }
-        $sections[] = "## " . __( 'Instructions', 'cookbook' ) . "\n\n" . ( $instruction_lines ? implode( "\n", $instruction_lines ) : __( 'No instructions yet.', 'cookbook' ) );
+        $instruction_markdown = $this->parts_have_instructions( $parts )
+            ? $this->render_static_archive_instruction_parts_markdown( $parts )
+            : $this->render_static_archive_instructions_markdown( $instructions );
+        $sections[] = "## " . __( 'Instructions', 'cookbook' ) . "\n\n" . ( $instruction_markdown !== '' ? $instruction_markdown : __( 'No instructions yet.', 'cookbook' ) );
 
         $notes_text = $this->static_archive_markdown_text( $notes );
         if ( $notes_text !== '' ) {
@@ -243,6 +228,178 @@ class StaticArchiveService extends AbstractService {
         }
 
         return $clean;
+    }
+
+    private function clean_static_archive_parts( array $parts ): array {
+        $clean = [];
+        foreach ( $parts as $part ) {
+            if ( ! is_array( $part ) ) {
+                continue;
+            }
+
+            $ingredients = [];
+            foreach ( (array) ( $part['ingredients'] ?? [] ) as $ingredient ) {
+                if ( ! is_array( $ingredient ) ) {
+                    continue;
+                }
+                if ( $this->static_archive_ingredient_text( $ingredient ) !== '' ) {
+                    $ingredients[] = $ingredient;
+                }
+            }
+
+            $instructions = $this->clean_static_archive_instructions( (array) ( $part['instructions'] ?? [] ) );
+            if ( ! $ingredients && ! $instructions ) {
+                continue;
+            }
+
+            $clean[] = [
+                'title'        => sanitize_text_field( (string) ( $part['title'] ?? '' ) ),
+                'ingredients'  => $ingredients,
+                'instructions' => $instructions,
+            ];
+        }
+
+        return $clean;
+    }
+
+    private function parts_have_ingredients( array $parts ): bool {
+        foreach ( $parts as $part ) {
+            if ( ! empty( $part['ingredients'] ) ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function parts_have_instructions( array $parts ): bool {
+        foreach ( $parts as $part ) {
+            if ( ! empty( $part['instructions'] ) ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function render_static_archive_ingredients_html( array $ingredients ): string {
+        $items = [];
+        foreach ( $ingredients as $ingredient ) {
+            if ( ! is_array( $ingredient ) ) {
+                continue;
+            }
+            $line = $this->static_archive_ingredient_text( $ingredient );
+            if ( $line !== '' ) {
+                $items[] = '<li>' . esc_html( $line ) . '</li>';
+            }
+        }
+
+        return $items ? '<ul>' . implode( '', $items ) . '</ul>' : '';
+    }
+
+    private function render_static_archive_ingredient_parts_html( array $parts ): string {
+        $html = '';
+        foreach ( $parts as $part ) {
+            if ( empty( $part['ingredients'] ) ) {
+                continue;
+            }
+            $section = '';
+            if ( ! empty( $part['title'] ) ) {
+                $section .= '<h3>' . esc_html( $part['title'] ) . '</h3>';
+            }
+            $section .= $this->render_static_archive_ingredients_html( $part['ingredients'] );
+            if ( $section !== '' ) {
+                $html .= '<section class="recipe-part">' . $section . '</section>';
+            }
+        }
+
+        return $html;
+    }
+
+    private function render_static_archive_instructions_html( array $instructions ): string {
+        return $instructions ? '<ol><li>' . implode( '</li><li>', array_map( 'wp_kses_post', $instructions ) ) . '</li></ol>' : '';
+    }
+
+    private function render_static_archive_instruction_parts_html( array $parts ): string {
+        $html = '';
+        foreach ( $parts as $part ) {
+            if ( empty( $part['instructions'] ) ) {
+                continue;
+            }
+            $section = '';
+            if ( ! empty( $part['title'] ) ) {
+                $section .= '<h3>' . esc_html( $part['title'] ) . '</h3>';
+            }
+            $section .= $this->render_static_archive_instructions_html( $part['instructions'] );
+            if ( $section !== '' ) {
+                $html .= '<section class="recipe-part">' . $section . '</section>';
+            }
+        }
+
+        return $html;
+    }
+
+    private function render_static_archive_ingredients_markdown( array $ingredients ): string {
+        $lines = [];
+        foreach ( $ingredients as $ingredient ) {
+            if ( ! is_array( $ingredient ) ) {
+                continue;
+            }
+            $line = $this->static_archive_ingredient_text( $ingredient );
+            if ( $line !== '' ) {
+                $lines[] = '- ' . $this->static_archive_markdown_text( $line );
+            }
+        }
+
+        return implode( "\n", $lines );
+    }
+
+    private function render_static_archive_ingredient_parts_markdown( array $parts ): string {
+        $sections = [];
+        foreach ( $parts as $part ) {
+            if ( empty( $part['ingredients'] ) ) {
+                continue;
+            }
+            $lines = [];
+            if ( ! empty( $part['title'] ) ) {
+                $lines[] = '### ' . $this->static_archive_markdown_text( $part['title'] );
+                $lines[] = '';
+            }
+            $lines[] = $this->render_static_archive_ingredients_markdown( $part['ingredients'] );
+            $sections[] = trim( implode( "\n", array_filter( $lines, static fn( $line ) => $line !== null ) ) );
+        }
+
+        return trim( implode( "\n\n", array_filter( $sections ) ) );
+    }
+
+    private function render_static_archive_instructions_markdown( array $instructions ): string {
+        $lines = [];
+        foreach ( $instructions as $index => $step ) {
+            $text = $this->static_archive_markdown_text( $step );
+            if ( $text !== '' ) {
+                $lines[] = ( $index + 1 ) . '. ' . $text;
+            }
+        }
+
+        return implode( "\n", $lines );
+    }
+
+    private function render_static_archive_instruction_parts_markdown( array $parts ): string {
+        $sections = [];
+        foreach ( $parts as $part ) {
+            if ( empty( $part['instructions'] ) ) {
+                continue;
+            }
+            $lines = [];
+            if ( ! empty( $part['title'] ) ) {
+                $lines[] = '### ' . $this->static_archive_markdown_text( $part['title'] );
+                $lines[] = '';
+            }
+            $lines[] = $this->render_static_archive_instructions_markdown( $part['instructions'] );
+            $sections[] = trim( implode( "\n", array_filter( $lines, static fn( $line ) => $line !== null ) ) );
+        }
+
+        return trim( implode( "\n\n", array_filter( $sections ) ) );
     }
 
     private function static_archive_ingredient_text( array $ingredient ): string {
