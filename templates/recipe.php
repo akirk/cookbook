@@ -38,8 +38,9 @@ foreach ( $instructions as $step ) {
 
 $ingredient_parts = [];
 $clean_instruction_parts = [];
-foreach ( $recipe_parts as $part ) {
+foreach ( $recipe_parts as $part_index => $part ) {
     if ( ! empty( $part['ingredients'] ) ) {
+        $part['part_index'] = (int) $part_index;
         $ingredient_parts[] = $part;
     }
 
@@ -54,15 +55,14 @@ foreach ( $recipe_parts as $part ) {
         $clean_instruction_parts[] = [
             'title' => (string) ( $part['title'] ?? '' ),
             'instructions' => $part_steps,
+            'part_index' => (int) $part_index,
         ];
     }
 }
-if ( $clean_instruction_parts ) {
-    $clean_instructions = [];
-    foreach ( $clean_instruction_parts as $part ) {
-        $clean_instructions = array_merge( $clean_instructions, $part['instructions'] );
-    }
-}
+$cook_step_count = $clean_instruction_parts
+    ? array_sum( array_map( static fn( $part ) => count( (array) $part['instructions'] ), $clean_instruction_parts ) )
+    : count( $clean_instructions );
+$has_clean_instructions = $cook_step_count > 0;
 
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only display preference, validated against an allow-list below.
 $units_param = isset( $_GET['units'] ) ? sanitize_text_field( wp_unslash( $_GET['units'] ) ) : '';
@@ -420,7 +420,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
 <?php endif; ?>
 
 <h2><?php esc_html_e( 'Instructions', 'cookbook' ); ?></h2>
-<?php if ( ! $clean_instructions ) : ?>
+<?php if ( ! $has_clean_instructions ) : ?>
     <p class="help"><?php esc_html_e( 'No instructions yet.', 'cookbook' ); ?></p>
 <?php elseif ( $clean_instruction_parts ) : ?>
     <div class="instruction-sections">
@@ -497,7 +497,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
     </ul>
 <?php endif; ?>
 
-<?php if ( $clean_instructions ) : ?>
+<?php if ( $has_clean_instructions ) : ?>
 <div class="cook-mode" id="cook-mode" role="dialog" aria-modal="true" aria-labelledby="cook-mode-title" hidden>
     <div class="cook-mode-shell">
         <header class="cook-mode-topbar">
@@ -512,25 +512,56 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
             <?php if ( $ingredients ) : ?>
                 <aside class="cook-mode-panel cook-mode-ingredients">
                     <h3><?php esc_html_e( 'Ingredients', 'cookbook' ); ?></h3>
-                    <ul class="cook-ingredient-list">
-                        <?php foreach ( $ingredients as $i => $ing ) :
-                            $rendered = Units::render_ingredient( $ing, 1.0, $preference );
-                            $quantity = trim( $rendered['amount'] . ' ' . $rendered['unit'] );
-                            ?>
-                            <li class="cook-ingredient" data-cook-ingredient-index="<?php echo (int) $i; ?>">
-                                <label for="cook-ingredient-<?php echo (int) $i; ?>">
-                                    <input id="cook-ingredient-<?php echo (int) $i; ?>" type="checkbox" data-cook-ingredient-check>
-                                    <span class="cook-ingredient-amount"><?php echo esc_html( $quantity ); ?></span>
-                                    <span class="cook-ingredient-name">
-                                        <?php echo esc_html( $rendered['name'] ); ?>
-                                        <?php if ( ! empty( $rendered['notes'] ) ) : ?>
-                                            <span class="cook-ingredient-note"> - <?php echo esc_html( $rendered['notes'] ); ?></span>
-                                        <?php endif; ?>
-                                    </span>
-                                </label>
-                            </li>
+                    <?php if ( $ingredient_parts ) : ?>
+                        <?php $cook_ingredient_index = 0; ?>
+                        <?php foreach ( $ingredient_parts as $part ) : ?>
+                            <section class="cook-ingredient-section" data-cook-ingredient-section data-cook-part-index="<?php echo (int) $part['part_index']; ?>">
+                                <?php if ( ! empty( $part['title'] ) ) : ?>
+                                    <h4 class="cook-ingredient-section-title"><?php echo esc_html( $part['title'] ); ?></h4>
+                                <?php endif; ?>
+                                <ul class="cook-ingredient-list">
+                                    <?php foreach ( (array) $part['ingredients'] as $ing ) :
+                                        $rendered = Units::render_ingredient( $ing, 1.0, $preference );
+                                        $quantity = trim( $rendered['amount'] . ' ' . $rendered['unit'] );
+                                        ?>
+                                        <li class="cook-ingredient" data-cook-ingredient-index="<?php echo (int) $cook_ingredient_index; ?>" data-cook-part-index="<?php echo (int) $part['part_index']; ?>">
+                                            <label for="cook-ingredient-<?php echo (int) $cook_ingredient_index; ?>">
+                                                <input id="cook-ingredient-<?php echo (int) $cook_ingredient_index; ?>" type="checkbox" data-cook-ingredient-check>
+                                                <span class="cook-ingredient-amount"><?php echo esc_html( $quantity ); ?></span>
+                                                <span class="cook-ingredient-name">
+                                                    <?php echo esc_html( $rendered['name'] ); ?>
+                                                    <?php if ( ! empty( $rendered['notes'] ) ) : ?>
+                                                        <span class="cook-ingredient-note"> - <?php echo esc_html( $rendered['notes'] ); ?></span>
+                                                    <?php endif; ?>
+                                                </span>
+                                            </label>
+                                        </li>
+                                        <?php $cook_ingredient_index++; ?>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </section>
                         <?php endforeach; ?>
-                    </ul>
+                    <?php else : ?>
+                        <ul class="cook-ingredient-list">
+                            <?php foreach ( $ingredients as $i => $ing ) :
+                                $rendered = Units::render_ingredient( $ing, 1.0, $preference );
+                                $quantity = trim( $rendered['amount'] . ' ' . $rendered['unit'] );
+                                ?>
+                                <li class="cook-ingredient" data-cook-ingredient-index="<?php echo (int) $i; ?>">
+                                    <label for="cook-ingredient-<?php echo (int) $i; ?>">
+                                        <input id="cook-ingredient-<?php echo (int) $i; ?>" type="checkbox" data-cook-ingredient-check>
+                                        <span class="cook-ingredient-amount"><?php echo esc_html( $quantity ); ?></span>
+                                        <span class="cook-ingredient-name">
+                                            <?php echo esc_html( $rendered['name'] ); ?>
+                                            <?php if ( ! empty( $rendered['notes'] ) ) : ?>
+                                                <span class="cook-ingredient-note"> - <?php echo esc_html( $rendered['notes'] ); ?></span>
+                                            <?php endif; ?>
+                                        </span>
+                                    </label>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
                 </aside>
             <?php endif; ?>
 
@@ -540,7 +571,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
                         <strong id="cook-step-count"></strong>
                         <span id="cook-step-done-count"></span>
                     </div>
-                    <progress id="cook-step-progress" value="1" max="<?php echo (int) count( $clean_instructions ); ?>"></progress>
+                    <progress id="cook-step-progress" value="1" max="<?php echo (int) $cook_step_count; ?>"></progress>
                     <p class="help" style="margin:0"><?php esc_html_e( 'Shortcuts: Space or Right arrow for next, Left arrow for previous, Escape to exit.', 'cookbook' ); ?></p>
                 </div>
 
@@ -576,36 +607,77 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
                 </div>
 
                 <ol class="cook-step-list">
-                    <?php foreach ( $clean_instructions as $i => $step ) : ?>
-                        <li class="cook-step-row" data-cook-step-index="<?php echo (int) $i; ?>">
-                            <div class="cook-step-full" hidden><?php echo wp_kses_post( $step ); ?></div>
-                            <div class="cook-step-list-row">
-                                <input
-                                    id="cook-step-check-<?php echo (int) $i; ?>"
-                                    class="cook-step-check"
-                                    type="checkbox"
-                                    data-cook-step-check
-                                    aria-label="<?php echo esc_attr( sprintf(
-                                        /* translators: %d: step number */
-                                        __( 'Step %d done', 'cookbook' ),
-                                        (int) $i + 1
-                                    ) ); ?>"
-                                >
-                                <button class="cook-step-jump" type="button" data-cook-step-jump="<?php echo (int) $i; ?>">
-                                    <span class="cook-step-list-index">
-                                        <?php
-                                        echo esc_html( sprintf(
+                    <?php $cook_step_index = 0; ?>
+                    <?php if ( $clean_instruction_parts ) : ?>
+                        <?php foreach ( $clean_instruction_parts as $part ) : ?>
+                            <?php if ( ! empty( $part['title'] ) ) : ?>
+                                <li class="cook-step-section-title"><?php echo esc_html( $part['title'] ); ?></li>
+                            <?php endif; ?>
+                            <?php foreach ( (array) $part['instructions'] as $step ) : ?>
+                                <li class="cook-step-row" data-cook-step-index="<?php echo (int) $cook_step_index; ?>" data-cook-part-index="<?php echo (int) $part['part_index']; ?>">
+                                    <div class="cook-step-full" hidden><?php echo wp_kses_post( $step ); ?></div>
+                                    <div class="cook-step-list-row">
+                                        <input
+                                            id="cook-step-check-<?php echo (int) $cook_step_index; ?>"
+                                            class="cook-step-check"
+                                            type="checkbox"
+                                            data-cook-step-check
+                                            aria-label="<?php echo esc_attr( sprintf(
+                                                /* translators: %d: step number */
+                                                __( 'Step %d done', 'cookbook' ),
+                                                (int) $cook_step_index + 1
+                                            ) ); ?>"
+                                        >
+                                        <button class="cook-step-jump" type="button" data-cook-step-jump="<?php echo (int) $cook_step_index; ?>">
+                                            <span class="cook-step-list-index">
+                                                <?php
+                                                echo esc_html( sprintf(
+                                                    /* translators: %d: step number */
+                                                    __( 'Step %d', 'cookbook' ),
+                                                    (int) $cook_step_index + 1
+                                                ) );
+                                                ?>
+                                            </span>
+                                            <span class="cook-step-list-text"><?php echo esc_html( wp_strip_all_tags( $step ) ); ?></span>
+                                        </button>
+                                    </div>
+                                </li>
+                                <?php $cook_step_index++; ?>
+                            <?php endforeach; ?>
+                        <?php endforeach; ?>
+                    <?php else : ?>
+                        <?php foreach ( $clean_instructions as $step ) : ?>
+                            <li class="cook-step-row" data-cook-step-index="<?php echo (int) $cook_step_index; ?>">
+                                <div class="cook-step-full" hidden><?php echo wp_kses_post( $step ); ?></div>
+                                <div class="cook-step-list-row">
+                                    <input
+                                        id="cook-step-check-<?php echo (int) $cook_step_index; ?>"
+                                        class="cook-step-check"
+                                        type="checkbox"
+                                        data-cook-step-check
+                                        aria-label="<?php echo esc_attr( sprintf(
                                             /* translators: %d: step number */
-                                            __( 'Step %d', 'cookbook' ),
-                                            (int) $i + 1
-                                        ) );
-                                        ?>
-                                    </span>
-                                    <span class="cook-step-list-text"><?php echo esc_html( wp_strip_all_tags( $step ) ); ?></span>
-                                </button>
-                            </div>
-                        </li>
-                    <?php endforeach; ?>
+                                            __( 'Step %d done', 'cookbook' ),
+                                            (int) $cook_step_index + 1
+                                        ) ); ?>"
+                                    >
+                                    <button class="cook-step-jump" type="button" data-cook-step-jump="<?php echo (int) $cook_step_index; ?>">
+                                        <span class="cook-step-list-index">
+                                            <?php
+                                            echo esc_html( sprintf(
+                                                /* translators: %d: step number */
+                                                __( 'Step %d', 'cookbook' ),
+                                                (int) $cook_step_index + 1
+                                            ) );
+                                            ?>
+                                        </span>
+                                        <span class="cook-step-list-text"><?php echo esc_html( wp_strip_all_tags( $step ) ); ?></span>
+                                    </button>
+                                </div>
+                            </li>
+                            <?php $cook_step_index++; ?>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </ol>
             </section>
         </div>
@@ -645,6 +717,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
     const cookStepChecks = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-step-check]')) : [];
     const cookIngredientRows = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-ingredient-index]')) : [];
     const cookIngredientChecks = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-ingredient-check]')) : [];
+    const cookIngredientSections = cookMode ? Array.from(cookMode.querySelectorAll('[data-cook-ingredient-section]')) : [];
     const cookStepIngredientMatches = [];
     const cookStrings = {
         <?php /* translators: 1: current step number, 2: total number of steps */ ?>
@@ -841,14 +914,22 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
         const ingredientWords = cookIngredientRows.map(cookIngredientMatchWords);
         cookStepRows.forEach((row, stepIndex) => {
             const stepWords = cookStepWords(row);
-            cookStepIngredientMatches[stepIndex] = cookIngredientRows
+            const stepPartIndex = row.dataset.cookPartIndex || '';
+            const candidateIndexes = cookIngredientRows
                 .map((ingredientRow, ingredientIndex) => {
+                    if (stepPartIndex && ingredientRow.dataset.cookPartIndex !== stepPartIndex) return null;
+                    return ingredientIndex;
+                })
+                .filter(index => index !== null);
+            const matchedIndexes = candidateIndexes
+                .map(ingredientIndex => {
                     const matched = ingredientWords[ingredientIndex].some(ingredientWord => {
                         return stepWords.some(stepWord => cookWordMatchesIngredient(stepWord, ingredientWord));
                     });
                     return matched ? ingredientIndex : null;
                 })
                 .filter(index => index !== null);
+            cookStepIngredientMatches[stepIndex] = matchedIndexes.length || !stepPartIndex ? matchedIndexes : candidateIndexes;
         });
     }
 
@@ -888,6 +969,14 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
         if (existing) existing.remove();
         const panel = renderActiveStepIngredients();
         if (panel) cookActiveStep.appendChild(panel);
+    }
+
+    function updateCookIngredientSections() {
+        if (!cookIngredientSections.length || !cookStepRows[activeCookStep]) return;
+        const activePartIndex = cookStepRows[activeCookStep].dataset.cookPartIndex || '';
+        cookIngredientSections.forEach(section => {
+            section.classList.toggle('is-active', !!activePartIndex && section.dataset.cookPartIndex === activePartIndex);
+        });
     }
 
     function isCookModeOpen() {
@@ -945,6 +1034,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
         cookIngredientRows.forEach((row, index) => {
             row.classList.toggle('is-checked', !!(cookIngredientChecks[index] && cookIngredientChecks[index].checked));
         });
+        updateCookIngredientSections();
         if (cookActiveCheck) {
             cookActiveCheck.checked = !!(cookStepChecks[activeCookStep] && cookStepChecks[activeCookStep].checked);
         }

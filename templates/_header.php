@@ -270,6 +270,12 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
         .cook-mode-layout { display: grid; grid-template-columns: minmax(16rem, 24rem) minmax(0, 1fr); gap: 1rem; align-items: start; padding: 1rem; }
         .cook-mode-panel { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1rem; }
         .cook-mode-panel h3 { margin: 0 0 0.75rem; font-size: 1rem; }
+        .cook-ingredient-section { border: 1px solid transparent; border-radius: 6px; margin: 0 -0.4rem 0.75rem; padding: 0.4rem; }
+        .cook-ingredient-section:last-child { margin-bottom: 0; }
+        .cook-ingredient-section.is-active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+        .cook-ingredient-section-title,
+        .cook-step-section-title { color: var(--muted); font-size: 0.82rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+        .cook-ingredient-section-title { margin: 0 0 0.35rem; }
         .cook-ingredient-list,
         .cook-step-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.55rem; }
         .cook-ingredient label { display: grid; grid-template-columns: auto minmax(4.5rem, auto) minmax(0, 1fr); gap: 0.65rem; align-items: baseline; margin: 0; padding: 0.55rem 0; border-bottom: 1px dashed var(--line); cursor: pointer; font-weight: 400; }
@@ -309,6 +315,8 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
         .cook-finish textarea { min-height: 4.5rem; resize: vertical; }
         .cook-finish label[for="cook-finish-note"],
         .cook-finish textarea { grid-column: 1 / -1; }
+        .cook-step-section-title { margin: 0.45rem 0 0; padding: 0.25rem 0.1rem; }
+        .cook-step-section-title:first-child { margin-top: 0; }
         .cook-step-row { border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
         .cook-step-row.is-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
         .cook-step-list-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.65rem; align-items: start; margin: 0; padding: 0.65rem; }
