@@ -189,8 +189,21 @@ class Importer {
         // ingredient note and should not erase the actual ingredient name.
         $rest = preg_replace( '/^\([^)]*\)\s*/u', '', trim( $rest ) );
         if ( preg_match( '/^(.+?)[,(](.*)$/u', $rest, $m ) ) {
-            $rest = trim( $m[1] );
-            $notes = trim( rtrim( $m[2], ')' ) );
+            $left  = trim( $m[1] );
+            $right = trim( rtrim( $m[2], ')' ) );
+            // Ingredient lists are not consistent about which side of the comma
+            // holds the ingredient. "140g cooled, cooked rice" writes the
+            // preparation first, which would otherwise register "cooled" as the
+            // ingredient. Only swap when the left side is a single unambiguous
+            // preparation word, so "onion, finely chopped" and "baby potatoes,
+            // washed" keep their current behaviour.
+            if ( $right !== '' && self::is_preparation_word( $left ) ) {
+                $tmp   = $left;
+                $left  = $right;
+                $right = $tmp;
+            }
+            $rest  = $left;
+            $notes = $right;
         }
         return [
             'amount' => trim( $amount ),
@@ -198,6 +211,23 @@ class Importer {
             'name'   => trim( $rest ),
             'notes'  => $notes,
         ];
+    }
+
+    /**
+     * A single word that describes how an ingredient was prepared rather than
+     * what it is. Deliberately conservative: multi-word input is never a match,
+     * and "cooked" is excluded because "cooked rice" is an ingredient in its
+     * own right.
+     */
+    private static function is_preparation_word( string $text ): bool {
+        if ( strpos( $text, ' ' ) !== false ) {
+            return false;
+        }
+        $words = [ 'cooled', 'chilled', 'warmed', 'melted', 'softened', 'beaten',
+                   'drained', 'rinsed', 'peeled', 'crushed', 'grated', 'minced',
+                   'chopped', 'diced', 'sliced', 'halved', 'quartered', 'trimmed',
+                   'shredded', 'toasted', 'cubed', 'washed' ];
+        return in_array( mb_strtolower( $text ), $words, true );
     }
 
     /**

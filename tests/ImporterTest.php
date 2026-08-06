@@ -192,6 +192,28 @@ class ImporterTest extends TestCase {
         $this->assertSame( $expected, Importer::parse_ingredient_line( $line ) );
     }
 
+    public function test_parse_ingredient_line_handles_preparation_before_ingredient(): void {
+        // bbcgoodfood.com writes "140g cooled, cooked rice" — the preparation
+        // first, the reverse of the usual "<ingredient>, <preparation>" order.
+        // Without the swap this registers "cooled" as the ingredient.
+        $this->assertSame(
+            [ 'amount' => '140', 'unit' => 'g', 'name' => 'cooked rice', 'notes' => 'cooled' ],
+            Importer::parse_ingredient_line( '140g cooled, cooked rice' )
+        );
+
+        // A multi-word left side is never swapped, so the common order stands.
+        $this->assertSame(
+            [ 'amount' => '1', 'unit' => '', 'name' => 'baby potatoes', 'notes' => 'washed' ],
+            Importer::parse_ingredient_line( '1 baby potatoes, washed' )
+        );
+
+        // Nor is a single word that is not a preparation.
+        $this->assertSame(
+            'onion',
+            Importer::parse_ingredient_line( '1 onion, finely chopped' )['name']
+        );
+    }
+
     public static function ingredientLines(): array {
         return [
             'metric mass'   => [ '200 g Mascarpone',  [ 'amount' => '200', 'unit' => 'g',     'name' => 'Mascarpone',  'notes' => '' ] ],
