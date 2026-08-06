@@ -56,24 +56,34 @@ class Importer {
     public static function from_html( string $html ): ?array {
         if ( $html === '' ) return null;
 
+        $parsed = null;
+
         $recipe = self::extract_jsonld_recipe( $html );
         if ( $recipe ) {
-            $parsed = self::normalize_jsonld( $recipe );
-            if ( $parsed ) {
-                return self::merge_html_parts_into_parsed( $parsed, $html );
+            $normalized = self::normalize_jsonld( $recipe );
+            if ( $normalized ) {
+                $parsed = self::merge_html_parts_into_parsed( $normalized, $html );
             }
         }
 
-        $parsed = self::extract_microdata_recipe( $html );
-        if ( $parsed ) {
-            return self::merge_html_parts_into_parsed( $parsed, $html );
+        if ( ! $parsed ) {
+            $micro = self::extract_microdata_recipe( $html );
+            if ( $micro ) {
+                $parsed = self::merge_html_parts_into_parsed( $micro, $html );
+            }
         }
 
-        $text = wp_strip_all_tags( $html );
-        if ( ! self::has_recipe_section_markers( $text ) ) {
-            return null;
+        if ( ! $parsed ) {
+            $text = wp_strip_all_tags( $html );
+            if ( ! self::has_recipe_section_markers( $text ) ) {
+                return null;
+            }
+            $parsed = self::from_text( $text );
         }
-        return self::from_text( $text );
+
+        if ( ! $parsed ) return null;
+
+        return $parsed;
     }
 
     private static function has_recipe_section_markers( string $text ): bool {
@@ -162,6 +172,7 @@ class Importer {
 
     public static function parse_ingredient_line( string $line ): array {
         $line = preg_replace( '#^\s*[-*•]\s*#u', '', $line );
+        $line = preg_replace( '/\b(\w+)\(s\)/u', '$1s', $line );
 
         // Longest alternatives first so regex doesn't match a prefix (e.g. "kg" before "g").
         $units_pattern = 'kilograms|kilogram|milliliters|milliliter|millilitres|millilitre|'
@@ -169,7 +180,8 @@ class Importer {
             . 'pounds|pound|ounces|ounce|gallons|gallon|quarts|quart|pints|pint|'
             . 'liters|liter|litres|litre|grams|gram|cups|tbsp|tbs|tsp|fl oz|kg|mg|ml|lb|lbs|oz|pt|qt|cup|gal|l|g|'
             . 'EL|TL|Stk|Stück|Msp|Pk|Pkg|Pck|Prise|Bund|Pkt|'
-            . 'pinch|dash|cloves|clove|slices|slice|pieces|piece|cans|can|bunch';
+            . 'pinch|dash|cloves|clove|slices|slice|pieces|piece|cans|can|bunch|'
+            . 'units|unit|sachets|sachet';
 
         $amount_pattern = '(?:\d+(?:[.,]\d+)?\s+\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?|[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])';
 
@@ -414,12 +426,18 @@ class Importer {
         }
         $parts = self::merge_recipe_parts( $ingredient_parts, $instruction_parts );
 
+        $prep_min = self::iso8601_to_minutes( $r['prepTime'] ?? '' );
+        $cook_min = self::iso8601_to_minutes( $r['cookTime'] ?? '' );
+        if ( ! $prep_min && ! $cook_min && ! empty( $r['totalTime'] ) ) {
+            $cook_min = self::iso8601_to_minutes( $r['totalTime'] );
+        }
+
         return [
             'title'        => $title,
             'description'  => $description,
             'servings'     => $servings,
-            'prep_time'    => self::iso8601_to_minutes( $r['prepTime'] ?? '' ),
-            'cook_time'    => self::iso8601_to_minutes( $r['cookTime'] ?? '' ),
+            'prep_time'    => $prep_min,
+            'cook_time'    => $cook_min,
             'ingredients'  => $ingredients,
             'instructions' => $instructions,
             'parts'        => $parts,
@@ -938,6 +956,9 @@ class Importer {
      * double up with the <ol> numbering on the recipe view.
      */
     public static function clean_step( string $step ): string {
+        $step = preg_replace( '#</(li|p|div)>|<br\s*/?>#i', ' ', $step );
+        $step = wp_strip_all_tags( $step );
+        $step = preg_replace( '/\s+/u', ' ', $step );
         $step = trim( $step );
         if ( $step === '' ) return '';
         // Loop so combined prefixes ("- 1. text") get peeled off in any order.

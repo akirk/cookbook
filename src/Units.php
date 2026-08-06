@@ -86,6 +86,13 @@ class Units {
         'pck'         => 'packet',
         'pkt'         => 'packet',
         'packung'     => 'packet',
+
+        // Meal-kit sites write countable items as "1 unit(s) Courgette" and
+        // "1 sachet(s) Vegetable Stock". Treat them as the units they mean.
+        'unit'        => 'piece',
+        'units'       => 'piece',
+        'sachet'      => 'packet',
+        'sachets'     => 'packet',
     ];
 
     public const COMMON_UNITS = [
