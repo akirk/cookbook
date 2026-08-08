@@ -93,6 +93,8 @@ class Units {
         'units'       => 'piece',
         'sachet'      => 'packet',
         'sachets'     => 'packet',
+        'pack'        => 'packet',
+        'packs'       => 'packet',
     ];
 
     public const COMMON_UNITS = [

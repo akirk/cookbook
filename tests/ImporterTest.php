@@ -287,6 +287,7 @@ class ImporterTest extends TestCase {
             'unit(s) idiom'   => [ '1 unit(s) Courgette',           [ 'amount' => '1', 'unit' => 'piece',  'name' => 'Courgette',       'notes' => '' ] ],
             'unit(s) frac'    => [ '½ unit(s) Lemon',               [ 'amount' => '½', 'unit' => 'piece',  'name' => 'Lemon',           'notes' => '' ] ],
             'sachet(s) idiom' => [ '1 sachet(s) Vegetable Stock',   [ 'amount' => '1', 'unit' => 'packet', 'name' => 'Vegetable Stock', 'notes' => '' ] ],
+            'pack(s) idiom'   => [ '1 pack(s) Coconut Milk',        [ 'amount' => '1', 'unit' => 'packet', 'name' => 'Coconut Milk',    'notes' => '' ] ],
         ];
     }
 }

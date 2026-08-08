@@ -181,7 +181,7 @@ class Importer {
             . 'liters|liter|litres|litre|grams|gram|cups|tbsp|tbs|tsp|fl oz|kg|mg|ml|lb|lbs|oz|pt|qt|cup|gal|l|g|'
             . 'EL|TL|Stk|Stück|Msp|Pk|Pkg|Pck|Prise|Bund|Pkt|'
             . 'pinch|dash|cloves|clove|slices|slice|pieces|piece|cans|can|bunch|'
-            . 'units|unit|sachets|sachet';
+            . 'units|unit|sachets|sachet|packs|pack';
 
         $amount_pattern = '(?:\d+(?:[.,]\d+)?\s+\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?|[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])';
 
