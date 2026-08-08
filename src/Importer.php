@@ -188,9 +188,24 @@ class Importer {
         // e.g. "700 g (1½ lb) baby potatoes". That parenthetical is not the
         // ingredient note and should not erase the actual ingredient name.
         $rest = preg_replace( '/^\([^)]*\)\s*/u', '', trim( $rest ) );
-        if ( preg_match( '/^(.+?)[,(](.*)$/u', $rest, $m ) ) {
+        if ( preg_match( '/^(.+?)([,(])(.*)$/u', $rest, $m ) ) {
+            $delim = $m[2];
             $left  = trim( $m[1] );
-            $right = trim( rtrim( $m[2], ')' ) );
+            $right = trim( rtrim( $m[3], ')' ) );
+
+            // A comma between two capitalised segments belongs to the name, not
+            // to a note: HelloFresh sells "Garlic, Ginger & Lemongrass Paste" as
+            // one item. Notes are conventionally lower case ("finely chopped"),
+            // so requiring a capital on both sides keeps those splitting. Only
+            // commas are ambiguous this way; "(" always opens a note.
+            if ( ',' === $delim && self::starts_upper( $left ) && self::starts_upper( $right ) ) {
+                return [
+                    'amount' => trim( $amount ),
+                    'unit'   => Units::normalize_unit( $unit ),
+                    'name'   => $rest,
+                    'notes'  => '',
+                ];
+            }
             // Ingredient lists are not consistent about which side of the comma
             // holds the ingredient. "140g cooled, cooked rice" writes the
             // preparation first, which would otherwise register "cooled" as the
@@ -219,6 +234,14 @@ class Importer {
      * and "cooked" is excluded because "cooked rice" is an ingredient in its
      * own right.
      */
+    private static function starts_upper( string $text ): bool {
+        if ( $text === '' ) {
+            return false;
+        }
+        $first = mb_substr( $text, 0, 1 );
+        return mb_strtolower( $first ) !== $first;
+    }
+
     private static function is_preparation_word( string $text ): bool {
         if ( strpos( $text, ' ' ) !== false ) {
             return false;
