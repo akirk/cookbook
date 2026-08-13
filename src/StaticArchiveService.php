@@ -142,7 +142,7 @@ class StaticArchiveService extends AbstractService {
 
         if ( $notes ) {
             $html .= '<h2>' . esc_html__( 'Notes', 'cookbook' ) . '</h2>';
-            $html .= '<div class="recipe-notes">' . wp_kses_post( wpautop( $notes ) ) . '</div>';
+            $html .= '<div class="recipe-notes">' . wp_kses_post( Markdown::to_html( $notes ) ) . '</div>';
         }
 
         return $html;
@@ -210,7 +210,7 @@ class StaticArchiveService extends AbstractService {
             : $this->render_static_archive_instructions_markdown( $instructions );
         $sections[] = "## " . __( 'Instructions', 'cookbook' ) . "\n\n" . ( $instruction_markdown !== '' ? $instruction_markdown : __( 'No instructions yet.', 'cookbook' ) );
 
-        $notes_text = $this->static_archive_markdown_text( $notes );
+        $notes_text = $this->static_archive_markdown_text( Markdown::strip_images( $notes ) );
         if ( $notes_text !== '' ) {
             $sections[] = "## " . __( 'Notes', 'cookbook' ) . "\n\n" . $notes_text;
         }
