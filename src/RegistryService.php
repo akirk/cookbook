@@ -54,7 +54,7 @@ class RegistryService extends AbstractService {
             'show_ui'            => true,
             'show_in_menu'       => true,
             'show_in_rest'       => true,
-            'menu_icon'          => 'dashicons-carrot',
+            'menu_icon'          => 'dashicons-food',
             'supports'           => [ 'title', 'editor', 'thumbnail', 'excerpt', 'author', 'revisions' ],
             'has_archive'        => false,
             'rewrite'            => false,

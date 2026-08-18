@@ -58,6 +58,7 @@ class App extends BaseApp {
             'require_login'        => true,
             'app_name'             => 'Cookbook',
             'app_name_textdomain'  => 'cookbook',
+            'my_apps_icon'         => 'dashicons-food',
         ] );
     }
 
