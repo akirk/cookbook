@@ -11,6 +11,8 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 A personal cookbook for WordPress. Store, import, categorize, cook, scale, convert, plan, and shop from your own recipes.
 
+[Try Cookbook in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/cookbook/main/blueprint.json) · [Try it with demo data](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/cookbook/main/demo.json)
+
 ## Description
 
 Cookbook gives your WordPress site a private recipe app at `/cookbook/`. Recipes are stored as WordPress content, with structured ingredients, instructions, categories, cuisines, tags, photos, serving sizes, prep and cook times, source URLs, and notes.
