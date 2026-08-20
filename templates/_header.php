@@ -3,6 +3,32 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 if ( ! function_exists( 'cookbook_page_head' ) ) {
+    function cookbook_page_actions_allowed_html(): array {
+        return [
+            'a'      => [
+                'aria-current' => true,
+                'aria-label'   => true,
+                'class'        => true,
+                'href'         => true,
+                'title'        => true,
+            ],
+            'button' => [
+                'aria-label' => true,
+                'class'      => true,
+                'disabled'   => true,
+                'form'       => true,
+                'name'       => true,
+                'title'      => true,
+                'type'       => true,
+                'value'      => true,
+            ],
+            'span'   => [
+                'aria-hidden' => true,
+                'class'       => true,
+            ],
+        ];
+    }
+
     /**
      * Render a consistent Cookbook page heading with optional section navigation.
      *
@@ -12,7 +38,7 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
      *
      *     @type string $current_section Current section key: shopping, planner, cooked, ingredients.
      *     @type string $subtitle        Plain subtitle text.
-     *     @type string $actions_html    Already escaped/rendered action controls.
+     *     @type string $actions_html    Rendered action controls filtered against a small allow-list.
      *     @type bool   $nav             Whether to show section navigation. Default true.
      * }
      */
@@ -62,7 +88,7 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
             </div>
             <?php if ( $actions_html !== '' ) : ?>
                 <div class="page-actions">
-                    <?php echo $actions_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- callers build escaped controls. ?>
+                    <?php echo wp_kses( $actions_html, cookbook_page_actions_allowed_html() ); ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -485,14 +511,14 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
             #shopping-list-form.has-shopping-bulk-bar { padding-bottom: 8.5rem; }
             .household-list li { align-items: flex-start; flex-direction: column; }
             .cook-mode-topbar { align-items: flex-start; flex-direction: column; }
-            .cook-mode-layout { grid-template-columns: 1fr; }
+            .cook-mode-layout { grid-template-columns: 1fr; padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
             .cook-mode-main { order: 1; }
             .cook-mode-ingredients { order: 2; }
             .cook-active-step { min-height: 9rem; }
             .cook-active-step-text { font-size: 1.45rem; }
             .cook-active-ingredients ul { display: grid; gap: 0.4rem; }
             .cook-active-ingredients li { display: grid; grid-template-columns: minmax(4.5rem, auto) minmax(0, 1fr); }
-            .cook-mode-nav { align-items: stretch; flex-direction: column; }
+            .cook-mode-nav { position: sticky; bottom: 0; z-index: 3; align-items: stretch; flex-direction: column; margin: 0 -1rem; padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px)); background: var(--bg); border-top: 1px solid var(--line); box-shadow: 0 -0.35rem 0.9rem color-mix(in srgb, var(--bg) 88%, transparent); }
             .cook-mode-nav-group { width: 100%; }
             .cook-mode-nav-group .btn { flex: 1; text-align: center; }
             .cook-finish form { grid-template-columns: 1fr; align-items: stretch; }

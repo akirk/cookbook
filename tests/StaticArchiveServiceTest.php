@@ -58,6 +58,26 @@ class StaticArchiveServiceTest extends TestCase {
         );
     }
 
+    public function test_notes_markdown_renders_basic_markup_without_images(): void {
+        $html = Cookbook\Markdown::to_html(
+            "Keep it simple.\n\n## Variations\n\n- **Makhani:** add cream\n- [Source](https://example.com)\n- ![Photo](https://example.com/photo.jpg)"
+        );
+
+        $this->assertStringContainsString( '<p>Keep it simple.</p>', $html );
+        $this->assertStringContainsString( '<h3>Variations</h3>', $html );
+        $this->assertStringContainsString( '<li><strong>Makhani:</strong> add cream</li>', $html );
+        $this->assertStringContainsString( '<a href="https://example.com">Source</a>', $html );
+        $this->assertStringContainsString( '<li>Photo</li>', $html );
+        $this->assertStringNotContainsString( '<img', $html );
+    }
+
+    public function test_note_images_are_removed_from_markdown_exports(): void {
+        $this->assertSame(
+            'See Photo here.',
+            $this->invoke( 'static_archive_markdown_text', Cookbook\Markdown::strip_images( 'See ![Photo](https://example.com/photo.jpg) here.' ) )
+        );
+    }
+
     private function invoke( string $method, ...$args ) {
         $reflection = new ReflectionMethod( StaticArchiveService::class, $method );
         $reflection->setAccessible( true );
