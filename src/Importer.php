@@ -322,9 +322,37 @@ class Importer {
         // e.g. "700 g (1½ lb) baby potatoes". That parenthetical is not the
         // ingredient note and should not erase the actual ingredient name.
         $rest = preg_replace( '/^\([^)]*\)\s*/u', '', trim( $rest ) );
-        if ( preg_match( '/^(.+?)[,(](.*)$/u', $rest, $m ) ) {
-            $rest = trim( $m[1] );
-            $notes = trim( rtrim( $m[2], ')' ) );
+        if ( preg_match( '/^(.+?)([,(])(.*)$/u', $rest, $m ) ) {
+            $delim = $m[2];
+            $left  = trim( $m[1] );
+            $right = trim( rtrim( $m[3], ')' ) );
+
+            // A comma between two capitalised segments belongs to the name, not
+            // to a note: HelloFresh sells "Garlic, Ginger & Lemongrass Paste" as
+            // one item. Notes are conventionally lower case ("finely chopped"),
+            // so requiring a capital on both sides keeps those splitting. Only
+            // commas are ambiguous this way; "(" always opens a note.
+            if ( ',' === $delim && self::starts_upper( $left ) && self::starts_upper( $right ) ) {
+                return [
+                    'amount' => trim( $amount ),
+                    'unit'   => Units::normalize_unit( $unit ),
+                    'name'   => $rest,
+                    'notes'  => '',
+                ];
+            }
+            // Ingredient lists are not consistent about which side of the comma
+            // holds the ingredient. "140g cooled, cooked rice" writes the
+            // preparation first, which would otherwise register "cooled" as the
+            // ingredient. Only swap when the left side is a single unambiguous
+            // preparation word, so "onion, finely chopped" and "baby potatoes,
+            // washed" keep their current behaviour.
+            if ( $right !== '' && self::is_preparation_word( $left ) ) {
+                $tmp   = $left;
+                $left  = $right;
+                $right = $tmp;
+            }
+            $rest  = $left;
+            $notes = $right;
         }
         return [
             'amount' => trim( $amount ),
@@ -332,6 +360,31 @@ class Importer {
             'name'   => trim( $rest ),
             'notes'  => $notes,
         ];
+    }
+
+    /**
+     * A single word that describes how an ingredient was prepared rather than
+     * what it is. Deliberately conservative: multi-word input is never a match,
+     * and "cooked" is excluded because "cooked rice" is an ingredient in its
+     * own right.
+     */
+    private static function starts_upper( string $text ): bool {
+        if ( $text === '' ) {
+            return false;
+        }
+        $first = mb_substr( $text, 0, 1 );
+        return mb_strtolower( $first ) !== $first;
+    }
+
+    private static function is_preparation_word( string $text ): bool {
+        if ( strpos( $text, ' ' ) !== false ) {
+            return false;
+        }
+        $words = [ 'cooled', 'chilled', 'warmed', 'melted', 'softened', 'beaten',
+                   'drained', 'rinsed', 'peeled', 'crushed', 'grated', 'minced',
+                   'chopped', 'diced', 'sliced', 'halved', 'quartered', 'trimmed',
+                   'shredded', 'toasted', 'cubed', 'washed' ];
+        return in_array( mb_strtolower( $text ), $words, true );
     }
 
     /**
