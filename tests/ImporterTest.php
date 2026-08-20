@@ -240,6 +240,34 @@ class ImporterTest extends TestCase {
         $this->assertSame( [ 'Mix everything.' ], $parsed['instructions'] );
     }
 
+    public function test_wprm_notes_do_not_keep_their_leading_separator(): void {
+        // WP Recipe Maker renders "<name> (<notes>)", and some sites store the
+        // joining comma inside the notes field itself — veganhuggs.com's
+        // "1 small red onion (, diced)" comes from a notes value of ", diced".
+        $html = '<script type="application/ld+json">' . json_encode( [
+            '@context' => 'https://schema.org',
+            '@type' => 'Recipe',
+            'name' => 'WPRM Notes',
+            'recipeIngredient' => [ '1 small red onion (, diced)' ],
+            'recipeInstructions' => [ [ '@type' => 'HowToStep', 'text' => 'Fry it.' ] ],
+        ] ) . '</script>'
+        . '<div class="wprm-recipe-ingredient-group">'
+        . '<h4 class="wprm-recipe-group-name">Base</h4>'
+        . '<ul><li class="wprm-recipe-ingredient">'
+        . '<span class="wprm-recipe-ingredient-amount">1</span>'
+        . '<span class="wprm-recipe-ingredient-unit">small</span>'
+        . '<span class="wprm-recipe-ingredient-name">red onion</span>'
+        . '<span class="wprm-recipe-ingredient-notes">, diced</span>'
+        . '</li></ul></div>';
+
+        $parsed = Importer::from_html( $html );
+
+        $this->assertIsArray( $parsed );
+        $ingredient = $parsed['parts'][0]['ingredients'][0] ?? $parsed['ingredients'][0];
+        $this->assertSame( 'red onion', $ingredient['name'] );
+        $this->assertSame( 'diced', $ingredient['notes'], 'The note should not keep its leading comma.' );
+    }
+
     public function test_jsonld_iso8601_seconds_round_up_to_minutes(): void {
         $html = '<script type="application/ld+json">' . json_encode( [
             '@context' => 'https://schema.org',

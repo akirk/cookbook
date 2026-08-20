@@ -880,11 +880,22 @@ class Importer {
                 'amount' => trim( $amount ),
                 'unit'   => Units::normalize_unit( $unit ),
                 'name'   => trim( $name ),
-                'notes'  => trim( $notes ),
+                'notes'  => self::clean_note( $notes ),
             ];
         }
 
         return self::parse_ingredient_line( self::clean_html_list_text( (string) $node->textContent ) );
+    }
+
+    /**
+     * A note taken from a recipe plugin's own field can still carry the
+     * separator that was meant to join it to the ingredient name. WP Recipe
+     * Maker renders "<name> (<notes>)", and sites store the comma inside the
+     * notes field: veganhuggs.com's "1 small red onion (, diced)" comes from a
+     * notes value of ", diced". Nothing useful ever starts a note.
+     */
+    private static function clean_note( string $note ): string {
+        return trim( preg_replace( '/^[\s,;]+/u', '', $note ) );
     }
 
     private static function first_descendant_class_text( \DOMXPath $xpath, \DOMNode $scope, string $class_name ): string {
