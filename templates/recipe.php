@@ -5,6 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 use Cookbook\App;
 use Cookbook\Importer;
+use Cookbook\Markdown;
 use Cookbook\Units;
 
 $id = (int) get_query_var( 'id' );
@@ -447,7 +448,7 @@ $render_ingredient_row = function( array $ing, int $i ) use ( $preference, $id )
 
 <?php if ( $notes ) : ?>
     <h2><?php esc_html_e( 'Notes', 'cookbook' ); ?></h2>
-    <div><?php echo wp_kses_post( wpautop( $notes ) ); ?></div>
+    <div><?php echo wp_kses_post( Markdown::to_html( $notes ) ); ?></div>
 <?php endif; ?>
 
 <?php if ( $cooked_entries ) : ?>
