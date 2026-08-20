@@ -3,6 +3,32 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 if ( ! function_exists( 'cookbook_page_head' ) ) {
+    function cookbook_page_actions_allowed_html(): array {
+        return [
+            'a'      => [
+                'aria-current' => true,
+                'aria-label'   => true,
+                'class'        => true,
+                'href'         => true,
+                'title'        => true,
+            ],
+            'button' => [
+                'aria-label' => true,
+                'class'      => true,
+                'disabled'   => true,
+                'form'       => true,
+                'name'       => true,
+                'title'      => true,
+                'type'       => true,
+                'value'      => true,
+            ],
+            'span'   => [
+                'aria-hidden' => true,
+                'class'       => true,
+            ],
+        ];
+    }
+
     /**
      * Render a consistent Cookbook page heading with optional section navigation.
      *
@@ -12,7 +38,7 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
      *
      *     @type string $current_section Current section key: shopping, planner, cooked, ingredients.
      *     @type string $subtitle        Plain subtitle text.
-     *     @type string $actions_html    Already escaped/rendered action controls.
+     *     @type string $actions_html    Rendered action controls filtered against a small allow-list.
      *     @type bool   $nav             Whether to show section navigation. Default true.
      * }
      */
@@ -62,7 +88,7 @@ if ( ! function_exists( 'cookbook_page_head' ) ) {
             </div>
             <?php if ( $actions_html !== '' ) : ?>
                 <div class="page-actions">
-                    <?php echo $actions_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- callers build escaped controls. ?>
+                    <?php echo wp_kses( $actions_html, cookbook_page_actions_allowed_html() ); ?>
                 </div>
             <?php endif; ?>
         </div>

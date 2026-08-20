@@ -5,8 +5,70 @@ use Cookbook\Importer;
 
 class ImporterTest extends TestCase {
 
+    protected function setUp(): void {
+        $GLOBALS['wp_remote_get_calls'] = [];
+        unset( $GLOBALS['wp_remote_get_mock'] );
+    }
+
     private function fixture( string $name ): string {
         return file_get_contents( __DIR__ . '/fixtures/' . $name );
+    }
+
+    public function test_from_url_fetches_url_with_safety_limits(): void {
+        $GLOBALS['wp_remote_get_mock'] = function( $url, $args ) {
+            return [
+                'response' => [ 'code' => 200 ],
+                'body'     => '<script type="application/ld+json">' . json_encode( [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'Recipe',
+                    'name' => 'Remote Recipe',
+                    'recipeIngredient' => [ '1 cup flour' ],
+                    'recipeInstructions' => [ 'Mix.' ],
+                ] ) . '</script>',
+            ];
+        };
+
+        $parsed = Importer::from_url( 'https://93.184.216.34/recipe' );
+
+        $this->assertIsArray( $parsed );
+        $this->assertSame( 'Remote Recipe', $parsed['title'] );
+        $this->assertCount( 1, $GLOBALS['wp_remote_get_calls'] );
+        $args = $GLOBALS['wp_remote_get_calls'][0][1];
+        $this->assertSame( 0, $args['redirection'] );
+        $this->assertTrue( $args['reject_unsafe_urls'] );
+        $this->assertSame( 5242880, $args['limit_response_size'] );
+    }
+
+    public function test_from_url_accepts_public_hostname_without_resolving_it_first(): void {
+        $GLOBALS['wp_remote_get_mock'] = function( $url, $args ) {
+            return [
+                'response' => [ 'code' => 200 ],
+                'body'     => '<script type="application/ld+json">' . json_encode( [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'Recipe',
+                    'name' => 'Hostname Recipe',
+                    'recipeIngredient' => [ '1 cup flour' ],
+                    'recipeInstructions' => [ 'Mix.' ],
+                ] ) . '</script>',
+            ];
+        };
+
+        $parsed = Importer::from_url( 'https://example.com/recipe' );
+
+        $this->assertIsArray( $parsed );
+        $this->assertSame( 'Hostname Recipe', $parsed['title'] );
+        $this->assertSame( 'https://example.com/recipe', $GLOBALS['wp_remote_get_calls'][0][0] );
+    }
+
+    public function test_from_url_rejects_response_at_body_size_limit(): void {
+        $GLOBALS['wp_remote_get_mock'] = function( $url, $args ) {
+            return [
+                'response' => [ 'code' => 200 ],
+                'body'     => str_repeat( 'x', 5242880 ),
+            ];
+        };
+
+        $this->assertNull( Importer::from_url( 'https://93.184.216.34/recipe' ) );
     }
 
     public function test_jsonld_gutekueche_schinkenfleckerln(): void {
@@ -178,6 +240,28 @@ class ImporterTest extends TestCase {
         $this->assertSame( [ 'Mix everything.' ], $parsed['instructions'] );
     }
 
+    public function test_jsonld_iso8601_seconds_round_up_to_minutes(): void {
+        $html = '<script type="application/ld+json">' . json_encode( [
+            '@context' => 'https://schema.org',
+            '@type' => 'Recipe',
+            'name' => 'Seconds Recipe',
+            'prepTime' => 'PT30S',
+            'cookTime' => 'PT1M30S',
+            'recipeIngredient' => [
+                '1 cup flour',
+            ],
+            'recipeInstructions' => [
+                'Mix.',
+            ],
+        ] ) . '</script>';
+
+        $parsed = Importer::from_html( $html );
+
+        $this->assertIsArray( $parsed );
+        $this->assertSame( 1, $parsed['prep_time'] );
+        $this->assertSame( 2, $parsed['cook_time'] );
+    }
+
     public function test_clean_step_strips_enumerators(): void {
         $this->assertSame( 'Mix everything', Importer::clean_step( '1. Mix everything' ) );
         $this->assertSame( 'Mix everything', Importer::clean_step( '1) Mix everything' ) );
@@ -199,6 +283,7 @@ class ImporterTest extends TestCase {
             'fraction'      => [ '1/2 tsp salt',      [ 'amount' => '1/2', 'unit' => 'tsp',   'name' => 'salt',        'notes' => '' ] ],
             'mixed number'  => [ '1 1/2 cups water',  [ 'amount' => '1 1/2', 'unit' => 'cup', 'name' => 'water',       'notes' => '' ] ],
             'unicode frac'  => [ '½ tsp pepper',      [ 'amount' => '½',   'unit' => 'tsp',   'name' => 'pepper',      'notes' => '' ] ],
+            'range'         => [ '2–3 cups flour',    [ 'amount' => '2–3', 'unit' => 'cup',   'name' => 'flour',       'notes' => '' ] ],
             'german el'     => [ '2 EL Öl',           [ 'amount' => '2',   'unit' => 'tbsp',  'name' => 'Öl',          'notes' => '' ] ],
             'german stk'    => [ '1 Stk Zwiebel',     [ 'amount' => '1',   'unit' => 'piece', 'name' => 'Zwiebel',     'notes' => '' ] ],
             'paren note'    => [ '200 g Nudeln (Fleckerl)', [ 'amount' => '200', 'unit' => 'g', 'name' => 'Nudeln', 'notes' => 'Fleckerl' ] ],

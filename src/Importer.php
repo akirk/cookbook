@@ -27,20 +27,136 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Importer {
 
+    private const MAX_IMPORT_BODY_BYTES = 5242880; // 5 MB.
+    private const MAX_IMPORT_REDIRECTS = 5;
+
     public static function from_url( string $url ): ?array {
-        if ( $url === '' || ! filter_var( $url, FILTER_VALIDATE_URL ) ) {
+        if ( ! self::is_safe_import_url( $url ) ) {
             return null;
         }
 
-        $response = wp_remote_get( $url, [
-            'timeout'    => 12,
-            'user-agent' => 'Mozilla/5.0 (compatible; WP-Cookbook/1.0)',
-            'redirection' => 5,
-        ] );
-        if ( is_wp_error( $response ) ) return null;
-        $body = wp_remote_retrieve_body( $response );
-        if ( ! $body ) return null;
-        return self::from_html( $body );
+        for ( $redirects = 0; $redirects <= self::MAX_IMPORT_REDIRECTS; $redirects++ ) {
+            $response = wp_remote_get( $url, [
+                'timeout'             => 12,
+                'user-agent'          => 'Mozilla/5.0 (compatible; WP-Cookbook/1.0)',
+                'redirection'         => 0,
+                'reject_unsafe_urls'  => true,
+                'limit_response_size' => self::MAX_IMPORT_BODY_BYTES,
+            ] );
+            if ( is_wp_error( $response ) ) return null;
+
+            $code = function_exists( 'wp_remote_retrieve_response_code' )
+                ? (int) wp_remote_retrieve_response_code( $response )
+                : 200;
+            if ( $code >= 300 && $code < 400 ) {
+                $location = function_exists( 'wp_remote_retrieve_header' )
+                    ? wp_remote_retrieve_header( $response, 'location' )
+                    : '';
+                if ( is_array( $location ) ) {
+                    $location = reset( $location );
+                }
+                $next = is_string( $location )
+                    ? self::resolve_redirect_url( $url, $location )
+                    : null;
+                if ( $next === null ) {
+                    return null;
+                }
+                $url = $next;
+                continue;
+            }
+
+            if ( $code < 200 || $code >= 300 ) {
+                return null;
+            }
+
+            $body = wp_remote_retrieve_body( $response );
+            if ( ! $body || strlen( $body ) >= self::MAX_IMPORT_BODY_BYTES ) return null;
+            return self::from_html( $body );
+        }
+
+        return null;
+    }
+
+    private static function is_safe_import_url( string $url ): bool {
+        if ( $url === '' ) {
+            return false;
+        }
+
+        $parts = parse_url( $url );
+        if ( ! is_array( $parts ) || empty( $parts['scheme'] ) || empty( $parts['host'] ) ) {
+            return false;
+        }
+
+        $scheme = strtolower( (string) $parts['scheme'] );
+        if ( ! in_array( $scheme, [ 'http', 'https' ], true ) ) {
+            return false;
+        }
+
+        if ( isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
+            return false;
+        }
+
+        return self::is_allowed_import_host( (string) $parts['host'] );
+    }
+
+    private static function resolve_redirect_url( string $base_url, string $location ): ?string {
+        $location = trim( html_entity_decode( $location, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
+        if ( $location === '' ) {
+            return null;
+        }
+
+        $base = parse_url( $base_url );
+        if ( ! is_array( $base ) || empty( $base['scheme'] ) || empty( $base['host'] ) ) {
+            return null;
+        }
+
+        if ( preg_match( '#^[a-z][a-z0-9+.-]*://#i', $location ) ) {
+            $url = $location;
+        } elseif ( strpos( $location, '//' ) === 0 ) {
+            $url = strtolower( (string) $base['scheme'] ) . ':' . $location;
+        } else {
+            $prefix = strtolower( (string) $base['scheme'] ) . '://' . $base['host'];
+            if ( isset( $base['port'] ) ) {
+                $prefix .= ':' . (int) $base['port'];
+            }
+
+            if ( strpos( $location, '?' ) === 0 ) {
+                $path = $base['path'] ?? '/';
+                $url = $prefix . $path . $location;
+            } elseif ( strpos( $location, '/' ) === 0 ) {
+                $url = $prefix . $location;
+            } else {
+                $path = $base['path'] ?? '/';
+                $dir = preg_replace( '#/[^/]*$#', '/', $path );
+                $url = $prefix . $dir . $location;
+            }
+        }
+
+        return self::is_safe_import_url( $url ) ? $url : null;
+    }
+
+    private static function is_allowed_import_host( string $host ): bool {
+        $host = trim( $host, "[] \t\n\r\0\x0B." );
+        if ( $host === '' || strpos( $host, "\0" ) !== false ) {
+            return false;
+        }
+
+        if ( function_exists( 'idn_to_ascii' ) ) {
+            $ascii = idn_to_ascii( $host, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46 );
+            if ( is_string( $ascii ) && $ascii !== '' ) {
+                $host = $ascii;
+            }
+        }
+
+        if ( filter_var( $host, FILTER_VALIDATE_IP ) ) {
+            return true;
+        }
+
+        if ( ! preg_match( '/^[a-z0-9.-]+$/i', $host ) ) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -171,7 +287,8 @@ class Importer {
             . 'EL|TL|Stk|Stück|Msp|Pk|Pkg|Pck|Prise|Bund|Pkt|'
             . 'pinch|dash|cloves|clove|slices|slice|pieces|piece|cans|can|bunch';
 
-        $amount_pattern = '(?:\d+(?:[.,]\d+)?\s+\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?|[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])';
+        $single_amount_pattern = '(?:\d+(?:[.,]\d+)?\s+\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?|[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]|\d+\s*[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])';
+        $amount_pattern = '(?:' . $single_amount_pattern . '(?:\s*(?:-|–|—|to)\s*' . $single_amount_pattern . ')?)';
 
         if ( preg_match( '#^(' . $amount_pattern . ')\s*(' . $units_pattern . ')\b\.?\s+(.+)$#u', $line, $m ) ) {
             return self::ingredient_row( $m[1], $m[2], $m[3] );
@@ -206,12 +323,8 @@ class Importer {
     private static function extract_microdata_recipe( string $html ): ?array {
         if ( ! class_exists( '\\DOMDocument' ) ) return null;
 
-        $doc = new \DOMDocument();
-        $prev = libxml_use_internal_errors( true );
-        $loaded = $doc->loadHTML( '<?xml encoding="utf-8" ?>' . $html );
-        libxml_clear_errors();
-        libxml_use_internal_errors( $prev );
-        if ( ! $loaded ) return null;
+        $doc = self::load_html_document( $html );
+        if ( ! $doc ) return null;
 
         $xpath = new \DOMXPath( $doc );
         $recipe_nodes = $xpath->query( "//*[contains(@itemtype, '/Recipe')]" );
@@ -619,12 +732,8 @@ class Importer {
             return [];
         }
 
-        $doc = new \DOMDocument();
-        $prev = libxml_use_internal_errors( true );
-        $loaded = $doc->loadHTML( '<?xml encoding="utf-8" ?>' . $html );
-        libxml_clear_errors();
-        libxml_use_internal_errors( $prev );
-        if ( ! $loaded ) {
+        $doc = self::load_html_document( $html );
+        if ( ! $doc ) {
             return [];
         }
 
@@ -635,6 +744,15 @@ class Importer {
         }
 
         return self::extract_heading_based_recipe_parts( $xpath );
+    }
+
+    private static function load_html_document( string $html ): ?\DOMDocument {
+        $doc = new \DOMDocument();
+        $prev = libxml_use_internal_errors( true );
+        $loaded = $doc->loadHTML( '<?xml encoding="utf-8" ?>' . $html, LIBXML_NONET );
+        libxml_clear_errors();
+        libxml_use_internal_errors( $prev );
+        return $loaded ? $doc : null;
     }
 
     private static function extract_wprm_recipe_parts( \DOMXPath $xpath ): array {
@@ -956,6 +1074,7 @@ class Importer {
         if ( ! preg_match( '/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/', $duration, $m ) ) return 0;
         $h = isset( $m[1] ) && $m[1] !== '' ? (int) $m[1] : 0;
         $i = isset( $m[2] ) && $m[2] !== '' ? (int) $m[2] : 0;
-        return $h * 60 + $i;
+        $s = isset( $m[3] ) && $m[3] !== '' ? (int) $m[3] : 0;
+        return $h * 60 + $i + (int) ceil( $s / 60 );
     }
 }
