@@ -240,6 +240,84 @@ class ImporterTest extends TestCase {
         $this->assertSame( [ 'Mix everything.' ], $parsed['instructions'] );
     }
 
+    public function test_jsonld_total_time_only_falls_back_to_cook_time(): void {
+        $html = '<script type="application/ld+json">' . json_encode( [
+            '@context' => 'https://schema.org',
+            '@type' => 'Recipe',
+            'name' => 'Total Time Only',
+            'totalTime' => 'PT25M',
+            'recipeIngredient' => [ '200 g flour' ],
+            'recipeInstructions' => [ [ '@type' => 'HowToStep', 'text' => 'Mix everything.' ] ],
+        ] ) . '</script>';
+
+        $parsed = Importer::from_html( $html );
+
+        $this->assertIsArray( $parsed );
+        $this->assertSame( 0, $parsed['prep_time'] );
+        $this->assertSame(
+            25,
+            $parsed['cook_time'],
+            'A source that supplies only totalTime should not import with no time at all.'
+        );
+    }
+
+    public function test_explicit_prep_and_cook_times_win_over_total_time(): void {
+        $html = '<script type="application/ld+json">' . json_encode( [
+            '@context' => 'https://schema.org',
+            '@type' => 'Recipe',
+            'name' => 'All Three Times',
+            'prepTime'  => 'PT5M',
+            'cookTime'  => 'PT10M',
+            'totalTime' => 'PT15M',
+            'recipeIngredient' => [ '200 g flour' ],
+            'recipeInstructions' => [ [ '@type' => 'HowToStep', 'text' => 'Mix everything.' ] ],
+        ] ) . '</script>';
+
+        $parsed = Importer::from_html( $html );
+
+        $this->assertIsArray( $parsed );
+        $this->assertSame( 5,  $parsed['prep_time'] );
+        $this->assertSame( 10, $parsed['cook_time'] );
+    }
+
+    public function test_hellofresh_real_world_page(): void {
+        $parsed = Importer::from_html( $this->fixture( 'hellofresh-speedy-prawn-rigatoni.html' ) );
+
+        $this->assertIsArray( $parsed );
+
+        // The page publishes only totalTime, and that value is the total the
+        // site itself displays ("Total: 25 minutes"). Keep it rather than
+        // discarding it, and do not invent a prep/cook split — the page's
+        // __NEXT_DATA__ carries a second, larger "totalTime" that does not
+        // correspond to anything the reader is shown.
+        $this->assertSame( 0,  $parsed['prep_time'] );
+        $this->assertSame( 25, $parsed['cook_time'] );
+
+        // The unit(s) / sachet(s) idiom must keep the real ingredient name.
+        $names = array_column( $parsed['ingredients'], 'name' );
+        $this->assertContains( 'Courgette', $names );
+        $this->assertContains( 'Vegetable Stock', $names );
+
+        // Instruction markup must not survive into stored content.
+        $this->assertStringNotContainsString( '<li>', $parsed['instructions'][0] );
+        $this->assertStringNotContainsString( '<strong>', $parsed['instructions'][0] );
+        $this->assertStringContainsString( 'Boil a large pot of salted water', $parsed['instructions'][0] );
+    }
+
+    public function test_clean_step_strips_html_markup(): void {
+        $this->assertSame(
+            'Boil a large pot of salted water. Cook until softened, 12 mins.',
+            Importer::clean_step(
+                '<ul><li>Boil a large pot of <strong>salted water</strong>.</li>'
+                . '<li>Cook until softened, 12 mins.</li></ul>'
+            )
+        );
+        $this->assertSame( 'Mix everything', Importer::clean_step( '<p>Mix everything</p>' ) );
+        $this->assertSame( 'Whisk eggs then fold in flour', Importer::clean_step( 'Whisk eggs<br>then fold in flour' ) );
+        // Enumerator stripping still applies once the tags are gone.
+        $this->assertSame( 'Mix everything', Importer::clean_step( '<p>1. Mix everything</p>' ) );
+    }
+
     public function test_wprm_notes_do_not_keep_their_leading_separator(): void {
         // WP Recipe Maker renders "<name> (<notes>)", and some sites store the
         // joining comma inside the notes field itself — veganhuggs.com's
@@ -360,6 +438,12 @@ class ImporterTest extends TestCase {
             'paren note'    => [ '200 g Nudeln (Fleckerl)', [ 'amount' => '200', 'unit' => 'g', 'name' => 'Nudeln', 'notes' => 'Fleckerl' ] ],
             'alternate unit' => [ '700 g (1 1/2 lb) baby potatoes, washed', [ 'amount' => '700', 'unit' => 'g', 'name' => 'baby potatoes', 'notes' => 'washed' ] ],
             'no number'     => [ 'Salt to taste',     [ 'amount' => '',    'unit' => '',      'name' => 'Salt to taste', 'notes' => '' ] ],
+            // Meal-kit pluralisation idiom: the "(s)" must not be read as the
+            // start of a parenthetical note, which would leave name = "unit".
+            'unit(s) idiom'   => [ '1 unit(s) Courgette',           [ 'amount' => '1', 'unit' => 'piece',  'name' => 'Courgette',       'notes' => '' ] ],
+            'unit(s) frac'    => [ '½ unit(s) Lemon',               [ 'amount' => '½', 'unit' => 'piece',  'name' => 'Lemon',           'notes' => '' ] ],
+            'sachet(s) idiom' => [ '1 sachet(s) Vegetable Stock',   [ 'amount' => '1', 'unit' => 'packet', 'name' => 'Vegetable Stock', 'notes' => '' ] ],
+            'pack(s) idiom'   => [ '1 pack(s) Coconut Milk',        [ 'amount' => '1', 'unit' => 'packet', 'name' => 'Coconut Milk',    'notes' => '' ] ],
             // HelloFresh leads with the qualifier instead of trailing it, so the
             // ingredient has to be lifted out of the phrase to index correctly.
             'leading to taste'      => [ 'to taste Salt',       [ 'amount' => '',  'unit' => '',    'name' => 'Salt',   'notes' => 'to taste' ] ],
