@@ -279,6 +279,17 @@ class Importer {
     public static function parse_ingredient_line( string $line ): array {
         $line = preg_replace( '#^\s*[-*•]\s*#u', '', $line );
 
+        // Some sites lead with the quantity qualifier rather than trailing it:
+        // HelloFresh writes "to taste Salt". Lift it out so the ingredient name
+        // is the ingredient, and record the qualifier as a note. The trailing
+        // form ("Salt to taste") is left alone -- there the whole phrase reads
+        // as the name and existing behaviour covers it.
+        $qualifier = '';
+        if ( preg_match( '/^(to taste)\s+(.+)$/iu', $line, $q ) ) {
+            $qualifier = 'to taste';
+            $line      = $q[2];
+        }
+
         // Longest alternatives first so regex doesn't match a prefix (e.g. "kg" before "g").
         $units_pattern = 'kilograms|kilogram|milliliters|milliliter|millilitres|millilitre|'
             . 'tablespoons|tablespoon|teaspoons|teaspoon|fluid ounce|'
@@ -291,12 +302,18 @@ class Importer {
         $amount_pattern = '(?:' . $single_amount_pattern . '(?:\s*(?:-|–|—|to)\s*' . $single_amount_pattern . ')?)';
 
         if ( preg_match( '#^(' . $amount_pattern . ')\s*(' . $units_pattern . ')\b\.?\s+(.+)$#u', $line, $m ) ) {
-            return self::ingredient_row( $m[1], $m[2], $m[3] );
+            $row = self::ingredient_row( $m[1], $m[2], $m[3] );
+        } elseif ( preg_match( '#^(' . $amount_pattern . ')\s+(.+)$#u', $line, $m ) ) {
+            $row = self::ingredient_row( $m[1], '', $m[2] );
+        } else {
+            $row = self::ingredient_row( '', '', $line );
         }
-        if ( preg_match( '#^(' . $amount_pattern . ')\s+(.+)$#u', $line, $m ) ) {
-            return self::ingredient_row( $m[1], '', $m[2] );
+
+        if ( $qualifier !== '' ) {
+            $row['notes'] = $row['notes'] === '' ? $qualifier : $qualifier . ', ' . $row['notes'];
         }
-        return self::ingredient_row( '', '', $line );
+
+        return $row;
     }
 
     private static function ingredient_row( string $amount, string $unit, string $rest ): array {

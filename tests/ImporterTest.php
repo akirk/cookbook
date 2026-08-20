@@ -289,6 +289,11 @@ class ImporterTest extends TestCase {
             'paren note'    => [ '200 g Nudeln (Fleckerl)', [ 'amount' => '200', 'unit' => 'g', 'name' => 'Nudeln', 'notes' => 'Fleckerl' ] ],
             'alternate unit' => [ '700 g (1 1/2 lb) baby potatoes, washed', [ 'amount' => '700', 'unit' => 'g', 'name' => 'baby potatoes', 'notes' => 'washed' ] ],
             'no number'     => [ 'Salt to taste',     [ 'amount' => '',    'unit' => '',      'name' => 'Salt to taste', 'notes' => '' ] ],
+            // HelloFresh leads with the qualifier instead of trailing it, so the
+            // ingredient has to be lifted out of the phrase to index correctly.
+            'leading to taste'      => [ 'to taste Salt',       [ 'amount' => '',  'unit' => '',    'name' => 'Salt',   'notes' => 'to taste' ] ],
+            'leading to taste caps' => [ 'To Taste Pepper',     [ 'amount' => '',  'unit' => '',    'name' => 'Pepper', 'notes' => 'to taste' ] ],
+            'leading plus amount'   => [ 'to taste 2 tsp salt', [ 'amount' => '2', 'unit' => 'tsp', 'name' => 'salt',   'notes' => 'to taste' ] ],
         ];
     }
 }
