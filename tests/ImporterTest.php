@@ -318,6 +318,34 @@ class ImporterTest extends TestCase {
         $this->assertSame( 'Mix everything', Importer::clean_step( '<p>1. Mix everything</p>' ) );
     }
 
+    public function test_wprm_notes_do_not_keep_their_leading_separator(): void {
+        // WP Recipe Maker renders "<name> (<notes>)", and some sites store the
+        // joining comma inside the notes field itself — veganhuggs.com's
+        // "1 small red onion (, diced)" comes from a notes value of ", diced".
+        $html = '<script type="application/ld+json">' . json_encode( [
+            '@context' => 'https://schema.org',
+            '@type' => 'Recipe',
+            'name' => 'WPRM Notes',
+            'recipeIngredient' => [ '1 small red onion (, diced)' ],
+            'recipeInstructions' => [ [ '@type' => 'HowToStep', 'text' => 'Fry it.' ] ],
+        ] ) . '</script>'
+        . '<div class="wprm-recipe-ingredient-group">'
+        . '<h4 class="wprm-recipe-group-name">Base</h4>'
+        . '<ul><li class="wprm-recipe-ingredient">'
+        . '<span class="wprm-recipe-ingredient-amount">1</span>'
+        . '<span class="wprm-recipe-ingredient-unit">small</span>'
+        . '<span class="wprm-recipe-ingredient-name">red onion</span>'
+        . '<span class="wprm-recipe-ingredient-notes">, diced</span>'
+        . '</li></ul></div>';
+
+        $parsed = Importer::from_html( $html );
+
+        $this->assertIsArray( $parsed );
+        $ingredient = $parsed['parts'][0]['ingredients'][0] ?? $parsed['ingredients'][0];
+        $this->assertSame( 'red onion', $ingredient['name'] );
+        $this->assertSame( 'diced', $ingredient['notes'], 'The note should not keep its leading comma.' );
+    }
+
     public function test_jsonld_iso8601_seconds_round_up_to_minutes(): void {
         $html = '<script type="application/ld+json">' . json_encode( [
             '@context' => 'https://schema.org',
@@ -352,6 +380,49 @@ class ImporterTest extends TestCase {
     /** @dataProvider ingredientLines */
     public function test_parse_ingredient_line( string $line, array $expected ): void {
         $this->assertSame( $expected, Importer::parse_ingredient_line( $line ) );
+    }
+
+    public function test_parse_ingredient_line_handles_preparation_before_ingredient(): void {
+        // bbcgoodfood.com writes "140g cooled, cooked rice" — the preparation
+        // first, the reverse of the usual "<ingredient>, <preparation>" order.
+        // Without the swap this registers "cooled" as the ingredient.
+        $this->assertSame(
+            [ 'amount' => '140', 'unit' => 'g', 'name' => 'cooked rice', 'notes' => 'cooled' ],
+            Importer::parse_ingredient_line( '140g cooled, cooked rice' )
+        );
+
+        // A multi-word left side is never swapped, so the common order stands.
+        $this->assertSame(
+            [ 'amount' => '1', 'unit' => '', 'name' => 'baby potatoes', 'notes' => 'washed' ],
+            Importer::parse_ingredient_line( '1 baby potatoes, washed' )
+        );
+
+        // Nor is a single word that is not a preparation.
+        $this->assertSame(
+            'onion',
+            Importer::parse_ingredient_line( '1 onion, finely chopped' )['name']
+        );
+    }
+
+    public function test_parse_ingredient_line_keeps_a_capitalised_compound_name(): void {
+        // HelloFresh sells "Garlic, Ginger & Lemongrass Paste" as a single item.
+        // The comma belongs to the name, so the line must not be split at all.
+        $this->assertSame(
+            [ 'amount' => '2', 'unit' => 'tbsp', 'name' => 'Garlic, Ginger & Lemongrass Paste', 'notes' => '' ],
+            Importer::parse_ingredient_line( '2 tbsp Garlic, Ginger & Lemongrass Paste' )
+        );
+
+        // A lower-case right-hand side is still a note, whatever the left side.
+        $this->assertSame(
+            [ 'amount' => '2', 'unit' => 'tbsp', 'name' => 'Chicken', 'notes' => 'diced' ],
+            Importer::parse_ingredient_line( '2 tbsp Chicken, diced' )
+        );
+
+        // "(" always opens a note, even between capitals.
+        $this->assertSame(
+            [ 'amount' => '200', 'unit' => 'g', 'name' => 'Nudeln', 'notes' => 'Fleckerl' ],
+            Importer::parse_ingredient_line( '200 g Nudeln (Fleckerl)' )
+        );
     }
 
     public static function ingredientLines(): array {
