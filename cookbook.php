@@ -7,6 +7,7 @@
  * Author URI: https://alex.kirk.at/
  * Text Domain: cookbook
  * Domain Path: /languages
+ * Tested up to: 7.1
  * Requires PHP: 7.4
  * Requires at least: 6.0
  * License: GPL-2.0-or-later
