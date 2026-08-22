@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Cookbook
  * Description: A personal cookbook: store, categorize, scale and import recipes from the web.
- * Version: 1.0.0
+ * Version: 1.0.0+1720f8ae3fcd
  * Author: Alex Kirk
  * Author URI: https://alex.kirk.at/
  * Text Domain: cookbook
