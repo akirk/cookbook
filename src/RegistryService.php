@@ -36,7 +36,45 @@ class RegistryService extends AbstractService {
         flush_rewrite_rules();
     }
 
+    public static function require_login_for_rest( $result, $server, $request ) {
+        if ( is_user_logged_in() ) {
+            return $result;
+        }
+
+        $route = $request->get_route();
+        $bases = [
+            App::POST_TYPE,
+            App::SHOPPING_LIST_POST_TYPE,
+            App::WEEK_PLAN_POST_TYPE,
+            App::COOKED_ENTRY_POST_TYPE,
+            App::TAX_CATEGORY,
+            App::TAX_CUISINE,
+            App::TAX_TAG,
+            App::TAX_INGREDIENT,
+        ];
+        foreach ( $bases as $base ) {
+            if ( 0 === strpos( $route, '/wp/v2/' . $base ) ) {
+                return new \WP_Error(
+                    'rest_login_required',
+                    __( 'Authentication is required to read this data.', 'cookbook' ),
+                    [ 'status' => rest_authorization_required_code() ]
+                );
+            }
+        }
+
+        return $result;
+    }
+
     public function register_post_type(): void {
+        // REST reads must be gated: front-end require_login does not cover the
+        // REST API, and core keys anonymous read access off show_in_rest alone
+        // (not 'public'). Use wp-app's Access gate; if an older wp-app without it
+        // is the loaded copy, fall back to a request filter.
+        $rest_gate = class_exists( '\\WpApp\\Rest\\Access' );
+        if ( ! $rest_gate ) {
+            add_filter( 'rest_pre_dispatch', [ __CLASS__, 'require_login_for_rest' ], 10, 3 );
+        }
+
         register_post_type( App::POST_TYPE, [
             'labels' => [
                 'name'               => __( 'Recipes', 'cookbook' ),
@@ -54,6 +92,7 @@ class RegistryService extends AbstractService {
             'show_ui'            => true,
             'show_in_menu'       => true,
             'show_in_rest'       => true,
+            'rest_controller_class' => $rest_gate ? \WpApp\Rest\Access::protect_post_type( App::POST_TYPE, 'read' ) : null,
             'menu_icon'          => 'dashicons-food',
             'supports'           => [ 'title', 'editor', 'thumbnail', 'excerpt', 'author', 'revisions' ],
             'has_archive'        => false,
@@ -152,6 +191,7 @@ class RegistryService extends AbstractService {
             'show_ui'            => true,
             'show_in_menu'       => 'edit.php?post_type=' . App::POST_TYPE,
             'show_in_rest'       => true,
+            'rest_controller_class' => $rest_gate ? \WpApp\Rest\Access::protect_post_type( App::SHOPPING_LIST_POST_TYPE, 'read' ) : null,
             'hierarchical'       => true,
             'supports'           => [ 'title', 'author', 'page-attributes' ],
             'has_archive'        => false,
@@ -208,6 +248,7 @@ class RegistryService extends AbstractService {
             'show_ui'            => true,
             'show_in_menu'       => 'edit.php?post_type=' . App::POST_TYPE,
             'show_in_rest'       => true,
+            'rest_controller_class' => $rest_gate ? \WpApp\Rest\Access::protect_post_type( App::WEEK_PLAN_POST_TYPE, 'read' ) : null,
             'supports'           => [ 'title', 'author', 'revisions' ],
             'has_archive'        => false,
             'rewrite'            => false,
@@ -247,6 +288,7 @@ class RegistryService extends AbstractService {
             'show_ui'            => true,
             'show_in_menu'       => 'edit.php?post_type=' . App::POST_TYPE,
             'show_in_rest'       => true,
+            'rest_controller_class' => $rest_gate ? \WpApp\Rest\Access::protect_post_type( App::COOKED_ENTRY_POST_TYPE, 'read' ) : null,
             'supports'           => [ 'title', 'author' ],
             'has_archive'        => false,
             'rewrite'            => false,
@@ -275,6 +317,7 @@ class RegistryService extends AbstractService {
             'hierarchical'      => true,
             'show_ui'           => true,
             'show_in_rest'      => true,
+            'rest_controller_class' => $rest_gate ? \WpApp\Rest\Access::protect_taxonomy( App::TAX_CATEGORY, 'read' ) : null,
             'show_admin_column' => true,
             'rewrite'           => false,
         ] );
@@ -286,6 +329,7 @@ class RegistryService extends AbstractService {
             'hierarchical'      => true,
             'show_ui'           => true,
             'show_in_rest'      => true,
+            'rest_controller_class' => $rest_gate ? \WpApp\Rest\Access::protect_taxonomy( App::TAX_CUISINE, 'read' ) : null,
             'show_admin_column' => true,
             'rewrite'           => false,
         ] );
@@ -297,6 +341,7 @@ class RegistryService extends AbstractService {
             'hierarchical'      => false,
             'show_ui'           => true,
             'show_in_rest'      => true,
+            'rest_controller_class' => $rest_gate ? \WpApp\Rest\Access::protect_taxonomy( App::TAX_TAG, 'read' ) : null,
             'show_admin_column' => true,
             'rewrite'           => false,
         ] );
@@ -310,6 +355,7 @@ class RegistryService extends AbstractService {
             'hierarchical'      => true,
             'show_ui'           => true,
             'show_in_rest'      => true,
+            'rest_controller_class' => $rest_gate ? \WpApp\Rest\Access::protect_taxonomy( App::TAX_INGREDIENT, 'read' ) : null,
             'show_admin_column' => false,
             'rewrite'           => false,
         ] );
