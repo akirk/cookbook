@@ -55,10 +55,24 @@ class App extends BaseApp {
     public function __construct( ?ServiceContainer $services = null ) {
         $this->services = $services ?: ServiceContainer::default();
         $this->app = new WpApp( $this->get_template_dir(), $this->get_url_path(), [
-            'require_login'        => true,
-            'app_name'             => 'Cookbook',
-            'app_name_textdomain'  => 'cookbook',
-            'my_apps_icon'         => 'dashicons-food',
+            'require_login'       => true,
+            'app_name'            => 'Cookbook',
+            'app_name_textdomain' => 'cookbook',
+            'app_icon'            => 'dashicons-food',
+            // Owned content: REST reads are gated with the app's capability and
+            // OpenStation keeps these menus out of its dock.
+            'post_types'          => [
+                self::POST_TYPE,
+                self::SHOPPING_LIST_POST_TYPE,
+                self::WEEK_PLAN_POST_TYPE,
+                self::COOKED_ENTRY_POST_TYPE,
+            ],
+            'taxonomies'          => [
+                self::TAX_CATEGORY,
+                self::TAX_CUISINE,
+                self::TAX_TAG,
+                self::TAX_INGREDIENT,
+            ],
         ] );
     }
 
