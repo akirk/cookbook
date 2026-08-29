@@ -59,6 +59,9 @@ class App extends BaseApp {
             'app_name'            => 'Cookbook',
             'app_name_textdomain' => 'cookbook',
             'app_icon'            => 'dashicons-food',
+            'app_icon_background' => 'linear-gradient(135deg, #f7971e, #ffd200)',
+            'app_icon_color'      => '#fff',
+            'app_icon_shadow'     => true,
             // Owned content: REST reads are gated with the app's capability and
             // OpenStation keeps these menus out of its dock.
             'post_types'          => [
