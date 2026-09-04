@@ -82,7 +82,7 @@ class Importer {
             return false;
         }
 
-        $parts = parse_url( $url );
+        $parts = wp_parse_url( $url );
         if ( ! is_array( $parts ) || empty( $parts['scheme'] ) || empty( $parts['host'] ) ) {
             return false;
         }
@@ -105,7 +105,7 @@ class Importer {
             return null;
         }
 
-        $base = parse_url( $base_url );
+        $base = wp_parse_url( $base_url );
         if ( ! is_array( $base ) || empty( $base['scheme'] ) || empty( $base['host'] ) ) {
             return null;
         }
