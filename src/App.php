@@ -142,6 +142,13 @@ class App extends BaseApp {
         add_action( 'transition_post_status', [ $registry, 'maybe_flush_home_ingredient_stats_cache_for_status' ], 10, 3 );
 
         parent::init();
+
+        // BaseApp defers setup_menu() to the app's own init filter, which WpApp
+        // applies from an init callback it adds at priority 10 -- the priority
+        // whose iteration we are inside right now, so that callback is never
+        // reached and the menu stays empty. Build it directly instead, for the
+        // same reason the post type and taxonomies are registered above.
+        $this->setup_menu();
     }
 
     protected function setup_database(): void {
@@ -166,10 +173,12 @@ class App extends BaseApp {
 
     protected function setup_menu(): void {
         $home = home_url( '/' . $this->get_url_path() . '/' );
-        $this->app->add_menu_item( 'all', __( 'All recipes', 'cookbook' ), $home );
-        $this->app->add_menu_item( 'cooked', __( 'Cooking history', 'cookbook' ), $home . 'cooked' );
+        // The sections come first, in the order cookbook_page_head() lists them,
+        // so the admin bar and the in-page section nav read the same way.
+        $this->app->add_menu_item( 'all', __( 'Recipes', 'cookbook' ), $home );
         $this->app->add_menu_item( 'shopping-list', __( 'Shopping list', 'cookbook' ), $home . 'shopping-list' );
         $this->app->add_menu_item( 'planner', __( 'Week planner', 'cookbook' ), $home . 'planner' );
+        $this->app->add_menu_item( 'cooked', __( 'Cooking history', 'cookbook' ), $home . 'cooked' );
         $this->app->add_menu_item( 'by-ingredients', __( 'By ingredients', 'cookbook' ), $home . 'by-ingredients' );
         $this->app->add_menu_item( 'manage-ingredients', __( 'Manage ingredients', 'cookbook' ), $home . 'manage-ingredients' );
         $this->app->add_menu_item( 'new', __( 'New recipe', 'cookbook' ), $home . 'new' );
