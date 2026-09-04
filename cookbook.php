@@ -1,17 +1,18 @@
 <?php
 /**
  * Plugin Name: Cookbook
- * Description: A personal cookbook: store, categorize, scale and import recipes from the web.
+ * Plugin URI: https://github.com/akirk/cookbook
+ * Description: A personal cookbook for WordPress: store, import, categorize, scale, plan and shop from your own recipes.
  * Version: 1.0.0
- * Author: Alex Kirk
- * Author URI: https://alex.kirk.at/
- * Text Domain: cookbook
- * Domain Path: /languages
+ * Requires at least: 6.0
  * Tested up to: 7.1
  * Requires PHP: 7.4
- * Requires at least: 6.0
+ * Author: Alex Kirk
+ * Author URI: https://alex.kirk.at/
  * License: GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain: cookbook
+ * Domain Path: /languages
  */
 
 namespace Cookbook;

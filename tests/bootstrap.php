@@ -45,6 +45,9 @@ if ( ! function_exists( 'esc_url' ) ) {
 if ( ! function_exists( 'esc_url_raw' ) ) {
     function esc_url_raw( $url ) { return (string) $url; }
 }
+if ( ! function_exists( 'wp_parse_url' ) ) {
+    function wp_parse_url( $url, $component = -1 ) { return parse_url( (string) $url, $component ); }
+}
 if ( ! function_exists( 'wp_remote_get' ) ) {
     function wp_remote_get( $url, $args = [] ) {
         $GLOBALS['wp_remote_get_calls'][] = [ $url, $args ];
