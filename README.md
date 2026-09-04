@@ -1,7 +1,7 @@
 # Cookbook
 
 - Contributors: akirk
-- Tags: recipes, cooking, meal-planner, shopping-list, import
+- Tags: recipes, cooking, meal-planner, shopping-list, wp-app
 - Requires at least: 6.0
 - Requires PHP: 7.4
 - Tested up to: 7.1
