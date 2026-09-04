@@ -1,21 +1,19 @@
 # Cookbook
 
-Contributors: akirk
-Tags: recipes, cooking, meal-planner, shopping-list, import
-Requires at least: 6.0
-Tested up to: 7.1
-Stable tag: 1.0.0
-Requires PHP: 7.4
-License: GPL-2.0-or-later
-License URI: https://www.gnu.org/licenses/gpl-2.0.html
+- Contributors: akirk
+- Tags: recipes, cooking, meal-planner, shopping-list, import
+- Requires at least: 6.0
+- Requires PHP: 7.4
+- Tested up to: 7.1
+- Stable tag: 1.0.0
+- License: GPL-2.0-or-later
+- License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-A personal cookbook for WordPress. Store, import, categorize, cook, scale, convert, plan, and shop from your own recipes.
-
-[Try Cookbook in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/cookbook/main/blueprint.json) · [Try it with demo data](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/cookbook/main/demo.json)
-
-[Try it in OpenStation](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/cookbook/main/blueprint-openstation.json) — the same app opened in desktop mode with the [OpenStation](https://github.com/WordPress/openstation) plugin.
+A personal cookbook for WordPress: store, import, categorize, scale, plan and shop from your own recipes.
 
 ## Description
+
+[Try Cookbook in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/cookbook/main/blueprint.json) · [Try it with demo data](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/cookbook/main/demo.json) · [Try it in OpenStation](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/cookbook/main/blueprint-openstation.json), the same app opened in desktop mode with the [OpenStation](https://github.com/WordPress/openstation) plugin.
 
 Cookbook gives your WordPress site a private recipe app at `/cookbook/`. Recipes are stored as WordPress content, with structured ingredients, instructions, categories, cuisines, tags, photos, serving sizes, prep and cook times, source URLs, and notes.
 
@@ -116,12 +114,7 @@ Yes. The text domain is `cookbook`, and a German translation is included.
 
 ## Screenshots
 
-1. Recipe list at `/cookbook/`.
-2. Recipe view with serving scaling, unit switching, shopping-list actions, cooking mode, and cooking history.
-3. Recipe import page with URL and pasted-text import.
-4. Weekly meal planner.
-5. Shopping list shop mode.
-6. Ingredient management tools.
+1. A recipe page in the Cookbook app, with its photo and the app navigation for recipes, shopping list, planner, cooking history and ingredients.
 
 ## Changelog
 
