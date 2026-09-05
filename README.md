@@ -115,6 +115,7 @@ Yes. The text domain is `cookbook`, and a German translation is included.
 ## Screenshots
 
 1. A recipe page in the Cookbook app, with its photo and the app navigation for recipes, shopping list, planner, cooking history and ingredients.
+2. The same recipe on a phone, where the navigation wraps and the photo, times and servings stack.
 
 ## Changelog
 
