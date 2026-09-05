@@ -3,7 +3,7 @@
  * Plugin Name: Cookbook
  * Plugin URI: https://github.com/akirk/cookbook
  * Description: A personal cookbook for WordPress: store, import, categorize, scale, plan and shop from your own recipes.
- * Version: 1.0.0
+ * Version: 1.0.0+d96de5e45c0a
  * Requires at least: 6.0
  * Tested up to: 7.1
  * Requires PHP: 7.4
