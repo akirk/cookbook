@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Cookbook
- * Plugin URI: https://github.com/akirk/cookbook
+ * Plugin URI: https://wpapps.kirk.at/apps/cookbook/
  * Description: A personal cookbook for WordPress: store, import, categorize, scale, plan and shop from your own recipes.
  * Version: 1.0.0
  * Requires at least: 6.0
