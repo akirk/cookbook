@@ -183,14 +183,6 @@ include __DIR__ . '/_header.php';
     <?php endif; ?>
 <?php endif; ?>
 
-<script>
-(function () {
-    // Toggle the .on class as the user clicks chips, so the visual state matches
-    // the checkbox without a round-trip. The form still submits via the button.
-    document.querySelectorAll('.ing-chip input[type="checkbox"]').forEach(cb => {
-        cb.addEventListener('change', () => cb.closest('.ing-chip').classList.toggle('on', cb.checked));
-    });
-})();
-</script>
+
 
 <?php include __DIR__ . '/_footer.php'; ?>
